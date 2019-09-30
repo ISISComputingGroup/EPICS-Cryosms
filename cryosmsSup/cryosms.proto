@@ -1,0 +1,164 @@
+ReplyTimeout = 200;
+OutTerminator = CR LF;
+InTerminator = 0x13;
+
+getDirection {
+    InTerminator = CR LF;
+	out "GET SIGN";
+	wait 50;
+	in "CURRENT DIRECTION: %{ZERO|NEGATIVE|POSITIVE}";
+	wait 100;
+}
+	
+setDirection {
+	out "D %{0|-|+}";
+	wait 50;
+	in "";
+}	
+
+getOutputMode {
+    out "T";
+    wait 50;
+    in "%*8c UNITS: %{AMPS|TESLA}";
+    wait 100;
+}
+
+setOutputMode {
+    out "T %{OFF|ON}";
+    wait 50;
+    in "%*8c UNITS: %*{AMPS|TESLA}";
+    wait 100;
+}
+
+getOutput {
+	out "GET O";
+	wait 50;
+	in "OUTPUT: %f %*{AMPS|TESLA} AT %*f VOLTS ";
+	wait 100;
+}
+
+getRampTarget {
+	out "RAMP STATUS";
+	wait 50;
+	in "%#s";
+	wait 100;
+}
+
+setRampTarget {
+	out "RAMP %{ZERO|MID|MAX}"; 
+	wait 50;
+	in "%*1c";
+	wait 100;
+}
+
+getRampRate {
+	out "GET RATE";
+	wait 50;
+	in "%*8c RAMP RATE: %f A/SEC";
+	wait 100;
+}
+
+setRampRate {
+	out "SET RAMP %f";
+	wait 50;
+	in "%*8c RAMP RATE: %*f A/SEC";
+	wait 100;
+}
+	
+getHeaterStatus {
+	out "HEATER";
+	wait 50;
+	in "%*8c HEATER STATUS: %s";
+	wait 100;
+}
+
+setHeaterStatus {
+	out "H %{OFF|ON}";
+	wait 50;
+	in "%*60c";
+	wait 100;
+}
+
+getHeaterValue {
+	out "GET H";
+	wait 50;
+	in "%*8c HEATER OUTPUT: %f VOLTS";
+	wait 100;
+}
+
+setHeaterValue {
+	out "S H %f";
+	wait 50;
+	in "%*8c HEATER OUTPUT: %*f VOLTS";
+	wait 100;
+}
+
+getLimit {
+	out "GET VL";
+	wait 50;
+	in "%*8c VOLTAGE LIMIT: %f VOLTS";
+	wait 100;
+}
+
+setLimit {
+	out "S L %f";
+	wait 50;
+	in "%*8c VOLTAGE LIMIT: %*f VOLTS";
+	wait 100;
+}
+
+getConstant {
+	out "GET TPA";
+	wait 50;
+	in "%*8c FIELD CONSTANT: %f T/A";
+	wait 100;
+}
+
+setConstant {
+	out "SET TPA %f";
+	wait 50;
+	in "%*8c FIELD CONSTANT: %*f T/A";
+	wait 100;
+}
+
+setMaxTarget {
+	out "SET MAX %f";
+	wait 50;
+	in "%*8c MAX SETTING: %*f %*{AMPS|TESLA}";
+	wait 100;
+}
+
+getMaxTarget {
+	out "GET MAX";
+	wait 50;
+	in "%*8c MAX SETTING: %f %*{AMPS|TESLA}";
+	wait 100;
+}
+
+setMidTarget {
+	out "SET MID %f";
+	wait 50;
+	in "%*8c MID SETTING: %*f %*{AMPS|TESLA}";
+	wait 100;
+}
+
+getMidTarget {
+	out "GET MID";
+	wait 50;
+	in "%*8c MID SETTING: %f %*{AMPS|TESLA}";
+	wait 100;
+}
+	
+getPause {
+	out "P";
+	wait 50;
+	in "%*8c PAUSE STATUS: %{OFF|ON}";
+	wait 100;
+}	
+
+setPause {
+	out "P %{OFF|ON}";
+	wait 50;
+	in "%*8c PAUSE STATUS: %*{OFF|ON}";
+	wait 100;
+}

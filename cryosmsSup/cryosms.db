@@ -1,0 +1,65 @@
+#
+# Simple database and stream protocol file for basic SCPI (IEEE488.2) commands
+#
+
+
+#
+# Short and long form of identification string
+#
+record(bi, "$(P)SIM")
+{
+    field(DTYP, "Soft Channel")
+    field(ZNAM, "NO")
+    field(ONAM, "YES")
+    field(VAL, "$(RECSIM=0)")
+}
+
+record(bo, "$(P)DISABLE") 
+{
+  field(DESC, "Disable comms")
+  field(PINI, "YES")
+  field(VAL, "$(DISABLE=0)")
+  field(OMSL, "supervisory")
+  field(ZNAM, "COMMS ENABLED")
+  field(ONAM, "COMMS DISABLED")
+}
+
+record(mbbi, "$(P)OUTPUTMODE")
+{
+    field(DESC, "Reads output mode - amps or tesla")
+    field(DTYP, "stream")
+    field(INP, "@cryosms.proto getOutputMode $(PORT)")
+    field(ZRVL, "0") field(ZRST, "AMPS")
+    field(ONVL, "1") field(ONST, "TESLA")
+    field(VAL, "1")
+    # field(SIML, "SIM")
+    # field(SIOL, "OUTPUTMODE:SP")
+    # field(SDIS, "$(P)DISABLE")
+    field(SCAN, "1 second")
+}
+
+record(bo, "$(P)HIDDEN:OUTPUTMODE:SP")
+{
+    field(DTYP, "stream")
+    field(ASG, "HIDDEN")
+    field(OUT, "@cryosms.proto setOutputMode $(PORT)")
+    field(SCAN, "Passive")
+    field(ZNAM, "AMPS")
+    field(ONAM, "TESLA")
+    field(VAL, "1")
+}
+
+record(bo, "$(P)OUTPUTMODE:SP")
+{
+    field(DESC, "Set output mode - amps(0) or tesla(1)")
+    field(DTYP, "asynInt32")
+    field(OUT, "@asyn($(ASYN_PORT),0,0)OUTPUTMODE_SET")
+    field(SCAN, "Passive")
+    field(ZNAM, "AMPS")
+    field(ONAM, "TESLA")
+    field(VAL, "1")
+    # field(SIML, "SIM")
+    # field(SIOL, "SIM:OUTPUTMODE:SP")
+    # field(SDIS, "DISABLE")
+}
+

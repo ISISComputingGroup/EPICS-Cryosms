@@ -1,0 +1,10 @@
+
+record($(RECORD_TYPE), "$(P)TESTRECORD:$(RECORD_NAME)")
+{
+    field(ASG, "READONLY")
+    field(DISV, "0")
+}
+record(ai, "$(P)TESTRECORD:$(RECORD_NAME)FLNK")
+{
+    field(FLNK, "$(P)TESTRECORD:$(RECORD_NAME)")
+}
