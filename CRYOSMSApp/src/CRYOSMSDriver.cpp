@@ -32,7 +32,7 @@
 
 static const char *driverName = "CRYOSMSDriver"; ///< Name of driver for use in message printing 
 
-CRYOSMSDriver::CRYOSMSDriver(const char *portName)
+CRYOSMSDriver::CRYOSMSDriver(const char *portName, std::string devPrefix)
   : asynPortDriver(portName,
 	0, /* maxAddr */
 	NUM_SMS_PARAMS, /* num parameters */
@@ -46,6 +46,7 @@ CRYOSMSDriver::CRYOSMSDriver(const char *portName)
 	static const char *functionName = "asynPortDriver";
 	createParam(P_deviceNameString, asynParamOctet, &P_deviceName);
 	createParam(P_outputModeSetString, asynParamOctet, &P_outputModeSet);
+	this->devicePrefix = devPrefix;
 	
 }
 void CRYOSMSDriver::pollerTask()
@@ -68,7 +69,7 @@ asynStatus CRYOSMSDriver::writeInt32(asynUser *pasynUser, epicsInt32 value)
 
 asynStatus CRYOSMSDriver::putDb(std::string pvSuffix, const void *value) {
 	DBADDR addr;
-	std::string fullPV = "TE:NDLT1172:CRYOSMS_01:"+ pvSuffix;
+	std::string fullPV = this->devicePrefix + pvSuffix;
 	if (dbNameToAddr(fullPV.c_str(), &addr)) {
 		throw std::runtime_error("PV not found: " + fullPV);
 		return asynError;
@@ -80,11 +81,11 @@ asynStatus CRYOSMSDriver::putDb(std::string pvSuffix, const void *value) {
 
 extern "C"
 {
-	int CRYOSMSConfigure(const char *portName)
+	int CRYOSMSConfigure(const char *portName, std::string devPrefix)
 	{
 		try
 		{
-			new CRYOSMSDriver(portName);
+			new CRYOSMSDriver(portName, devPrefix);
 			return asynSuccess;
 		}
 		catch (const std::exception &ex)
@@ -96,14 +97,15 @@ extern "C"
 	// EPICS iocsh shell commands 
 
 	static const iocshArg initArg0 = { "portName", iocshArgString };			///< A name for the asyn driver instance we will create - used to refer to it from EPICS DB files
+	static const iocshArg initArg1 = { "devicePrefix", iocshArgString };
 
-	static const iocshArg * const initArgs[] = { &initArg0 };
+	static const iocshArg * const initArgs[] = { &initArg0, &initArg1 };
 
 	static const iocshFuncDef initFuncDef = { "CRYOSMSConfigure", sizeof(initArgs) / sizeof(iocshArg*), initArgs };
 
 	static void initCallFunc(const iocshArgBuf *args)
 	{
-		CRYOSMSConfigure(args[0].sval);
+		CRYOSMSConfigure(args[0].sval, args[1].sval);
 	}
 
 	/// Register new commands with EPICS IOC shell

@@ -5,9 +5,11 @@
 class epicsShareClass CRYOSMSDriver : public asynPortDriver
 {
 public:
-	CRYOSMSDriver(const char *portName);
+	CRYOSMSDriver(const char *portName, std::string devPrefix);
 	virtual asynStatus writeInt32(asynUser *pasynUser, epicsInt32 value);
 private:
+	std::string devicePrefix;
+
 #define FIRST_SMS_PARAM P_deviceName
 
 	int P_deviceName; // string
@@ -26,6 +28,7 @@ private:
 };
 
 #define P_deviceNameString "DEVICE"
+#define P_devicePrefixString "IN:NXHIFI:CRYOSMS_01"
 #define P_outputModeSetString "OUTPUTMODE_SET"
 
 #endif /* CRYOSMSDRIVER_H */
