@@ -32,9 +32,9 @@ record(mbbi, "$(P)OUTPUTMODE")
     field(ZRVL, "0") field(ZRST, "AMPS")
     field(ONVL, "1") field(ONST, "TESLA")
     field(VAL, "0")
-    # field(SIML, "SIM")
-    # field(SIOL, "OUTPUTMODE:SP")
-    # field(SDIS, "$(P)DISABLE")
+    field(SIML, "$(P)SIM")
+    field(SIOL, "$(P)OUTPUTMODE:SP")
+    field(SDIS, "$(P)DISABLE")
     field(SCAN, "1 second")
 }
 
@@ -58,8 +58,10 @@ record(bo, "$(P)OUTPUTMODE:SP")
     field(ZNAM, "AMPS")
     field(ONAM, "TESLA")
     field(VAL, "0")
-    # field(SIML, "SIM")
-    # field(SIOL, "SIM:OUTPUTMODE:SP")
-    # field(SDIS, "DISABLE")
+    field(SIML, "$(P)SIM")
+    field(SIOL, "$(P)SIM:OUTPUTMODE:SP")
+    field(SDIS, "$(P)DISABLE")
 }
 
+record(mbbi, "$(P)SIM:OUTPUTMODE") {}
+alias("$(P)SIM:OUTPUTMODE", "$(P)SIM:OUTPUTMODE:SP")
