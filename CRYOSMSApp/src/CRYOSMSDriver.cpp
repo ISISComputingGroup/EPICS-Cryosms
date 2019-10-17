@@ -71,7 +71,6 @@ asynStatus CRYOSMSDriver::putDb(std::string pvSuffix, const void *value) {
 	DBADDR addr;
 	std::string fullPV = this->devicePrefix + pvSuffix;
 	if (dbNameToAddr(fullPV.c_str(), &addr)) {
-		throw std::runtime_error("PV not found: " + fullPV);
 		return asynError;
 	}
 
