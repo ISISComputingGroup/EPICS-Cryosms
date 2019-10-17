@@ -1,7 +1,0 @@
-file testdb.tpl {
-    pattern{RECORD_TYPE, RECORD_NAME}
-    {bo, BO}
-    {bi, BI}
-    {ao, AO}
-    {ai, AI}
-}
