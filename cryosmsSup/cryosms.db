@@ -6,15 +6,16 @@
 #
 # Short and long form of identification string
 #
-record(bi, "$(P)SIM")
+
+record(bo, "$(P)ABORT:SP")
 {
-    field(DTYP, "Soft Channel")
-    field(ZNAM, "NO")
-    field(ONAM, "YES")
-    field(VAL, "$(RECSIM=0)")
+    field(DESC, "Abort the current ramp")
+    field(SDIS, "$(P)DISABLE")
+    field(ZNAM, "OFF")
+    field(ONAM, "ON")
 }
 
-record(bo, "$(P)DISABLE") 
+record(bo, "$(P)DISABLE")
 {
   field(DESC, "Disable comms")
   field(PINI, "YES")
@@ -22,6 +23,221 @@ record(bo, "$(P)DISABLE")
   field(OMSL, "supervisory")
   field(ZNAM, "COMMS ENABLED")
   field(ONAM, "COMMS DISABLED")
+}
+
+record(bi, "$(P)HEATER:STAT")
+{
+    field(DESC, "The status of the heater from the device")
+}
+
+record(bo, "$(P)MACROS")
+{
+    field(DESC, "starts init script, loads macros into asyn")
+    field(PINI, "1")
+    field(DTYP, "asynInt32")
+    field(OUT, "@asyn($(ASYN_PORT),0,0)INIT_LOGIC")
+}
+
+record(ai, "$(P)MACROS:T_TO_A")
+{
+    field(DESC, "Value of the tesla/amps convesion macro for use in init logic")
+    field(VAL, "$(T_TO_A)")
+}
+
+record(ai, "$(P)MACROS:MAX_CURR")
+{
+    field(DESC, "Value of max current macro for use in init logic")
+    field(VAL, "$(MAX_CURR)")
+}
+
+record(ai, "$(P)MACROS:MAX_VOLT")
+{
+    field(DESC, "Value of max volt macro for use in init logic")
+    field(VAL, "$(MAX VOLT)")
+}
+
+record(stringin, "$(P)MACROS:WRITE_UNIT")
+{
+    field(DESC, "Value of the write unit macro for use in init logic")
+    field(VAL, "$(WRITE_UNIT)")
+}
+
+record(stringin, "$(P)MACROS:ALLOW_PERSIST")
+{
+    field(DESC, "Value of the allow persist macro for use in init logic")
+    field(VAL, "$(ALLOW_PERSIST)")
+}
+
+record(stringin, "$(P)MACROS:USE_SWITCH")
+{
+    field(DESC, "Value of the use switch macro for use in init logic")
+    field(VAL, "$(USE_SWITCH)")
+}
+
+record(stringin, "$(P)MACROS:HEATER_OUT")
+{
+    field(DESC, "Value of the heater out macro for use in init logic")
+    field(VAL, "$(HEATER_OUT)")
+}
+
+record(stringin, "$(P)MACROS:USE_MAGNET_OUT")
+{
+    field(DESC, "Value of the use magnet out macro for use in init logic")
+    field(VAL, "$(USE_MAGNET_OUT)")
+}
+
+record(stringin, "$(P)MACROS:COMP_OFF_ACT")
+{
+    field(DESC, "Value of the comp off act macro for use in init logic")
+    field(VAL, "$(COMP_OFF_ACT)")
+}
+### MAGNET:
+
+record(bo, "$(P)MAGNET:MODE")
+{
+    field(DESC, "Run the magnet in persistent mode or not")
+    field(SDIS, "$(P)DISABLE")
+}
+
+### OUTPUT:
+
+record(scalcout, "$(P)OUTPUT")
+{
+    field(DESC, "Output from the PSU in $(DISPLAY_UNIT)")
+    field(FLNK, "$(P)GAUSS")
+    field(EGU, "$(DISPLAY_UNIT)")
+    field(SIML, "SIM")
+    field(SIOL, "SIM:OUTPUT")
+    field(SDIS, "$(P)DISABLE")
+    field(INTEREST, "HIGH")
+    field(ARCHIVE, "VAL")
+    field(INPA, "$(P)OUTPUT:CURR")
+    field(INPB, "$(P)OUTPUT:FIELD:TESLA")
+    field(INPC, "$(P)OUTPUT:FIELD:GAUSS")
+    field(INPD, "$(DISPLAY_UNIT)")
+    field(CALC, "D==\"AMPS\"?A:D==\"TESLA\"?B:C")
+}
+
+record(calc, "$(P)OUTPUT:COIL")
+{
+    field(DESC, "Current through the coil")# OUTPUT:PERSIST if in persistent mode, otherwise OUTPUT
+    field(CALC, "A=1?B:C")
+    field(INPA, "$(P)MAGNET:MODE")
+    field(INPB, "(P)OUTPUT:PERSIST")
+    field(INPC, "$(P)OUTPUT")
+    field(EGU, "$(DISPLAY_UNIT)")
+    field(SIML, "SIM")
+    field(SIOL, "SIM:OUTPUT")
+    field(SDIS, "$(P)DISABLE")
+}
+
+record(scalcout, "$(P)OUTPUT:CURR")
+{
+    field(DESC, "OUTPUT:RAW in Amps")
+    field(INPA, "$(P)OUTPUT:RAW:UNIT")
+    field(INPB, "$(P)OUTPUT:RAW")
+    field(CALC, "A==\"AMPS\"?B:B*$(T_TO_A)")
+}
+
+record(scalcout, "$(P)OUTPUT:FIELD:GAUSS")
+{
+    field(DESC, "OUTPUT:RAW in Gauss")
+    field(INPA, "$(P)OUTPUT:RAW:UNIT")
+    field(INPB, "$(P)OUTPUT:RAW")
+    field(CALC, "A==\"TESLA\"?B*10000:B*10000/$(T_TO_A)")
+}
+
+record(scalcout, "$(P)OUTPUT:FIELD:TESLA")
+{
+    field(DESC, "OUTPUT:RAW in Tesla")
+    field(INPA, "$(P)OUTPUT:RAW:UNIT")
+    field(INPB, "$(P)OUTPUT:RAW")
+    field(CALC, "A==\"TESLA\"?B:B/$(T_TO_A)")
+}
+
+record(scalcout, "$(P)OUTPUT:PERSIST")
+{
+    field(DESC, "Persistent output in $(DISPLAY_UNIT)")
+    field(PREC, "3")
+    field(EGU, "$(DISPLAY_UNIT)")
+    field(SIML, "SIM")
+    field(SIOL, "SIM:OUTPUT")
+    field(SDIS, "$(P)DISABLE")
+    field(INPA, "$(P)OUTPUT:PERSIST:CURR")
+    field(INPB, "$(P)OUTPUT:PERSIST:FIELD:TESLA")
+    field(INPC, "$(P)OUTPUT:PERSIST:FIELD:GAUSS")
+    field(INPD, "$(DISPLAY_UNIT)")
+    field(CALC, "D==\"AMPS\"?A:D==\"TESLA\"?B:C")
+}
+
+record(scalcout, "$(P)OUTPUT:PERSIST:CURR")
+{
+    field(DESC, "OUTPUT:PERSIST:RAW in Amps")
+    field(INPA, "$(P)OUTPUT:PERSIST:RAW:UNIT")
+    field(INPB, "$(P)OUTPUT:PERSIST:RAW")
+    field(CALC, "A==\"AMPS\"?B:B*$(T_TO_A)")
+}
+
+record(scalcout, "$(P)OUTPUT:PERSIST:FIELD:GAUSS")
+{
+    field(DESC, "OUTPUT:PERSIST:RAW in Gauss")
+    field(INPA, "$(P)OUTPUT:PERSIST:RAW:UNIT")
+    field(INPB, "$(P)OUTPUT:PERSIST:RAW")
+    field(CALC, "A==\"TESLA\"?B*10000:B*10000/$(T_TO_A)")
+}
+
+record(scalcout, "$(P)OUTPUT:PERSIST:FIELD:TESLA")
+{
+    field(DESC, "OUTPUT:PERSIST:RAW in Tesla")
+    field(INPA, "$(P)OUTPUT:PERSIST:RAW:UNIT")
+    field(INPB, "$(P)OUTPUT:PERSIST:RAW")
+    field(CALC, "A==\"TESLA\"?B:B/$(T_TO_A)")
+}
+
+record(ai, "$(P)OUTPUT:PERSIST:RAW")
+{
+    field(DESC, "Raw persistent field from the PSU, A or T")
+}
+
+record(ai, "$(P)OUTPUT:PERSIST:RAW:UNIT")
+{
+    field(DESC, "The unit for OUTPUT:PERSIST:RAW")
+}
+
+record(ai, "$(P)OUTPUT:RAW")
+{
+    field(DESC, "Raw value returned from the PSU, A or T")# returned during a “GO” command
+    field(DTYP, "stream")
+    field(INP, "@cryosms.proto getOutput $(PORT)")
+    field(PREC, "3")
+    field(SCAN, ".5 second")
+}
+
+record(bi, "$(P)OUTPUT:RAW:UNIT")
+{
+    field(DESC, "The unit for OUTPUT:RAW") # returned as part of a “GO” command
+}
+
+record(ao, "$(P)OUTPUT:SP")
+{
+    field(DESC, "The destination of the next ramp in $(DISPLAY_UNIT)")
+    field(DTYP, "asynInt32")
+    field(OUT, "@asyn($(ASYN_PORT),0,0)OUTPUT_SET")
+    field(PREC, "3")
+    field(EGU, "$(DISPLAY_UNIT)")
+    field(SIML, "SIM")
+    field(SIOL, "SIM:OUTPUT")
+    field(SDIS, "$(P)DISABLE")
+    field(RBV, "$(P)OUTPUT")
+}
+
+record(ai, "$(P)OUTPUT:VOLT")
+{
+    field(DESC, "The Output Voltage")
+    field(EGU, "V")
+    field(SIML, "SIM")
+    field(SIOL, "SIM:OUTPUT")
+    field(SDIS, "$(P)DISABLE")
 }
 
 record(mbbi, "$(P)OUTPUTMODE")
@@ -32,21 +248,10 @@ record(mbbi, "$(P)OUTPUTMODE")
     field(ZRVL, "0") field(ZRST, "AMPS")
     field(ONVL, "1") field(ONST, "TESLA")
     field(VAL, "0")
-    field(SIML, "$(P)SIM")
+    field(SIML, "SIM")
     field(SIOL, "$(P)OUTPUTMODE:SP")
     field(SDIS, "$(P)DISABLE")
     field(SCAN, "1 second")
-}
-
-record(bo, "$(P)HIDDEN:OUTPUTMODE:SP")
-{
-    field(DTYP, "stream")
-    field(ASG, "HIDDEN")
-    field(OUT, "@cryosms.proto setOutputMode $(PORT)")
-    field(SCAN, "Passive")
-    field(ZNAM, "AMPS")
-    field(ONAM, "TESLA")
-    field(VAL, "0")
 }
 
 record(bo, "$(P)OUTPUTMODE:SP")
@@ -62,6 +267,108 @@ record(bo, "$(P)OUTPUTMODE:SP")
     field(SIOL, "$(P)SIM:OUTPUTMODE:SP")
     field(SDIS, "$(P)DISABLE")
 }
+
+record(bo, "$(P)PAUSE")
+{
+    field(DESC, "Whether the device is paused or not")
+    field(ZNAM, "OFF")
+    field(ONAM, "ON")    
+}
+
+record(bo, "$(P)PAUSE:SP")
+{
+    field(DESC, "Pause the current ramp")
+    field(SDIS, "$(P)DISABLE")
+    field(DTYP, "asynInt32")
+    field(OUT, "@asyn($(ASYN_PORT),0,0)PAUSE_SET")
+    field(ZNAM, "OFF")
+    field(ONAM, "ON")
+    field(RBV, "$(P)PAUSE")
+}
+
+### RAMP:
+
+record(bo, "$(P)RAMP:LEADS")
+{
+    field(DESC, "Whether or not to ramp the leads")
+    field(SDIS, "$(P)DISABLE")
+}
+
+record(ai, "$(P)RAMP:RATE")
+{
+    field(DESC, "The ramp rate stored by the device")
+}
+
+record(stringout, "$(P)RAMP:RATE:SOURCE")
+{
+    field(DESC, "The source to use for the ramp rate")
+}
+
+record(bi, "$(P)RAMP:RAMPING")
+{
+    field(DESC, "Whether or not PSU is ramping")
+}
+
+
+record(bi, "$(P)READY")
+{
+    field(DESC, "Whether the PSU is ready at the target")
+}
+
+record(bi, "$(P)SIM")
+{
+    field(DTYP, "Soft Channel")
+    field(ZNAM, "NO")
+    field(ONAM, "YES")
+    field(VAL, "$(RECSIM=0)")
+}
+
+
+record(stringin, "$(P)STAT")
+{
+    field(DESC, "The latest status message")
+}
+
+record(bo, "$(P)START:SP")
+{
+    field(DESC, "Start a ramp to the current OUTPUT:SP")
+    field(SDIS, "$(P)DISABLE")
+}
+
+
+### TARGET:
+
+record(ai, "$(P)TARGET:TIME")
+{
+    field(DESC, "Time it will take to get to that target")
+}
+
+
+### HIDDEN:
+
+record(ao, "$(P)HIDDEN:CONSTANT:SP")
+{
+    field(DTYP, "stream")
+    field(ASG, "HIDDEN")
+    field(OUT, "@cryosms.proto setConstant $(PORT)")
+    field(SCAN, "Passive")
+}
+
+record(bo, "$(P)HIDDEN:OUTPUTMODE:SP")
+{
+    field(DTYP, "stream")
+    field(ASG, "HIDDEN")
+    field(OUT, "@cryosms.proto setOutputMode $(PORT)")
+    field(SCAN, "Passive")
+    field(ZNAM, "AMPS")
+    field(ONAM, "TESLA")
+    field(VAL, "0")
+}
+
+### SIM
+
+record(ai, "$(P)SIM:OUTPUT") {}
+alias("$(P)SIM:OUTPUT", "$(P)SIM:OUTPUT:SP")
 
 record(mbbi, "$(P)SIM:OUTPUTMODE") {}
 alias("$(P)SIM:OUTPUTMODE", "$(P)SIM:OUTPUTMODE:SP")
