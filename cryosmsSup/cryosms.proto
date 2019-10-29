@@ -37,11 +37,16 @@ getOutput {
 	wait 100;
 }
 
-getRampTarget {
+getRampStatus {
 	out "RAMP STATUS";
 	wait 50;
-	in "%#s";
+	in "%*8c RAMP STATUS: %{RAMPING|HOLDING ON TARGET|HOLDING ON PAUSE|QUENCH TRIP|EXTERNAL TRIP} %#s";
 	wait 100;
+}
+
+getRampTarget {
+    in "%*8c RAMP STATUS: RAMPING FROM %*f TO %f %*{AMPS|TESLA} AT %*f %*{A/SEC|VOLTS})";
+    wait 100;
 }
 
 setRampTarget {

@@ -34,7 +34,7 @@
 
 static const char *driverName = "CRYOSMSDriver"; ///< Name of driver for use in message printing 
 
-CRYOSMSDriver::CRYOSMSDriver(const char *portName, std::string devPrefix, const char *tToA)
+CRYOSMSDriver::CRYOSMSDriver(const char *portName, std::string devPrefix, const char *tToA, const char *maxCurr, const char *writeUnit, const char *allowPersist)
   : asynPortDriver(portName,
 	0, /* maxAddr */
 	NUM_SMS_PARAMS, /* num parameters */
@@ -53,6 +53,9 @@ CRYOSMSDriver::CRYOSMSDriver(const char *portName, std::string devPrefix, const 
 	createParam(P_outputModeSetString, asynParamOctet, &P_outputModeSet);
 	this->devicePrefix = devPrefix;
 	this->teslaToAmps = std::atof(tToA);
+	this->maxCurrent = std::atof(maxCurr);
+	this->writeUnit = writeUnit;
+	this->allowPersist = allowPersist;
 
 	pRate_ = (epicsFloat64 *)calloc(INIT_ROW_NUM, sizeof(epicsFloat64));
 	pMaxT_ = (epicsFloat64 *)calloc(INIT_ROW_NUM, sizeof(epicsFloat64));
@@ -80,19 +83,140 @@ asynStatus CRYOSMSDriver::writeInt32(asynUser *pasynUser, epicsInt32 value)
 asynStatus CRYOSMSDriver::onStart()
 {
 	asynStatus status;
+	int trueVal = 1;
+	int falseVal = 0;
 
 	if (this->teslaToAmps == 0) {
-		int disVal = 1;
 		std::string statMsg = "No calibration from Tesla to Amps supplied";
 		status = putDb("STAT", &statMsg);
-		status = putDb("DISABLE", &disVal);
+		status = putDb("DISABLE", &trueVal);
 		if (status != asynSuccess) {
 			return status;
 		}
 	}
 	else {
-		putDb("HIDDEN:ST", this->teslaToAmps);
+		status = putDb("HIDDEN:CONSTANT:SP", &this->teslaToAmps);
+		if (status != asynSuccess) {
+			return status;
+		}
 	}
+
+
+	if (this->maxCurrent == 0) {
+		std::string statMsg = "No Max Current given, writes not allowed";
+		status = putDb("STAT", &statMsg);
+		status = putDb("DISABLE", &trueVal);
+	}
+	else {
+		status = putDb("HIDDEN:OUTPUTMODE:SP", &falseVal);
+		if (status != asynSuccess) {
+			return status;
+		}
+		status = putDb("HIDDEN:MAX:SP", &this->maxCurrent);
+	}
+	if (status != asynSuccess) {
+		return status;
+	}
+
+	if (this->writeUnit == "Amps") {
+		status = putDb("HIDDEN:OUTPUTMODE:SP", &falseVal);
+	}
+	else {
+		status = putDb("HIDDEN:OUTPUTMODE:SP", &trueVal);
+	}
+	if (status != asynSuccess) {
+		return status;
+	}
+
+
+	if (this->allowPersist == "No") {
+		std::string magMode = "Non Persistent";
+
+		status = putDb("MAGNET:MODE", &magMode);
+		if (status != asynSuccess) {
+			return status;
+		}
+		status = putDb("FAST:ZERO", &falseVal);
+		if (status != asynSuccess) {
+			return status;
+		}
+		status = putDb("RAMP:LEADS", &falseVal);
+		if (status != asynSuccess) {
+			return status;
+		}
+		status = putDb("MAGNET:MODE.DISP", &trueVal);
+		if (status != asynSuccess) {
+			return status;
+		}
+		status = putDb("FAST:ZERO.DISP", &trueVal);
+		if (status != asynSuccess) {
+			return status;
+		}
+		status = putDb("RAMP:LEADS.DISP", &trueVal);
+		if (status != asynSuccess) {
+			return status;
+		}
+
+	}
+
+	status = procDb("PAUSE");
+	if (status != asynSuccess) {
+		return status;
+	}
+
+	int isPaused;
+	status = getDb("PAUSE", &isPaused);
+	if (status != asynSuccess) {
+		return status;
+	}
+	else if (isPaused = 1){
+		status = putDb("PAUSE:QUEUE", &trueVal);
+		if (status != asynSuccess) {
+			return status;
+		}
+	}
+	
+	status = procDb("FAN:INIT");
+	if (status != asynSuccess) {
+		return status;
+	}
+
+	double writeToDispConversion;
+	std::string writeUnit = std::getenv("WRITE_UNIT");
+	std::string displayUnit = std::getenv("DISPLAY_UNIT");
+	if (writeUnit == displayUnit) {
+		writeToDispConversion = 1.0;
+	}
+	else if (writeUnit == "TESLA" && displayUnit == "AMPS") {
+		writeToDispConversion = this->teslaToAmps;
+	}
+	else if (writeUnit == "AMPS" && displayUnit == "TESLA") {
+		writeToDispConversion = 1.0 / this->teslaToAmps;
+	}
+	else {
+		return asynError;
+	}
+
+	float targetVal;
+	status = getDb("RAMP:TARGET:DISPLAY", &targetVal);
+	if (status != asynSuccess) {
+		return status;
+	}
+	status = putDb("TARGET:SP", &targetVal);
+	if (status != asynSuccess) {
+		return status;
+	}
+
+	float midTarget;
+	status = getDb("MID", &midTarget);
+	if (status != asynSuccess) {
+		return status;
+	}
+	else {
+		midTarget *= writeToDispConversion;
+	}
+	status = putDb("MID:SP", &midTarget);
+
 	return status;
 }
 
@@ -178,11 +302,12 @@ asynStatus CRYOSMSDriver::readFile(const char *dir)
 
 extern "C"
 {
-	int CRYOSMSConfigure(const char *portName, std::string devPrefix, const char *tToA)
+
+	int CRYOSMSConfigure(const char *portName, std::string devPrefix, const char *tToA, const char *maxCurr, const char *writeUnit, const char *allowPersist)
 	{
 		try
 		{
-			new CRYOSMSDriver(portName, devPrefix, tToA);
+			new CRYOSMSDriver(portName, devPrefix, tToA, maxCurr, writeUnit, allowPersist);
 			return asynSuccess;
 		}
 		catch (const std::exception &ex)
@@ -195,15 +320,18 @@ extern "C"
 
 	static const iocshArg initArg0 = { "portName", iocshArgString };			///< Port to connect to
 	static const iocshArg initArg1 = { "devicePrefix", iocshArgString };		///< PV Prefix for device
-	static const iocshArg initArg2 = { "tToA", iocshArgString };				/// Tesla - Amp calibration factor
+	static const iocshArg initArg2 = { "tToA", iocshArgString };				///< Tesla - Amp calibration factor
+	static const iocshArg initArg3 = { "maxCurr", iocshArgString };				///< Max current permittable
+	static const iocshArg initArg4 = { "writeUnit", iocshArgString };			///< Unit to write to PSU in
+	static const iocshArg initArg5 = { "allowPersist", iocshArgString };		///< Whether or not to allow persistant mode
 
-	static const iocshArg * const initArgs[] = { &initArg0, &initArg1, &initArg2 };
+	static const iocshArg * const initArgs[] = { &initArg0, &initArg1, &initArg2, &initArg3, &initArg4, &initArg5 };
 
 	static const iocshFuncDef initFuncDef = { "CRYOSMSConfigure", sizeof(initArgs) / sizeof(iocshArg*), initArgs };
 
 	static void initCallFunc(const iocshArgBuf *args)
 	{
-		CRYOSMSConfigure(args[0].sval, args[1].sval, args[2].sval);
+		CRYOSMSConfigure(args[0].sval, args[1].sval, args[2].sval, args[3].sval, args[4].sval, args[5].sval);
 	}
 
 	/// Register new commands with EPICS IOC shell

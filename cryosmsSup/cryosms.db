@@ -15,6 +15,16 @@ record(bo, "$(P)ABORT:SP")
     field(ONAM, "ON")
 }
 
+record(mbbi, "$(P)DIRECTION")
+{
+    field(DESC, "The direction of the device")
+    field(DTYP, "stream")
+    field(INP, "@cryosms.proto getDirection $(PORT)")
+    field(ZRVL, "0") field(ZRST, "ZERO")
+    field(ONVL, "-") field(ONST, "NEGATIVE")
+    field(TWVL, "+") field(TWST, "POSITIVE")
+}
+
 record(bo, "$(P)DISABLE")
 {
   field(DESC, "Disable comms")
@@ -25,9 +35,20 @@ record(bo, "$(P)DISABLE")
   field(ONAM, "COMMS DISABLED")
 }
 
+record(bi, "$(P)FAST:ZERO")
+{
+    field(ONAM, "True")
+    field(ZNAM, "False")
+}
+
 record(bi, "$(P)HEATER:STAT")
 {
     field(DESC, "The status of the heater from the device")
+    field(DTYP, "stream")
+    field(INP, "@cryosms.proto getHeaterStatus $(PORT)")
+    field(SCAN, "Passive")
+    field(ZNAM, "Off")
+    field(ONAM, "On")
 }
 
 record(bo, "$(P)MACROS")
@@ -38,65 +59,18 @@ record(bo, "$(P)MACROS")
     field(OUT, "@asyn($(ASYN_PORT),0,0)INIT_LOGIC")
 }
 
-record(ai, "$(P)MACROS:T_TO_A")
-{
-    field(DESC, "Value of the tesla/amps convesion macro for use in init logic")
-    field(VAL, "$(T_TO_A)")
-}
-
-record(ai, "$(P)MACROS:MAX_CURR")
-{
-    field(DESC, "Value of max current macro for use in init logic")
-    field(VAL, "$(MAX_CURR)")
-}
-
-record(ai, "$(P)MACROS:MAX_VOLT")
-{
-    field(DESC, "Value of max volt macro for use in init logic")
-    field(VAL, "$(MAX VOLT)")
-}
-
-record(stringin, "$(P)MACROS:WRITE_UNIT")
-{
-    field(DESC, "Value of the write unit macro for use in init logic")
-    field(VAL, "$(WRITE_UNIT)")
-}
-
-record(stringin, "$(P)MACROS:ALLOW_PERSIST")
-{
-    field(DESC, "Value of the allow persist macro for use in init logic")
-    field(VAL, "$(ALLOW_PERSIST)")
-}
-
-record(stringin, "$(P)MACROS:USE_SWITCH")
-{
-    field(DESC, "Value of the use switch macro for use in init logic")
-    field(VAL, "$(USE_SWITCH)")
-}
-
-record(stringin, "$(P)MACROS:HEATER_OUT")
-{
-    field(DESC, "Value of the heater out macro for use in init logic")
-    field(VAL, "$(HEATER_OUT)")
-}
-
-record(stringin, "$(P)MACROS:USE_MAGNET_OUT")
-{
-    field(DESC, "Value of the use magnet out macro for use in init logic")
-    field(VAL, "$(USE_MAGNET_OUT)")
-}
-
-record(stringin, "$(P)MACROS:COMP_OFF_ACT")
-{
-    field(DESC, "Value of the comp off act macro for use in init logic")
-    field(VAL, "$(COMP_OFF_ACT)")
-}
 ### MAGNET:
 
 record(bo, "$(P)MAGNET:MODE")
 {
     field(DESC, "Run the magnet in persistent mode or not")
     field(SDIS, "$(P)DISABLE")
+}
+
+record(ao, "$(P)MAX:SP")
+{
+    field(DESC, "The maximum value to allow in PSU Units")
+    field(EGU, "$(DISPLAY_UNIT)")
 }
 
 ### OUTPUT:
@@ -216,6 +190,7 @@ record(ai, "$(P)OUTPUT:RAW")
 record(bi, "$(P)OUTPUT:RAW:UNIT")
 {
     field(DESC, "The unit for OUTPUT:RAW") # returned as part of a “GO” command
+    field(INP, "$(P)OUTPUTMODE")
 }
 
 record(ao, "$(P)OUTPUT:SP")
@@ -271,8 +246,11 @@ record(bo, "$(P)OUTPUTMODE:SP")
 record(bo, "$(P)PAUSE")
 {
     field(DESC, "Whether the device is paused or not")
+    field(DTYP, "stream")
+    field(INP, "@cryosms.proto getPause $(PORT)")
     field(ZNAM, "OFF")
     field(ONAM, "ON")    
+    field(SCAN, "Passive")
 }
 
 record(bo, "$(P)PAUSE:SP")
@@ -286,6 +264,13 @@ record(bo, "$(P)PAUSE:SP")
     field(RBV, "$(P)PAUSE")
 }
 
+record(bo, "$(P)PAUSE:QUEUE")
+{
+    field(DESC, "Pause the queue")
+    field(ZNAM, "OFF")
+    field(ONAM, "ON")
+}
+
 ### RAMP:
 
 record(bo, "$(P)RAMP:LEADS")
@@ -297,6 +282,9 @@ record(bo, "$(P)RAMP:LEADS")
 record(ai, "$(P)RAMP:RATE")
 {
     field(DESC, "The ramp rate stored by the device")
+    field(DTYP, "stream")
+    field(INP, "@cryosms.proto getRampRate")
+    field(SCAN, "Passive")
 }
 
 record(stringout, "$(P)RAMP:RATE:SOURCE")
@@ -309,6 +297,31 @@ record(bi, "$(P)RAMP:RAMPING")
     field(DESC, "Whether or not PSU is ramping")
 }
 
+record(stringin, "$(P)RAMP:STAT")
+{
+    field(DESC, "The status of the ramp from the PSU")
+    field(DTYP, "stream")
+    field(INP, "@cryosms.proto getRampStatus $(PORT)")
+    field(SCAN, "Passive")
+}
+
+record(ai, "$(P)RAMP:TARGET")
+{
+    field(DESC, "Ramp target read from device")
+    field(DTYP, "stream")
+    field(INP, "@cryosms.proto getRampTarget")
+    field(SCAN, "I/O Intr")
+    field(FLNK, "$(P)RAMP:TARGET:DISPLAY")
+}
+
+record(scalcout, "$(P)RAMP:TARGET:DISPLAY")
+{
+    field(DESC, "disp. unit version of RAMP:TARGET")
+    field(INPA, "$(P)RAMP:TARGET")
+    field(INPB, "$(DISPLAY_UNIT)")
+    field(INPC, "$(WRITE_UNIT)")
+    field(CALC, "B==C?A:B==\"TESLA\"?A/$(T_TO_A):A*$(T_TO_A)")
+}
 
 record(bi, "$(P)READY")
 {
@@ -342,8 +355,6 @@ record(ai, "$(P)TARGET:TIME")
 {
     field(DESC, "Time it will take to get to that target")
 }
-
-
 ### HIDDEN:
 
 record(ao, "$(P)HIDDEN:CONSTANT:SP")
@@ -351,6 +362,14 @@ record(ao, "$(P)HIDDEN:CONSTANT:SP")
     field(DTYP, "stream")
     field(ASG, "HIDDEN")
     field(OUT, "@cryosms.proto setConstant $(PORT)")
+    field(SCAN, "Passive")
+}
+
+record(ao, "$(P)HIDDEN:MAX:SP")
+{
+    field(DTYP, "stream")
+    field(ASG, "HIDDEN")
+    field(OUT, "@cryosms.proto setMaxTarget $(PORT)")
     field(SCAN, "Passive")
 }
 
@@ -363,6 +382,24 @@ record(bo, "$(P)HIDDEN:OUTPUTMODE:SP")
     field(ZNAM, "AMPS")
     field(ONAM, "TESLA")
     field(VAL, "0")
+}
+
+### FANOUTS
+
+record(fanout, "$(P)FAN:INIT")
+{
+    field(DESC, "Sends commands needed to init ioc")
+    field(LNK1, "$(P)HEATER:STAT")
+    field(LNK2, "$(P)DIRECTION")
+    field(LNK3, "$(P)RAMP:RATE")
+    field(LNK4, "$(P)OUTPUT:RAW")
+    field(LNK5, "$(P)RAMP:STAT")
+}
+
+record(fanout, "$(P)FAN:UNITS")
+{
+    field(DESC, "Updates all output units")
+    field(LNK1, "$(P)OUTPUT:RAW:UNIT")
 }
 
 ### SIM
