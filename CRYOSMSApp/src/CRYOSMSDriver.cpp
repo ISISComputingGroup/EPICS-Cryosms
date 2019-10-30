@@ -5,6 +5,7 @@
 #include <math.h>
 #include <exception>
 #include <iostream>
+#include <cstdlib>
 #include <map>
 
 #include <epicsTypes.h>
@@ -34,7 +35,7 @@
 
 static const char *driverName = "CRYOSMSDriver"; ///< Name of driver for use in message printing 
 
-CRYOSMSDriver::CRYOSMSDriver(const char *portName, std::string devPrefix, const char *tToA, const char *maxCurr, const char *writeUnit, const char *allowPersist)
+CRYOSMSDriver::CRYOSMSDriver(const char *portName, std::string devPrefix)
   : asynPortDriver(portName,
 	0, /* maxAddr */
 	NUM_SMS_PARAMS, /* num parameters */
@@ -46,16 +47,54 @@ CRYOSMSDriver::CRYOSMSDriver(const char *portName, std::string devPrefix, const 
 	0)
 {
 	static const char *functionName = "asynPortDriver";
+
 	createParam(P_deviceNameString, asynParamOctet, &P_deviceName);
 	createParam(P_initLogicString, asynParamOctet, &P_initLogic);
 	createParam(P_rateString, asynParamOctet, &P_Rate);
 	createParam(P_maxTString, asynParamOctet, &P_MaxT);
 	createParam(P_outputModeSetString, asynParamOctet, &P_outputModeSet);
 	this->devicePrefix = devPrefix;
-	this->teslaToAmps = std::atof(tToA);
-	this->maxCurrent = std::atof(maxCurr);
-	this->writeUnit = writeUnit;
-	this->allowPersist = allowPersist;
+	this->maxCurrent = std::atof(std::getenv("MAX_CURR"));
+	this->teslaToAmps = std::atof(std::getenv("T_TO_A"));
+	this->maxVolt = std::atof(std::getenv("MAX_CURR"));
+	this->allowPersist = std::getenv("ALLOW_PERSIST");
+	this->useSwitch = std::getenv("USE_SWITCH");
+	this->switchTempPV = std::getenv("SWITVH_TEMP_PV");
+	this->switchHigh = std::atof(std::getenv("SWITCH_HIGH"));
+	this->switchLow = std::atof(std::getenv("SWITCH_LOW"));
+	this->switchStableNumber = std::stoi(std::getenv("SWITCH_STABLE_NUMBER"));
+	this->heaterTolerance = std::atof(std::getenv("HEATER_TOLERANCE"));
+	this->switchTimeout = std::atof(std::getenv("SWITCH_TIMEOUT"));
+	this->switchTempTolerance = std::atof(std::getenv("SWITCH_TEMP_TOLERANCE"));
+	this->heaterOut = std::getenv("HEATER_OUT");
+	this->useMagnetTemp = std::getenv("USE_MAGNET_TEMP");
+	this->magnetTempPV = std::getenv("MAGNET_TEMP_PV");
+	this->maxMagnetTemp = std::atof(std::getenv("MAX_MAGNET_TEMP"));
+	this->minMagnetTemp = std::atof(std::getenv("MIN_MAGNET_TEMP"));
+	this->compOffAct = std::getenv("COMP_OFF_ACT");
+	this->noOfComp = std::stoi(std::getenv("NO_OF_COMP"));
+	this->minNoOfCompOn = std::stoi(std::getenv("MIN_NO_OF_COMP_ON"));
+	this->comp1StatPV = std::getenv("COMP_1_STAT_PV");
+	this->comp2StatPV = std::getenv("COMP_2_STAT_PV");
+	this->fastRate = std::atof(std::getenv("FAST_RATE"));
+	this->fastPersistentSettleTime = std::atof(std::getenv("FAST_PERSISTANT_SETTLE_TIME"));
+	this->persistentSettleTime = std::atof(std::getenv("PERSISTANT_SETTLE_TIME"));
+	this->filterValue = std::atof(std::getenv("FILTER_VALUE"));
+	this->fastFilterValue = std::atof(std::getenv("FAST_FILTER_VALUE"));
+	this->npp = std::atof(std::getenv("NPP"));
+
+	std::string writeUnit = std::getenv("WRITE_UNIT");
+	std::string displayUnit = std::getenv("DISPLAY_UNIT");
+
+	if (writeUnit == displayUnit && writeUnit != NULL) {
+		this->writeToDispConversion = 1.0;
+	}
+	else if (writeUnit == "TESLA" && displayUnit == "AMPS") {
+		this->writeToDispConversion = this->teslaToAmps;
+	}
+	else {
+		this->writeToDispConversion = 1.0 / this->teslaToAmps;
+	}
 
 	pRate_ = (epicsFloat64 *)calloc(INIT_ROW_NUM, sizeof(epicsFloat64));
 	pMaxT_ = (epicsFloat64 *)calloc(INIT_ROW_NUM, sizeof(epicsFloat64));
@@ -129,7 +168,33 @@ asynStatus CRYOSMSDriver::onStart()
 	}
 
 
-	if (this->allowPersist == "No") {
+	if (this->allowPersist == "Yes") {
+		if (this->fastFilterValue == 0 || this->filterValue == 0 || this->npp == 0 || this->fastPersistentSettleTime == 0 ||
+			this->persistentSettleTime == 0 || this->fastRate == 0) {
+
+			std::string statMsg = "Missing parameters to allow persistent mode to be used";
+			status = putDb("STAT", &statMsg);
+			status = putDb("DISABLE", &trueVal);
+			if (status != asynSuccess) {
+				return status;
+			}
+		}
+		else {
+			status = putDb("MAGNET:MODE.DISP", &falseVal);
+			if (status != asynSuccess) {
+				return status;
+			}
+			status = putDb("FAST:ZERO.DISP", &falseVal);
+			if (status != asynSuccess) {
+				return status;
+			}
+			status = putDb("RAMP:LEADS.DISP", &falseVal);
+			if (status != asynSuccess) {
+				return status;
+			}
+		}
+	}
+	else {
 		std::string magMode = "Non Persistent";
 
 		status = putDb("MAGNET:MODE", &magMode);
@@ -159,6 +224,44 @@ asynStatus CRYOSMSDriver::onStart()
 
 	}
 
+	if (this->useSwitch == "Yes" && (this->switchTempPV == "" || this->switchHigh == 0 || this->switchLow == 0 || this->switchStableNumber == 0 ||
+		this->heaterTolerance == 0 || this->switchTimeout == 0 || this->switchTempTolerance == 0 || this->heaterOut == "")) {
+
+		std::string statMsg = "Missing parameters to allow a switch to be used";
+		status = putDb("STAT", &statMsg);
+		status = putDb("DISABLE", &trueVal);
+		if (status != asynSuccess) {
+			return status;
+		}
+	}
+
+	if (this->heaterOut != "") {
+		status = putDb("HIDDEN:HEATER:VOLT:SP", &this->heaterOut);
+		if (status != asynSuccess) {
+			return status;
+		}
+	}
+
+	if (this->useMagnetTemp == "Yes" && (this->magnetTempPV == "" || this->maxMagnetTemp == 0 || this->minMagnetTemp == 0)) {
+
+		std::string statMsg = "Missing parameters to allow the magnet temperature to be used";
+		status = putDb("STAT", &statMsg);
+		status = putDb("DISABLE", &trueVal);
+		if (status != asynSuccess) {
+			return status;
+		}
+	}
+
+	if (this->compOffAct == "Yes" && (this->noOfComp == 0 || this->minNoOfCompOn == 0 || this->comp1StatPV == "" || this->comp2StatPV == "")) {
+		
+		std::string statMsg = "Missing parameters to allow actions on the state of the compressors";
+		status = putDb("STAT", &statMsg);
+		status = putDb("DISABLE", &trueVal);
+		if (status != asynSuccess) {
+			return status;
+		}
+	}
+
 	status = procDb("PAUSE");
 	if (status != asynSuccess) {
 		return status;
@@ -181,21 +284,6 @@ asynStatus CRYOSMSDriver::onStart()
 		return status;
 	}
 
-	double writeToDispConversion;
-	std::string writeUnit = std::getenv("WRITE_UNIT");
-	std::string displayUnit = std::getenv("DISPLAY_UNIT");
-	if (writeUnit == displayUnit) {
-		writeToDispConversion = 1.0;
-	}
-	else if (writeUnit == "TESLA" && displayUnit == "AMPS") {
-		writeToDispConversion = this->teslaToAmps;
-	}
-	else if (writeUnit == "AMPS" && displayUnit == "TESLA") {
-		writeToDispConversion = 1.0 / this->teslaToAmps;
-	}
-	else {
-		return asynError;
-	}
 
 	float targetVal;
 	status = getDb("RAMP:TARGET:DISPLAY", &targetVal);
@@ -207,13 +295,13 @@ asynStatus CRYOSMSDriver::onStart()
 		return status;
 	}
 
-	float midTarget;
+	double midTarget;
 	status = getDb("MID", &midTarget);
 	if (status != asynSuccess) {
 		return status;
 	}
 	else {
-		midTarget *= writeToDispConversion;
+		midTarget *= this->writeToDispConversion;
 	}
 	status = putDb("MID:SP", &midTarget);
 
@@ -303,11 +391,11 @@ asynStatus CRYOSMSDriver::readFile(const char *dir)
 extern "C"
 {
 
-	int CRYOSMSConfigure(const char *portName, std::string devPrefix, const char *tToA, const char *maxCurr, const char *writeUnit, const char *allowPersist)
+	int CRYOSMSConfigure(const char *portName, std::string devPrefix)
 	{
 		try
 		{
-			new CRYOSMSDriver(portName, devPrefix, tToA, maxCurr, writeUnit, allowPersist);
+			new CRYOSMSDriver(portName, devPrefix);
 			return asynSuccess;
 		}
 		catch (const std::exception &ex)
@@ -320,18 +408,14 @@ extern "C"
 
 	static const iocshArg initArg0 = { "portName", iocshArgString };			///< Port to connect to
 	static const iocshArg initArg1 = { "devicePrefix", iocshArgString };		///< PV Prefix for device
-	static const iocshArg initArg2 = { "tToA", iocshArgString };				///< Tesla - Amp calibration factor
-	static const iocshArg initArg3 = { "maxCurr", iocshArgString };				///< Max current permittable
-	static const iocshArg initArg4 = { "writeUnit", iocshArgString };			///< Unit to write to PSU in
-	static const iocshArg initArg5 = { "allowPersist", iocshArgString };		///< Whether or not to allow persistant mode
 
-	static const iocshArg * const initArgs[] = { &initArg0, &initArg1, &initArg2, &initArg3, &initArg4, &initArg5 };
+	static const iocshArg * const initArgs[] = { &initArg0, &initArg1 };
 
 	static const iocshFuncDef initFuncDef = { "CRYOSMSConfigure", sizeof(initArgs) / sizeof(iocshArg*), initArgs };
 
 	static void initCallFunc(const iocshArgBuf *args)
 	{
-		CRYOSMSConfigure(args[0].sval, args[1].sval, args[2].sval, args[3].sval, args[4].sval, args[5].sval);
+		CRYOSMSConfigure(args[0].sval, args[1].sval);
 	}
 
 	/// Register new commands with EPICS IOC shell

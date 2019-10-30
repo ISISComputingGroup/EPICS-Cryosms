@@ -5,14 +5,42 @@
 class epicsShareClass CRYOSMSDriver : public asynPortDriver
 {
 public:
-	CRYOSMSDriver(const char *portName, std::string devPrefix, const char *tToA, const char *maxCurr, const char *writeUnit, const char *allowPersist);
+	CRYOSMSDriver(const char *portName, std::string devPrefix);
 	virtual asynStatus writeInt32(asynUser *pasynUser, epicsInt32 value);
 private:
 	std::string devicePrefix;
-	epicsFloat64 teslaToAmps;
-	epicsFloat64 maxCurrent;
+	double maxCurrent;
+	double teslaToAmps;
+	double maxVolt;
 	std::string writeUnit;
+	std::string displayUnit;
+	std::string rampFile;
 	std::string allowPersist;
+	std::string useSwitch;
+	std::string switchTempPV;
+	double switchHigh;
+	double switchLow;
+	int switchStableNumber;
+	double heaterTolerance;
+	double switchTimeout;
+	double switchTempTolerance;
+	std::string heaterOut;
+	std::string useMagnetTemp;
+	std::string magnetTempPV;
+	double maxMagnetTemp;
+	double minMagnetTemp;
+	std::string compOffAct;
+	int noOfComp;
+	int minNoOfCompOn;
+	std::string comp1StatPV;
+	std::string comp2StatPV;
+	double fastRate;
+	double fastPersistentSettleTime;
+	double persistentSettleTime;
+	double filterValue;
+	double fastFilterValue;
+	double npp;
+	double writeToDispConversion;
 
 #define FIRST_SMS_PARAM P_deviceName
 
