@@ -24,6 +24,7 @@ getOutputMode {
 }
 
 setOutputMode {
+    InTerminator = CR LF 0x13;
     out "T %{OFF|ON}";
     wait 50;
     in "%*8c UNITS: %*{AMPS|TESLA}";
@@ -31,6 +32,7 @@ setOutputMode {
 }
 
 getOutput {
+    InTerminator = CR LF 0x13;
 	out "GET O";
 	wait 50;
 	in "%*8c OUTPUT: %f %*{AMPS|TESLA} AT %*f VOLTS";
@@ -38,9 +40,10 @@ getOutput {
 }
 
 getRampStatus {
+    InTerminator = CR LF 0x13;
 	out "RAMP STATUS";
 	wait 50;
-	in "%*8c RAMP STATUS: %{RAMPING|HOLDING ON TARGET|HOLDING ON PAUSE|QUENCH TRIP|EXTERNAL TRIP} %#s";
+	in "%*8c RAMP STATUS: %{RAMPING|HOLDING ON TARGET|HOLDING ON PAUSE|QUENCH TRIP|EXTERNAL TRIP} %*#s";
 	wait 100;
 }
 
@@ -57,6 +60,7 @@ setRampTarget {
 }
 
 getRampRate {
+    InTerminator = CR LF 0x13;
 	out "GET RATE";
 	wait 50;
 	in "%*8c RAMP RATE: %f A/SEC";
@@ -64,6 +68,7 @@ getRampRate {
 }
 
 setRampRate {
+    InTerminator = CR LF 0x13;
 	out "SET RAMP %f";
 	wait 50;
 	in "%*8c RAMP RATE: %*f A/SEC";
@@ -120,6 +125,7 @@ getConstant {
 }
 
 setConstant {
+    InTerminator = CR LF 0x13;
 	out "SET TPA %f";
 	wait 50;
 	in "%*8c FIELD CONSTANT: %*f T/A";
@@ -127,6 +133,7 @@ setConstant {
 }
 
 setMaxTarget {
+    InTerminator = CR LF 0x13;
 	out "SET MAX %f";
 	wait 50;
 	in "%*8c MAX SETTING: %*f %*{AMPS|TESLA}";
@@ -155,6 +162,7 @@ getMidTarget {
 }
 	
 getPause {
+    InTerminator = CR LF 0x13;
 	out "P";
 	wait 50;
 	in "%*8c PAUSE STATUS: %{OFF|ON}";

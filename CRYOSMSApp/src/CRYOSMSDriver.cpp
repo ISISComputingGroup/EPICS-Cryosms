@@ -7,6 +7,7 @@
 #include <iostream>
 #include <cstdlib>
 #include <map>
+#include <string>
 
 #include <epicsTypes.h>
 #include <epicsTime.h>
@@ -46,7 +47,6 @@ CRYOSMSDriver::CRYOSMSDriver(const char *portName, std::string devPrefix)
 	0,
 	0)
 {
-	static const char *functionName = "asynPortDriver";
 
 	createParam(P_deviceNameString, asynParamOctet, &P_deviceName);
 	createParam(P_initLogicString, asynParamOctet, &P_initLogic);
@@ -54,47 +54,8 @@ CRYOSMSDriver::CRYOSMSDriver(const char *portName, std::string devPrefix)
 	createParam(P_maxTString, asynParamOctet, &P_MaxT);
 	createParam(P_outputModeSetString, asynParamOctet, &P_outputModeSet);
 	this->devicePrefix = devPrefix;
-	this->maxCurrent = std::atof(std::getenv("MAX_CURR"));
-	this->teslaToAmps = std::atof(std::getenv("T_TO_A"));
-	this->maxVolt = std::atof(std::getenv("MAX_CURR"));
-	this->allowPersist = std::getenv("ALLOW_PERSIST");
-	this->useSwitch = std::getenv("USE_SWITCH");
-	this->switchTempPV = std::getenv("SWITVH_TEMP_PV");
-	this->switchHigh = std::atof(std::getenv("SWITCH_HIGH"));
-	this->switchLow = std::atof(std::getenv("SWITCH_LOW"));
-	this->switchStableNumber = std::stoi(std::getenv("SWITCH_STABLE_NUMBER"));
-	this->heaterTolerance = std::atof(std::getenv("HEATER_TOLERANCE"));
-	this->switchTimeout = std::atof(std::getenv("SWITCH_TIMEOUT"));
-	this->switchTempTolerance = std::atof(std::getenv("SWITCH_TEMP_TOLERANCE"));
-	this->heaterOut = std::getenv("HEATER_OUT");
-	this->useMagnetTemp = std::getenv("USE_MAGNET_TEMP");
-	this->magnetTempPV = std::getenv("MAGNET_TEMP_PV");
-	this->maxMagnetTemp = std::atof(std::getenv("MAX_MAGNET_TEMP"));
-	this->minMagnetTemp = std::atof(std::getenv("MIN_MAGNET_TEMP"));
-	this->compOffAct = std::getenv("COMP_OFF_ACT");
-	this->noOfComp = std::stoi(std::getenv("NO_OF_COMP"));
-	this->minNoOfCompOn = std::stoi(std::getenv("MIN_NO_OF_COMP_ON"));
-	this->comp1StatPV = std::getenv("COMP_1_STAT_PV");
-	this->comp2StatPV = std::getenv("COMP_2_STAT_PV");
-	this->fastRate = std::atof(std::getenv("FAST_RATE"));
-	this->fastPersistentSettleTime = std::atof(std::getenv("FAST_PERSISTANT_SETTLE_TIME"));
-	this->persistentSettleTime = std::atof(std::getenv("PERSISTANT_SETTLE_TIME"));
-	this->filterValue = std::atof(std::getenv("FILTER_VALUE"));
-	this->fastFilterValue = std::atof(std::getenv("FAST_FILTER_VALUE"));
-	this->npp = std::atof(std::getenv("NPP"));
+	this->writeDisabled = FALSE;
 
-	std::string writeUnit = std::getenv("WRITE_UNIT");
-	std::string displayUnit = std::getenv("DISPLAY_UNIT");
-
-	if (writeUnit == displayUnit && writeUnit != NULL) {
-		this->writeToDispConversion = 1.0;
-	}
-	else if (writeUnit == "TESLA" && displayUnit == "AMPS") {
-		this->writeToDispConversion = this->teslaToAmps;
-	}
-	else {
-		this->writeToDispConversion = 1.0 / this->teslaToAmps;
-	}
 
 	pRate_ = (epicsFloat64 *)calloc(INIT_ROW_NUM, sizeof(epicsFloat64));
 	pMaxT_ = (epicsFloat64 *)calloc(INIT_ROW_NUM, sizeof(epicsFloat64));
@@ -125,8 +86,11 @@ asynStatus CRYOSMSDriver::onStart()
 	int trueVal = 1;
 	int falseVal = 0;
 
-	if (this->teslaToAmps == 0) {
-		std::string statMsg = "No calibration from Tesla to Amps supplied";
+	const char *tToA = std::getenv("T_TO_A");
+
+	if (tToA == NULL) {
+		const char *statMsg = "No calibration from Tesla to Amps supplied";
+		this->writeDisabled = TRUE;
 		status = putDb("STAT", &statMsg);
 		status = putDb("DISABLE", &trueVal);
 		if (status != asynSuccess) {
@@ -134,15 +98,33 @@ asynStatus CRYOSMSDriver::onStart()
 		}
 	}
 	else {
-		status = putDb("HIDDEN:CONSTANT:SP", &this->teslaToAmps);
+		double teslaToAmps = std::stod(tToA);
+		const char *writeUnit = std::getenv("WRITE_UNIT");
+		const char *displayUnit = std::getenv("DISPlAY_UNIT");
+		status = putDb("HIDDEN:CONSTANT:SP", &teslaToAmps);
 		if (status != asynSuccess) {
 			return status;
 		}
+		if (writeUnit == displayUnit && writeUnit != NULL) {
+			this->writeToDispConversion = 1.0;
+		}
+		else if (writeUnit == "TESLA" && displayUnit == "AMPS") {
+			this->writeToDispConversion = teslaToAmps;
+		}
+		else if (writeUnit == "AMPS" && displayUnit == "TESLA") {
+			this->writeToDispConversion = 1.0 / teslaToAmps;
+		}
+		else if (writeUnit == "TESLA" && displayUnit == "GAUSS") {
+			this->writeToDispConversion = 10000.0;
+		}
+		else {
+			this->writeToDispConversion = 10000.0 / teslaToAmps;
+		}
 	}
 
-
-	if (this->maxCurrent == 0) {
-		std::string statMsg = "No Max Current given, writes not allowed";
+	if (std::getenv("MAX_CURR") == NULL) {
+		const char *statMsg = "No Max Current given, writes not allowed";
+		this->writeDisabled = TRUE;
 		status = putDb("STAT", &statMsg);
 		status = putDb("DISABLE", &trueVal);
 	}
@@ -151,13 +133,14 @@ asynStatus CRYOSMSDriver::onStart()
 		if (status != asynSuccess) {
 			return status;
 		}
-		status = putDb("HIDDEN:MAX:SP", &this->maxCurrent);
+		epicsFloat64 maxCurr = std::stod(std::getenv("MAX_CURR"));
+		status = putDb("HIDDEN:MAX:SP", &maxCurr);
 	}
 	if (status != asynSuccess) {
 		return status;
 	}
 
-	if (this->writeUnit == "Amps") {
+	if (std::getenv("WRITE_UNIT") == "AMPS") {
 		status = putDb("HIDDEN:OUTPUTMODE:SP", &falseVal);
 	}
 	else {
@@ -167,12 +150,12 @@ asynStatus CRYOSMSDriver::onStart()
 		return status;
 	}
 
+	if (std::getenv("ALLOW_PERSIST") == "Yes") {
+		if (std::getenv("FAST_FILTER_VALUE") == NULL || std::getenv("FILTER_VALUE") == NULL || std::getenv("NPP") == NULL || std::getenv("FAST_PERSISTENT_SETTLETIME") == NULL ||
+			std::getenv("PERSISTENT_SETTLETIME") == NULL || std::getenv("FASTRATE") == NULL) {
 
-	if (this->allowPersist == "Yes") {
-		if (this->fastFilterValue == 0 || this->filterValue == 0 || this->npp == 0 || this->fastPersistentSettleTime == 0 ||
-			this->persistentSettleTime == 0 || this->fastRate == 0) {
-
-			std::string statMsg = "Missing parameters to allow persistent mode to be used";
+			const char *statMsg = "Missing parameters to allow persistent mode to be used";
+			this->writeDisabled = TRUE;
 			status = putDb("STAT", &statMsg);
 			status = putDb("DISABLE", &trueVal);
 			if (status != asynSuccess) {
@@ -195,7 +178,7 @@ asynStatus CRYOSMSDriver::onStart()
 		}
 	}
 	else {
-		std::string magMode = "Non Persistent";
+		const char *magMode = "Non Persistent";
 
 		status = putDb("MAGNET:MODE", &magMode);
 		if (status != asynSuccess) {
@@ -224,10 +207,12 @@ asynStatus CRYOSMSDriver::onStart()
 
 	}
 
-	if (this->useSwitch == "Yes" && (this->switchTempPV == "" || this->switchHigh == 0 || this->switchLow == 0 || this->switchStableNumber == 0 ||
-		this->heaterTolerance == 0 || this->switchTimeout == 0 || this->switchTempTolerance == 0 || this->heaterOut == "")) {
+	if (std::getenv("USE_SWITCH") == "Yes" && (std::getenv("SWITCH_TEMP_PV") == NULL || std::getenv("SWITCH_HIGH") == NULL || std::getenv("SWITCH_LOW") == NULL ||
+		std::getenv("SWITCH_STABLE_NUMBER") == NULL || std::getenv("HEATER_TOLERANCE") == NULL || std::getenv("SWITCH_TOLERANCE") == NULL || std::getenv("SWITCH_TEMP_TOLERANCE") == NULL ||
+		std::getenv("HEATER_OUT") == NULL )){
 
-		std::string statMsg = "Missing parameters to allow a switch to be used";
+		const char *statMsg = "Missing parameters to allow a switch to be used";
+		this->writeDisabled = TRUE;
 		status = putDb("STAT", &statMsg);
 		status = putDb("DISABLE", &trueVal);
 		if (status != asynSuccess) {
@@ -235,16 +220,18 @@ asynStatus CRYOSMSDriver::onStart()
 		}
 	}
 
-	if (this->heaterOut != "") {
-		status = putDb("HIDDEN:HEATER:VOLT:SP", &this->heaterOut);
+	if (std::getenv("HEATER_OUT") != NULL) {
+		epicsFloat64 heatOut = std::stod(std::getenv("HEATER_OUT"));
+		status = putDb("HIDDEN:HEATER:VOLT:SP", &heatOut);
 		if (status != asynSuccess) {
 			return status;
 		}
 	}
 
-	if (this->useMagnetTemp == "Yes" && (this->magnetTempPV == "" || this->maxMagnetTemp == 0 || this->minMagnetTemp == 0)) {
+	if (std::getenv("USE_MAGNET_TEMP") == "Yes" && (std::getenv("MAGNET_TEMP_PV") == NULL || std::getenv("MAX_MAGNET_TEMP") == NULL || std::getenv("MIN_MAGNET_TEMP") == NULL)) {
 
-		std::string statMsg = "Missing parameters to allow the magnet temperature to be used";
+		const char *statMsg = "Missing parameters to allow the magnet temperature to be used";
+		this->writeDisabled = TRUE;
 		status = putDb("STAT", &statMsg);
 		status = putDb("DISABLE", &trueVal);
 		if (status != asynSuccess) {
@@ -252,27 +239,59 @@ asynStatus CRYOSMSDriver::onStart()
 		}
 	}
 
-	if (this->compOffAct == "Yes" && (this->noOfComp == 0 || this->minNoOfCompOn == 0 || this->comp1StatPV == "" || this->comp2StatPV == "")) {
+	if (std::getenv("COMP_OFF_ACT") == "Yes" && (std::getenv("NO_OF_COMP") == NULL || std::getenv("MIN_NO_OF_COMP_ON") == NULL || std::getenv("COPM_1_STAT_PV") == NULL ||
+		std::getenv("COMP_2_STAT_PV") == NULL )) {
 		
-		std::string statMsg = "Missing parameters to allow actions on the state of the compressors";
+		const char *statMsg = "Missing parameters to allow actions on the state of the compressors";
+		this->writeDisabled = TRUE;
 		status = putDb("STAT", &statMsg);
 		status = putDb("DISABLE", &trueVal);
 		if (status != asynSuccess) {
 			return status;
 		}
 	}
+
+	if (std::getenv("RAMP_FILE") == NULL) {
+		const char *statMsg = "Missing ramp file path";
+		this->writeDisabled = TRUE;
+		status = putDb("STAT", &statMsg);
+		status = putDb("DISABLE", &trueVal);
+	}
+	else {
+		status = readFile(std::getenv("RAMP_FILE"));
+	}
+	if (status != asynSuccess) {
+		return status;
+	}
+
+	double currT;
+	double initRate;
+	int i;
+	status = getDb("OUTPUT:FIELD:TESLA", &currT);
+	for (i = 0; i <= sizeof(pMaxT_); i++) {
+		if (pMaxT_[i] > currT) {
+			break;
+		}
+	}
+	if (i == sizeof(pMaxT_)) {
+		initRate = 0.0;
+	}
+	else {
+		initRate = pRate_[i];
+	}
+	status = putDb("HIDDEN:RAMP:RATE:SP", &initRate);
 
 	status = procDb("PAUSE");
 	if (status != asynSuccess) {
 		return status;
 	}
 
-	int isPaused;
+	std::string isPaused;
 	status = getDb("PAUSE", &isPaused);
 	if (status != asynSuccess) {
 		return status;
 	}
-	else if (isPaused = 1){
+	else if (isPaused == "ON"){
 		status = putDb("PAUSE:QUEUE", &trueVal);
 		if (status != asynSuccess) {
 			return status;
@@ -284,27 +303,31 @@ asynStatus CRYOSMSDriver::onStart()
 		return status;
 	}
 
+	if (this->writeDisabled == FALSE) {
+		float targetVal;
+		status = getDb("RAMP:TARGET:DISPLAY", &targetVal);
+		if (status != asynSuccess) {
+			return status;
+		}
+		status = putDb("TARGET:SP", &targetVal);
+		if (status != asynSuccess) {
+			return status;
+		}
 
-	float targetVal;
-	status = getDb("RAMP:TARGET:DISPLAY", &targetVal);
-	if (status != asynSuccess) {
-		return status;
+		double midTarget;
+		status = getDb("MID", &midTarget);
+		if (status != asynSuccess) {
+			return status;
+		}
+		else {
+			midTarget *= this->writeToDispConversion;
+		}
+		status = putDb("MID:SP", &midTarget);
+		if (status != asynSuccess) {
+			return status;
+		}
 	}
-	status = putDb("TARGET:SP", &targetVal);
-	if (status != asynSuccess) {
-		return status;
-	}
-
-	double midTarget;
-	status = getDb("MID", &midTarget);
-	if (status != asynSuccess) {
-		return status;
-	}
-	else {
-		midTarget *= this->writeToDispConversion;
-	}
-	status = putDb("MID:SP", &midTarget);
-
+	
 	return status;
 }
 
@@ -312,7 +335,6 @@ asynStatus CRYOSMSDriver::procDb(std::string pvSuffix) {
 	DBADDR addr;
 	std::string fullPV = this->devicePrefix + pvSuffix;
 	if (dbNameToAddr(fullPV.c_str(), &addr)) {
-		throw std::runtime_error("PV not found: " + fullPV);
 		return asynError;
 	}
 	dbCommon *precord = addr.precord;
@@ -324,7 +346,6 @@ asynStatus CRYOSMSDriver::getDb(std::string pvSuffix, void *pbuffer) {
 	long numReq = 1;
 	std::string fullPV = this->devicePrefix + pvSuffix;
 	if (dbNameToAddr(fullPV.c_str(), &addr)) {
-		throw std::runtime_error("PV not found: " + fullPV);
 		return asynError;
 	}
 	return (asynStatus)dbGetField(&addr, addr.dbr_field_type, &pbuffer, NULL, &numReq, NULL);
@@ -333,7 +354,6 @@ asynStatus CRYOSMSDriver::putDb(std::string pvSuffix, const void *value) {
 	DBADDR addr;
 	std::string fullPV = this->devicePrefix + pvSuffix;
 	if (dbNameToAddr(fullPV.c_str(), &addr)) {
-		throw std::runtime_error("PV not found: " + fullPV);
 		return asynError;
 	}
 
@@ -342,7 +362,7 @@ asynStatus CRYOSMSDriver::putDb(std::string pvSuffix, const void *value) {
 
 asynStatus CRYOSMSDriver::readFile(const char *dir)
 {
-	//Reads PID values from a file and places them in an array
+	//Reads ramp rates from a file and places them in an array
 	float rate, maxT;
 	int ind = 0;
 	FILE *fp;
@@ -377,6 +397,7 @@ asynStatus CRYOSMSDriver::readFile(const char *dir)
 		doCallbacksFloat64Array(pRate_, rowNum, P_Rate, 0);
 		doCallbacksFloat64Array(pMaxT_, rowNum, P_MaxT, 0);
 		std::cerr << "ReadASCII: read " << rowNum << " lines from file: " << dir << std::endl;
+
 	}
 	else {
 		//send a file not found error
