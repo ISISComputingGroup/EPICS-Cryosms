@@ -15,12 +15,6 @@ record(bo, "$(P)ABORT:SP")
     field(ONAM, "ON")
 }
 
-record(ai, "$(P)CONSTANT")
-{
-    field(DESC, "Tesla/Amp conversion rate")
-    field(VAL, "$(T_TO_A)")
-}
-
 record(mbbi, "$(P)DIRECTION")
 {
     field(DESC, "The direction of the device")
@@ -100,7 +94,6 @@ record(scalcout, "$(P)OUTPUT")
     field(DESC, "Output from the PSU in $(DISPLAY_UNIT)")
     field(FLNK, "$(P)GAUSS")
     field(EGU, "$(DISPLAY_UNIT)")
-    field(SDIS, "$(P)DISABLE")
     field(INPA, "$(P)OUTPUT:CURR")
     field(INPB, "$(P)OUTPUT:FIELD:TESLA")
     field(INPC, "$(P)OUTPUT:FIELD:GAUSS")
@@ -116,7 +109,6 @@ record(calc, "$(P)OUTPUT:COIL")
     field(INPB, "(P)OUTPUT:PERSIST")
     field(INPC, "$(P)OUTPUT")
     field(EGU, "$(DISPLAY_UNIT)")
-    field(SDIS, "$(P)DISABLE")
 }
 
 record(scalcout, "$(P)OUTPUT:CURR")
@@ -148,7 +140,6 @@ record(scalcout, "$(P)OUTPUT:PERSIST")
     field(DESC, "Persistent output in $(DISPLAY_UNIT)")
     field(PREC, "3")
     field(EGU, "$(DISPLAY_UNIT)")
-    field(SDIS, "$(P)DISABLE")
     field(INPA, "$(P)OUTPUT:PERSIST:CURR")
     field(INPB, "$(P)OUTPUT:PERSIST:FIELD:TESLA")
     field(INPC, "$(P)OUTPUT:PERSIST:FIELD:GAUSS")
@@ -183,6 +174,7 @@ record(scalcout, "$(P)OUTPUT:PERSIST:FIELD:TESLA")
 record(ai, "$(P)OUTPUT:PERSIST:RAW")
 {
     field(DESC, "Raw persistent field from PSU, A or T")
+    #Persistent mode responses unknow, will need to check against real device before these PVs can be completed
 }
 
 record(ai, "$(P)OUTPUT:PERSIST:RAW:UNIT")
@@ -194,23 +186,19 @@ record(ai, "$(P)OUTPUT:RAW")
 {
     field(DESC, "Raw value returned from the PSU, A or T")# returned during a “GO” command
     field(DTYP, "stream")
-    field(INP, "@cryosms.proto getOutput $(PORT)")
+    field(INP, "@cryosms.proto getOutput($(P)) $(PORT)")
     field(PREC, "3")
-    field(SCAN, ".5 second")
+    field(SCAN, "1 second")
 }
 
 record(bi, "$(P)OUTPUT:RAW:UNIT")
 {
     field(DESC, "The unit for OUTPUT:RAW") # returned as part of a “GO” command
-    field(INP, "$(P)OUTPUTMODE")
 }
 
 record(ao, "$(P)OUTPUT:SP")
 {
     field(DESC, "The destination of next ramp in $(DISPLAY_UNIT)")
-    field(DTYP, "asynInt32")
-    field(OUT, "@asyn($(ASYN_PORT),0,0)OUTPUT_SET")
-    field(PREC, "3")
     field(EGU, "$(DISPLAY_UNIT)")
     field(SDIS, "$(P)DISABLE")
 }
@@ -219,8 +207,6 @@ record(ai, "$(P)OUTPUT:VOLT")
 {
     field(DESC, "The Output Voltage")
     field(EGU, "V")
-    field(SIML, "SIM")
-    field(SIOL, "SIM:OUTPUT")
     field(SDIS, "$(P)DISABLE")
 }
 
@@ -262,8 +248,6 @@ record(bo, "$(P)PAUSE:SP")
 {
     field(DESC, "Pause the current ramp")
     field(SDIS, "$(P)DISABLE")
-    field(DTYP, "asynInt32")
-    field(OUT, "@asyn($(ASYN_PORT),0,0)PAUSE_SET")
     field(ZNAM, "OFF")
     field(ONAM, "ON")
 }
@@ -291,11 +275,6 @@ record(ai, "$(P)RAMP:RATE")
     field(SCAN, "1 second")
 }
 
-record(stringout, "$(P)RAMP:RATE:SOURCE")
-{
-    field(DESC, "The source to use for the ramp rate")
-}
-
 record(scalcout, "$(P)RAMP:RAMPING")
 {
     field(DESC, "Whether or not PSU is ramping")
@@ -321,7 +300,7 @@ record(ai, "$(P)RAMP:TARGET")
 {
     field(DESC, "Ramp target read from device")
     field(DTYP, "stream")
-    field(INP, "@cryosms.proto getRampTarget $(PORT)")
+    field(INP, "@cryosms.proto getRampTarget($(P)RAMP:TARGET.EGU) $(PORT)")
     field(SCAN, "I/O Intr")
     field(FLNK, "$(P)RAMP:TARGET:DISPLAY")
 }
@@ -331,7 +310,7 @@ record(scalcout, "$(P)RAMP:TARGET:DISPLAY")
     field(DESC, "disp. unit version of RAMP:TARGET")
     field(INPA, "$(P)RAMP:TARGET")
     field(INPB, "$(DISPLAY_UNIT)")
-    field(INPC, "$(WRITE_UNIT)")
+    field(INPC, "$(P)RAMP:TARGET.EGU")
     field(CALC, "B==C?A:B==\"TESLA\"?A/$(T_TO_A):A*$(T_TO_A)")
 }
 
@@ -369,10 +348,10 @@ record(bo, "$(P)START:SP")
 
 record(ai, "$(P)TARGET:TIME")
 {
-    field(DESC, "Time it will take to get to that target")
+    field(DESC, "Time it will take to get to target")
 }
 
-record(scalcout, "$(P)TARGET:SP")
+record(ao, "$(P)TARGET:SP")
 {
     field(DESC, "Value to send PSU in $(WRITE_UNIT)")
     field(EGU, "$(WRITE_UNIT)")
@@ -385,6 +364,7 @@ record(ao, "$(P)HIDDEN:CONSTANT:SP")
     field(ASG, "HIDDEN")
     field(OUT, "@cryosms.proto setConstant $(PORT)")
     field(SCAN, "Passive")
+    field(EGU, "T/A")
 }
 
 record(ao, "$(P)HIDDEN:HEATER:VOLT:SP")
@@ -393,6 +373,7 @@ record(ao, "$(P)HIDDEN:HEATER:VOLT:SP")
     field(ASG, "HIDDEN")
     field(OUT, "@cryosms.proto setHeaterValue $(PORT)")
     field(SCAN, "Passive")
+    field(EGU, "V")
 }
 
 
@@ -402,6 +383,7 @@ record(ao, "$(P)HIDDEN:MAX:SP")
     field(ASG, "HIDDEN")
     field(OUT, "@cryosms.proto setMaxTarget $(PORT)")
     field(SCAN, "Passive")
+    field(EGU, "$(WRITE_UNIT)")
 }
 
 
@@ -413,7 +395,6 @@ record(bo, "$(P)HIDDEN:OUTPUTMODE:SP")
     field(SCAN, "Passive")
     field(ZNAM, "AMPS")
     field(ONAM, "TESLA")
-    field(VAL, "0")
 }
 
 
@@ -423,6 +404,7 @@ record(ao, "$(P)HIDDEN:RAMP:RATE:SP")
     field(ASG, "HIDDEN")
     field(OUT, "@cryosms.proto setRampRate $(PORT)")
     field(SCAN, "Passive")
+    field(EGU, "A/s")
 }
 
 
@@ -452,10 +434,6 @@ record(fanout, "$(P)FAN:UNITS")
 }
 
 ### SIM
-
-record(ai, "$(P)SIM:OUTPUT") {}
-alias("$(P)SIM:OUTPUT", "$(P)SIM:OUTPUT:SP")
-alias("$(P)SIM:OUTPUT:SP", "$(P)SIM:OUTPUT:SP:RBV")
 
 record(mbbi, "$(P)SIM:OUTPUTMODE") {}
 alias("$(P)SIM:OUTPUTMODE", "$(P)SIM:OUTPUTMODE:SP")

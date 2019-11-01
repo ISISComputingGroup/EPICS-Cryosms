@@ -9,12 +9,6 @@ getDirection {
 	in "CURRENT DIRECTION: %{ZERO|NEGATIVE|POSITIVE}";
 	wait 100;
 }
-	
-setDirection {
-	out "D %{0|-|+}";
-	wait 50;
-	in "";
-}	
 
 getOutputMode {
     out "T";
@@ -35,7 +29,7 @@ getOutput {
     InTerminator = CR LF 0x13;
 	out "GET O";
 	wait 50;
-	in "%*8c OUTPUT: %f %*{AMPS|TESLA} AT %*f VOLTS";
+	in "%*8c OUTPUT: %f %(\$1OUTPUT:RAW:UNIT){AMPS|TESLA} AT %(\$1OUTPUT:VOLT)f VOLTS";
 	wait 100;
 }
 
@@ -48,15 +42,8 @@ getRampStatus {
 }
 
 getRampTarget {
-    in "%*8c RAMP STATUS: RAMPING FROM %*f TO %f %*{AMPS|TESLA} AT %*f %*{A/SEC|VOLTS})";
+    in "%*8c RAMP STATUS: RAMPING FROM %*f TO %f %(\$1){AMPS|TESLA} AT %*f %*{A/SEC|VOLTS})";
     wait 100;
-}
-
-setRampTarget {
-	out "RAMP %{ZERO|MID|MAX}"; 
-	wait 50;
-	in "%*1c";
-	wait 100;
 }
 
 getRampRate {
@@ -82,45 +69,10 @@ getHeaterStatus {
 	wait 100;
 }
 
-setHeaterStatus {
-	out "H %{OFF|ON}";
-	wait 50;
-	in "%*60c";
-	wait 100;
-}
-
-getHeaterValue {
-	out "GET H";
-	wait 50;
-	in "%*8c HEATER OUTPUT: %f VOLTS";
-	wait 100;
-}
-
 setHeaterValue {
 	out "S H %f";
 	wait 50;
 	in "%*8c HEATER OUTPUT: %*f VOLTS";
-	wait 100;
-}
-
-getLimit {
-	out "GET VL";
-	wait 50;
-	in "%*8c VOLTAGE LIMIT: %f VOLTS";
-	wait 100;
-}
-
-setLimit {
-	out "S L %f";
-	wait 50;
-	in "%*8c VOLTAGE LIMIT: %*f VOLTS";
-	wait 100;
-}
-
-getConstant {
-	out "GET TPA";
-	wait 50;
-	in "%*8c FIELD CONSTANT: %f T/A";
 	wait 100;
 }
 
@@ -140,20 +92,6 @@ setMaxTarget {
 	wait 100;
 }
 
-getMaxTarget {
-	out "GET MAX";
-	wait 50;
-	in "%*8c MAX SETTING: %f %*{AMPS|TESLA}";
-	wait 100;
-}
-
-setMidTarget {
-	out "SET MID %f";
-	wait 50;
-	in "%*8c MID SETTING: %*f %*{AMPS|TESLA}";
-	wait 100;
-}
-
 getMidTarget {
 	out "GET MID";
 	wait 50;
@@ -168,10 +106,3 @@ getPause {
 	in "%*8c PAUSE STATUS: %{OFF|ON}";
 	wait 100;
 }	
-
-setPause {
-	out "P %{OFF|ON}";
-	wait 50;
-	in "%*8c PAUSE STATUS: %*{OFF|ON}";
-	wait 100;
-}

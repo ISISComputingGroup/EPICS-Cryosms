@@ -126,7 +126,13 @@ asynStatus CRYOSMSDriver::onStart()
 		const char *statMsg = "No Max Current given, writes not allowed";
 		this->writeDisabled = TRUE;
 		status = putDb("STAT", &statMsg);
+		if (status != asynSuccess) {
+			return status;
+		}
 		status = putDb("DISABLE", &trueVal);
+		if (status != asynSuccess) {
+			return status;
+		}
 	}
 	else {
 		status = putDb("HIDDEN:OUTPUTMODE:SP", &falseVal);
@@ -135,9 +141,9 @@ asynStatus CRYOSMSDriver::onStart()
 		}
 		epicsFloat64 maxCurr = std::stod(std::getenv("MAX_CURR"));
 		status = putDb("HIDDEN:MAX:SP", &maxCurr);
-	}
-	if (status != asynSuccess) {
-		return status;
+		if (status != asynSuccess) {
+			return status;
+		}
 	}
 
 	if (std::getenv("WRITE_UNIT") == "AMPS") {
@@ -214,6 +220,9 @@ asynStatus CRYOSMSDriver::onStart()
 		const char *statMsg = "Missing parameters to allow a switch to be used";
 		this->writeDisabled = TRUE;
 		status = putDb("STAT", &statMsg);
+		if (status != asynSuccess) {
+			return status;
+		}
 		status = putDb("DISABLE", &trueVal);
 		if (status != asynSuccess) {
 			return status;
@@ -233,6 +242,9 @@ asynStatus CRYOSMSDriver::onStart()
 		const char *statMsg = "Missing parameters to allow the magnet temperature to be used";
 		this->writeDisabled = TRUE;
 		status = putDb("STAT", &statMsg);
+		if (status != asynSuccess) {
+			return status;
+		}
 		status = putDb("DISABLE", &trueVal);
 		if (status != asynSuccess) {
 			return status;
@@ -245,6 +257,9 @@ asynStatus CRYOSMSDriver::onStart()
 		const char *statMsg = "Missing parameters to allow actions on the state of the compressors";
 		this->writeDisabled = TRUE;
 		status = putDb("STAT", &statMsg);
+		if (status != asynSuccess) {
+			return status;
+		}
 		status = putDb("DISABLE", &trueVal);
 		if (status != asynSuccess) {
 			return status;
@@ -255,13 +270,19 @@ asynStatus CRYOSMSDriver::onStart()
 		const char *statMsg = "Missing ramp file path";
 		this->writeDisabled = TRUE;
 		status = putDb("STAT", &statMsg);
+		if (status != asynSuccess) {
+			return status;
+		}
 		status = putDb("DISABLE", &trueVal);
+		if (status != asynSuccess) {
+			return status;
+		}
 	}
 	else {
 		status = readFile(std::getenv("RAMP_FILE"));
-	}
-	if (status != asynSuccess) {
-		return status;
+		if (status != asynSuccess) {
+			return status;
+		}
 	}
 
 	double currT;
