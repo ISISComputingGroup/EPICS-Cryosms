@@ -11,6 +11,7 @@ getDirection {
 }
 
 getOutputMode {
+    InTerminator = CR LF 0x13;
     out "T";
     wait 50;
     in "%*8c UNITS: %{AMPS|TESLA}";

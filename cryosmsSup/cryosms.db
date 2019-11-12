@@ -1,10 +1,5 @@
 #
-# Simple database and stream protocol file for basic SCPI (IEEE488.2) commands
-#
-
-
-#
-# Short and long form of identification string
+# Database and stream protocol file for Cryogenic Ltd SMS series superconducting magnet controller commands
 #
 
 record(bo, "$(P)ABORT:SP")
@@ -23,6 +18,9 @@ record(mbbi, "$(P)DIRECTION")
     field(ZRST, "0")
     field(ONST, "-")
     field(TWST, "+")
+    field(SIML, "$(P)SIM")
+    field(SIOL, "$(P)SIM:DIRECTION")
+    field(SDIS, "$(P)DISABLE")
 }
 
 record(bo, "$(P)DISABLE")
@@ -49,6 +47,9 @@ record(bi, "$(P)HEATER:STAT")
     field(SCAN, "Passive")
     field(ZNAM, "Off")
     field(ONAM, "On")
+    field(SIML, "$(P)SIM")
+    field(SIOL, "$(P)SIM:HEATER:STAT")
+    field(SDIS, "$(P)DISABLE")
 }
 
 record(bo, "$(P)INIT")
@@ -57,6 +58,9 @@ record(bo, "$(P)INIT")
     field(PINI, "1")
     field(DTYP, "asynInt32")
     field(OUT, "@asyn($(ASYN_PORT),0,0)INIT_LOGIC")
+    field(SIML, "$(P)SIM")
+    field(SIOL, "$(P)SIM:INIT")
+    field(SDIS, "$(P)DISABLE")
 }
 
 ### MAGNET:
@@ -79,6 +83,9 @@ record(ai, "$(P)MID")
     field(DTYP, "stream")
     field(INP, "@cryosms.proto getMidTarget $(PORT)")
     field(SCAN, "Passive")
+    field(SIML, "$(P)SIM")
+    field(SIOL, "$(P)SIM:MID")
+    field(SDIS, "$(P)DISABLE")
 }
 
 record(ao, "$(P)MID:SP")
@@ -174,7 +181,7 @@ record(scalcout, "$(P)OUTPUT:PERSIST:FIELD:TESLA")
 record(ai, "$(P)OUTPUT:PERSIST:RAW")
 {
     field(DESC, "Raw persistent field from PSU, A or T")
-    #Persistent mode responses unknow, will need to check against real device before these PVs can be completed
+    #Persistent mode responses unknown, will need to check against real device before these PVs can be completed
 }
 
 record(ai, "$(P)OUTPUT:PERSIST:RAW:UNIT")
@@ -189,6 +196,9 @@ record(ai, "$(P)OUTPUT:RAW")
     field(INP, "@cryosms.proto getOutput($(P)) $(PORT)")
     field(PREC, "3")
     field(SCAN, "1 second")
+    field(SIML, "$(P)SIM")
+    field(SIOL, "$(P)SIM:OUTPUT:RAW")
+    field(SDIS, "$(P)DISABLE")
 }
 
 record(bi, "$(P)OUTPUT:RAW:UNIT")
@@ -220,6 +230,9 @@ record(mbbi, "$(P)OUTPUTMODE")
     field(VAL, "0")
     field(SDIS, "$(P)DISABLE")
     field(SCAN, "1 second")
+    info(ARCHIVE, "VAL")
+    field(SIML, "$(P)SIM")
+    field(SIOL, "$(P)SIM:OUTPUTMODE")
 }
 
 record(bo, "$(P)OUTPUTMODE:SP")
@@ -232,6 +245,8 @@ record(bo, "$(P)OUTPUTMODE:SP")
     field(ONAM, "TESLA")
     field(VAL, "0")
     field(SDIS, "$(P)DISABLE")
+    field(SIML, "$(P)SIM")
+    field(SIOL, "$(P)SIM:OUTPUTMODE:SP")
 }
 
 record(bi, "$(P)PAUSE")
@@ -242,6 +257,9 @@ record(bi, "$(P)PAUSE")
     field(ZNAM, "OFF")
     field(ONAM, "ON")    
     field(SCAN, "Passive")
+    field(SIML, "$(P)SIM")
+    field(SIOL, "$(P)SIM:PAUSE")
+    field(SDIS, "$(P)DISABLE")
 }
 
 record(bo, "$(P)PAUSE:SP")
@@ -273,6 +291,9 @@ record(ai, "$(P)RAMP:RATE")
     field(DTYP, "stream")
     field(INP, "@cryosms.proto getRampRate $(PORT)")
     field(SCAN, "1 second")
+    field(SIML, "$(P)SIM")
+    field(SIOL, "$(P)SIM:RAMP:RATE")
+    field(SDIS, "$(P)DISABLE")
 }
 
 record(scalcout, "$(P)RAMP:RAMPING")
@@ -294,6 +315,9 @@ record(mbbi, "$(P)RAMP:STAT")
     field(THST, "QUENCH TRIP")
     field(FRST, "EXTERNAL TRIP")
     field(FLNK, "$(P)FAN:STATUS")
+    field(SIML, "$(P)SIM")
+    field(SIOL, "$(P)SIM:RAMP:STAT")
+    field(SDIS, "$(P)DISABLE")
 }
 
 record(ai, "$(P)RAMP:TARGET")
@@ -303,6 +327,9 @@ record(ai, "$(P)RAMP:TARGET")
     field(INP, "@cryosms.proto getRampTarget($(P)RAMP:TARGET.EGU) $(PORT)")
     field(SCAN, "I/O Intr")
     field(FLNK, "$(P)RAMP:TARGET:DISPLAY")
+    field(SIML, "$(P)SIM")
+    field(SIOL, "$(P)SIM:RAMP:TARGET")
+    field(SDIS, "$(P)DISABLE")
 }
 
 record(scalcout, "$(P)RAMP:TARGET:DISPLAY")
@@ -365,6 +392,9 @@ record(ao, "$(P)HIDDEN:CONSTANT:SP")
     field(OUT, "@cryosms.proto setConstant $(PORT)")
     field(SCAN, "Passive")
     field(EGU, "T/A")
+    field(SIML, "$(P)SIM")
+    field(SIOL, "$(P)SIM:HIDDEN:CONSTANT:SP")
+    field(SDIS, "$(P)DISABLE")
 }
 
 record(ao, "$(P)HIDDEN:HEATER:VOLT:SP")
@@ -374,6 +404,9 @@ record(ao, "$(P)HIDDEN:HEATER:VOLT:SP")
     field(OUT, "@cryosms.proto setHeaterValue $(PORT)")
     field(SCAN, "Passive")
     field(EGU, "V")
+    field(SIML, "$(P)SIM")
+    field(SIOL, "$(P)SIM:HIDDEN:HEATER:VOLT:SP")
+    field(SDIS, "$(P)DISABLE")
 }
 
 
@@ -384,6 +417,9 @@ record(ao, "$(P)HIDDEN:MAX:SP")
     field(OUT, "@cryosms.proto setMaxTarget $(PORT)")
     field(SCAN, "Passive")
     field(EGU, "$(WRITE_UNIT)")
+    field(SIML, "$(P)SIM")
+    field(SIOL, "$(P)SIM:HIDDEN:MAX:SP")
+    field(SDIS, "$(P)DISABLE")
 }
 
 
@@ -395,6 +431,9 @@ record(bo, "$(P)HIDDEN:OUTPUTMODE:SP")
     field(SCAN, "Passive")
     field(ZNAM, "AMPS")
     field(ONAM, "TESLA")
+    field(SIML, "$(P)SIM")
+    field(SIOL, "$(P)SIM:HIDDEN:OUTPUTMODE:SP")
+    field(SDIS, "$(P)DISABLE")
 }
 
 
@@ -405,8 +444,10 @@ record(ao, "$(P)HIDDEN:RAMP:RATE:SP")
     field(OUT, "@cryosms.proto setRampRate $(PORT)")
     field(SCAN, "Passive")
     field(EGU, "A/s")
+    field(SIML, "$(P)SIM")
+    field(SIOL, "$(P)SIM:HIDDEN:RAMP:RATE:SP")
+    field(SDIS, "$(P)DISABLE")
 }
-
 
 ### FANOUTS
 
@@ -433,8 +474,72 @@ record(fanout, "$(P)FAN:UNITS")
     field(LNK1, "$(P)OUTPUT:RAW:UNIT")
 }
 
-### SIM
 
-record(mbbi, "$(P)SIM:OUTPUTMODE") {}
-alias("$(P)SIM:OUTPUTMODE", "$(P)SIM:OUTPUTMODE:SP")
-alias("$(P)SIM:OUTPUTMODE:SP", "$(P)SIM:OUTPUTMODE:SP:RBV")
+### SIMULATION RECORDS ###
+
+record(ai,"$(P)SIM:OUTPUT:RAW")
+{
+    field(SCAN, "Passive")
+    field(DTYP, "Soft Channel")
+}
+
+record(bi,"$(P)SIM:PAUSE")
+{
+    field(SCAN, "Passive")
+    field(DTYP, "Soft Channel")
+}
+
+alias("$(P)SIM:PAUSE","$(P)SIM:PAUSE:SP")
+
+record(mbbi,"$(P)SIM:OUTPUTMODE")
+{
+    field(SCAN, "Passive")
+    field(DTYP, "Soft Channel")
+}
+
+alias("$(P)SIM:OUTPUTMODE","$(P)SIM:OUTPUTMODE:SP")
+
+record(mbbi,"$(P)SIM:RAMP:STAT")
+{
+    field(SCAN, "Passive")
+    field(DTYP, "Soft Channel")
+}
+
+record(bi,"$(P)SIM:HEATER:STAT")
+{
+    field(SCAN, "Passive")
+    field(DTYP, "Soft Channel")
+}
+
+record(ai,"$(P)SIM:RAMP:TARGET")
+{
+    field(SCAN, "Passive")
+    field(DTYP, "Soft Channel")
+}
+
+record(ai,"$(P)SIM:RAMP:RATE")
+{
+    field(SCAN, "Passive")
+    field(DTYP, "Soft Channel")
+}
+
+record(bo,"$(P)SIM:INIT")
+{
+    field(SCAN, "Passive")
+    field(DTYP, "Soft Channel")
+}
+
+record(ai,"$(P)SIM:MID")
+{
+    field(SCAN, "Passive")
+    field(DTYP, "Soft Channel")
+}
+
+alias("$(P)SIM:MID","$(P)SIM:MID:SP")
+
+record(mbbi,"$(P)SIM:DIRECTION")
+{
+    field(SCAN, "Passive")
+    field(DTYP, "Soft Channel")
+}
+
