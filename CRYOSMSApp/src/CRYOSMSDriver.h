@@ -28,7 +28,6 @@ private:
 };
 
 #define P_deviceNameString "DEVICE"
-#define P_devicePrefixString "IN:NXHIFI:CRYOSMS_01"
 #define P_outputModeSetString "OUTPUTMODE_SET"
 
 #endif /* CRYOSMSDRIVER_H */

@@ -3,6 +3,7 @@ OutTerminator = CR LF;
 InTerminator = 0x13;
 
 getOutputMode {
+    InTerminator = CR LF 0x13;
     out "T";
     wait 50;
     in "%*8c UNITS: %{AMPS|TESLA}";
@@ -10,6 +11,7 @@ getOutputMode {
 }
 
 setOutputMode {
+    InTerminator = CR LF 0x13;
     out "T %{OFF|ON}";
     wait 50;
     in "%*8c UNITS: %*{AMPS|TESLA}";

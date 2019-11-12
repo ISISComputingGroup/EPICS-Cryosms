@@ -1,11 +1,7 @@
 #
-# Simple database and stream protocol file for basic SCPI (IEEE488.2) commands
+# Database and stream protocol file for Cryogenic Ltd SMS series superconducting magnet controller commands
 #
 
-
-#
-# Short and long form of identification string
-#
 record(bi, "$(P)SIM")
 {
     field(DTYP, "Soft Channel")
@@ -36,6 +32,7 @@ record(mbbi, "$(P)OUTPUTMODE")
     field(SIOL, "$(P)OUTPUTMODE:SP")
     field(SDIS, "$(P)DISABLE")
     field(SCAN, "1 second")
+    info(ARCHIVE, "VAL")
 }
 
 record(bo, "$(P)HIDDEN:OUTPUTMODE:SP")
@@ -63,5 +60,25 @@ record(bo, "$(P)OUTPUTMODE:SP")
     field(SDIS, "$(P)DISABLE")
 }
 
-record(mbbi, "$(P)SIM:OUTPUTMODE") {}
-alias("$(P)SIM:OUTPUTMODE", "$(P)SIM:OUTPUTMODE:SP")
+alias("$(P)OUTPUTMODE", "$(P)OUTPUTMODE:SP:RBV")
+
+
+
+### SIMULATION RECORDS ###
+
+record(mbbi,"$(P)SIM:OUTPUTMODE")
+{
+    field(SCAN, "Passive")
+    field(DTYP, "Soft Channel")
+}
+
+alias("$(P)SIM:OUTPUTMODE","$(P)SIM:OUTPUTMODE:SP")
+
+alias("$(P)SIM:OUTPUTMODE","$(P)SIM:OUTPUTMODE:SP:RBV")
+
+record(bo,"$(P)SIM:HIDDEN:OUTPUTMODE:SP")
+{
+    field(SCAN, "Passive")
+    field(DTYP, "Soft Channel")
+}
+
