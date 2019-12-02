@@ -43,6 +43,7 @@ EPICS_BASE = $(TOP)../../../base/master
 
 ASYN=$(SUPPORT)/asyn/master
 ONCRPC=$(SUPPORT)/oncrpc/master
+GTEST=$(SUPPORT)/googletest/master
 
 # optional extra local definitions here
 -include $(TOP)/configure/RELEASE.private

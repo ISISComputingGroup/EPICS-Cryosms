@@ -69,6 +69,8 @@ record(bo, "$(P)MAGNET:MODE")
 {
     field(DESC, "Run the magnet in persistent mode or not")
     field(SDIS, "$(P)DISABLE")
+    field(ZNAM, "Non Persistent")
+    field(ONAM, "Persistent")
 }
 
 record(ao, "$(P)MAX:SP")

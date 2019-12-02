@@ -33,6 +33,13 @@
 
 #define INIT_ROW_NUM 60
 
+#define RETURN_IF_ASYNERROR(func, ...) status = (func)(__VA_ARGS__); \
+if (status != asynSuccess)\
+{\
+return status; \
+}
+
+
 
 static const char *driverName = "CRYOSMSDriver"; ///< Name of driver for use in message printing 
 
@@ -80,215 +87,184 @@ asynStatus CRYOSMSDriver::writeInt32(asynUser *pasynUser, epicsInt32 value)
 	}
 }
 
-asynStatus CRYOSMSDriver::onStart()
+asynStatus CRYOSMSDriver::checkTToA()
 {
 	asynStatus status;
 	int trueVal = 1;
-	int falseVal = 0;
 
-	const char *tToA = std::getenv("T_TO_A");
-
-	if (tToA == NULL) {
+	if (envVarMap.at("T_TO_A") == NULL) {
 		const char *statMsg = "No calibration from Tesla to Amps supplied";
 		this->writeDisabled = TRUE;
-		status = putDb("STAT", &statMsg);
-		status = putDb("DISABLE", &trueVal);
-		if (status != asynSuccess) {
-			return status;
-		}
+		RETURN_IF_ASYNERROR(putDb, "STAT", &statMsg);
+		RETURN_IF_ASYNERROR(putDb, "DISABLE", &trueVal);
 	}
 	else {
-		double teslaToAmps = std::stod(tToA);
-		const char *writeUnit = std::getenv("WRITE_UNIT");
-		const char *displayUnit = std::getenv("DISPlAY_UNIT");
-		status = putDb("HIDDEN:CONSTANT:SP", &teslaToAmps);
-		if (status != asynSuccess) {
-			return status;
-		}
-		if (writeUnit == displayUnit && writeUnit != NULL) {
+		double teslaToAmps = std::stod(envVarMap.at("T_TO_A"));
+		RETURN_IF_ASYNERROR(putDb, "HIDDEN:CONSTANT:SP", &teslaToAmps);
+		if (envVarMap.at("WRITE_UNIT") == envVarMap.at("DISPLAY_UNIT") && envVarMap.at("WRITE_UNIT") != NULL) {
 			this->writeToDispConversion = 1.0;
 		}
-		else if (writeUnit == "TESLA" && displayUnit == "AMPS") {
+		else if (envVarMap.at("WRITE_UNIT") == "TESLA" && envVarMap.at("DISPLAY_UNIT") == "AMPS") {
 			this->writeToDispConversion = teslaToAmps;
 		}
-		else if (writeUnit == "AMPS" && displayUnit == "TESLA") {
+		else if (envVarMap.at("WRITE_UNIT") == "AMPS" && envVarMap.at("DISPLAY_UNIT") == "TESLA") {
 			this->writeToDispConversion = 1.0 / teslaToAmps;
 		}
-		else if (writeUnit == "TESLA" && displayUnit == "GAUSS") {
+		else if (envVarMap.at("WRITE_UNIT") == "TESLA" && envVarMap.at("DISPLAY_UNIT") == "GAUSS") {
 			this->writeToDispConversion = 10000.0;
 		}
 		else {
 			this->writeToDispConversion = 10000.0 / teslaToAmps;
 		}
 	}
+	return status;
+}
 
-	if (std::getenv("MAX_CURR") == NULL) {
+asynStatus CRYOSMSDriver::checkMaxCurr()
+{
+	asynStatus status;
+	int trueVal = 1;
+	int falseVal = 0;
+	if (envVarMap.at("MAX_CURR") == NULL) {
 		const char *statMsg = "No Max Current given, writes not allowed";
 		this->writeDisabled = TRUE;
-		status = putDb("STAT", &statMsg);
-		if (status != asynSuccess) {
-			return status;
-		}
-		status = putDb("DISABLE", &trueVal);
-		if (status != asynSuccess) {
-			return status;
-		}
+		RETURN_IF_ASYNERROR(putDb, "STAT", &statMsg);
+		RETURN_IF_ASYNERROR(putDb, "DISABLE", &trueVal);
 	}
 	else {
-		status = putDb("HIDDEN:OUTPUTMODE:SP", &falseVal);
-		if (status != asynSuccess) {
-			return status;
-		}
-		epicsFloat64 maxCurr = std::stod(std::getenv("MAX_CURR"));
-		status = putDb("HIDDEN:MAX:SP", &maxCurr);
-		if (status != asynSuccess) {
-			return status;
-		}
+		RETURN_IF_ASYNERROR(putDb, "HIDDEN:OUTPUTMODE:SP", &falseVal);
+		epicsFloat64 maxCurr = std::stod(envVarMap.at("MAX_CURR"));
+		RETURN_IF_ASYNERROR(putDb, "HIDDEN:MAX:SP", &maxCurr);
 	}
+	return status;
+}
 
-	if (std::getenv("WRITE_UNIT") == "AMPS") {
-		status = putDb("HIDDEN:OUTPUTMODE:SP", &falseVal);
+asynStatus CRYOSMSDriver::checkWriteUnit()
+{
+	asynStatus status;
+	int trueVal = 1;
+	int falseVal = 0;
+
+	if (envVarMap.at("WRITE_UNIT") == "AMPS") {
+		RETURN_IF_ASYNERROR(putDb, "HIDDEN:OUTPUTMODE:SP", &falseVal);
 	}
 	else {
-		status = putDb("HIDDEN:OUTPUTMODE:SP", &trueVal);
+		RETURN_IF_ASYNERROR(putDb, "HIDDEN:OUTPUTMODE:SP", &trueVal);
+	}
+	return status;
+}
+
+asynStatus CRYOSMSDriver::checkAllowPersist()
+{
+	asynStatus status;
+	int trueVal = 1;
+	int falseVal = 0;
+	if (envVarMap.at("ALLOW_PERSIST") == "Yes") {
+		if (envVarMap.at("FAST_FILTER_VALUE") == NULL || envVarMap.at("FILTER_VALUE") == NULL || envVarMap.at("NPP") == NULL || envVarMap.at("FAST_PERSISTENT_SETTLETIME") == NULL ||
+			envVarMap.at("PERSISTENT_SETTLETIME") == NULL || envVarMap.at("FASTRATE") == NULL) {
+
+			const char *statMsg = "Missing parameters to allow persistent mode to be used";
+			this->writeDisabled = TRUE;
+			RETURN_IF_ASYNERROR(putDb, "STAT", &statMsg);
+			RETURN_IF_ASYNERROR(putDb, "DISABLE", &trueVal);
+		}
+		else {
+			RETURN_IF_ASYNERROR(putDb, "MAGNET:MODE.DISP", &falseVal);
+			RETURN_IF_ASYNERROR(putDb, "FAST:ZERO.DISP", &falseVal);
+			RETURN_IF_ASYNERROR(putDb, "RAMP:LEADS.DISP", &falseVal);
+		}
+	}
+	else {
+		RETURN_IF_ASYNERROR(putDb, "MAGNET:MODE", &falseVal);
+		RETURN_IF_ASYNERROR(putDb, "FAST:ZERO", &falseVal);
+		RETURN_IF_ASYNERROR(putDb, "RAMP:LEADS", &falseVal);
+		RETURN_IF_ASYNERROR(putDb, "MAGNET:MODE.DISP", &trueVal);
+		RETURN_IF_ASYNERROR(putDb, "FAST:ZERO.DISP", &trueVal);
+		RETURN_IF_ASYNERROR(putDb, "RAMP:LEADS.DISP", &trueVal);
+
+	}
+	return status;
+}
+
+asynStatus CRYOSMSDriver::checkUseSwitch()
+{
+	asynStatus status = asynSuccess;
+	int trueVal = 1;
+
+	if (envVarMap.at("USE_SWITCH") == "Yes" && (envVarMap.at("SWITCH_TEMP_PV") == NULL || envVarMap.at("SWITCH_HIGH") == NULL || envVarMap.at("SWITCH_LOW") == NULL ||
+		envVarMap.at("SWITCH_STABLE_NUMBER") == NULL || envVarMap.at("HEATER_TOLERANCE") == NULL || envVarMap.at("SWITCH_TOLERANCE") == NULL || envVarMap.at("SWITCH_TEMP_TOLERANCE") == NULL ||
+		envVarMap.at("HEATER_OUT") == NULL)) 
+	{
+		const char *statMsg = "Missing parameters to allow a switch to be used";
+		this->writeDisabled = TRUE;
+		RETURN_IF_ASYNERROR(putDb, "STAT", &statMsg);
+		RETURN_IF_ASYNERROR(putDb, "DISABLE", &trueVal);
+	}
+	return status;
+}
+
+asynStatus CRYOSMSDriver::checkHeaterOut()
+{
+	asynStatus status = asynSuccess;
+
+	if (envVarMap.at("HEATER_OUT") != NULL) {
+		epicsFloat64 heatOut = std::stod(envVarMap.at("HEATER_OUT"));
+		RETURN_IF_ASYNERROR(putDb, "HIDDEN:HEATER:VOLT:SP", &heatOut);
+	}
+	return status;
+}
+
+asynStatus CRYOSMSDriver::checkUseMagnetTemp()
+{
+	asynStatus status = asynSuccess;
+	int trueVal = 1;
+
+	if (envVarMap.at("USE_MAGNET_TEMP") == "Yes" && (envVarMap.at("MAGNET_TEMP_PV") == NULL || envVarMap.at("MAX_MAGNET_TEMP") == NULL || envVarMap.at("MIN_MAGNET_TEMP") == NULL)) {
+
+		const char *statMsg = "Missing parameters to allow the magnet temperature to be used";
+		this->writeDisabled = TRUE;
+		RETURN_IF_ASYNERROR(putDb, "STAT", &statMsg);
+		RETURN_IF_ASYNERROR(putDb, "DISABLE", &trueVal);
+	}
+	return status;
+}
+
+asynStatus CRYOSMSDriver::checkCompOffAct()
+{
+	asynStatus status = asynSuccess;
+	int trueVal = 1;
+	if (envVarMap.at("COMP_OFF_ACT") == "Yes" && (envVarMap.at("NO_OF_COMP") == NULL || envVarMap.at("MIN_NO_OF_COMP_ON") == NULL || envVarMap.at("COPM_1_STAT_PV") == NULL ||
+		envVarMap.at("COMP_2_STAT_PV") == NULL)) {
+
+		const char *statMsg = "Missing parameters to allow actions on the state of the compressors";
+		this->writeDisabled = TRUE;
+		RETURN_IF_ASYNERROR(putDb, "STAT", &statMsg);
+		RETURN_IF_ASYNERROR(putDb, "DISABLE", &trueVal);
+	}
+	return status;
+}
+
+asynStatus CRYOSMSDriver::checkRampFile()
+{
+	asynStatus status;
+	int trueVal = 1;
+	if (envVarMap.at("RAMP_FILE") == NULL) {
+		const char *statMsg = "Missing ramp file path";
+		this->writeDisabled = TRUE;
+		RETURN_IF_ASYNERROR(putDb, "STAT", &statMsg);
+		RETURN_IF_ASYNERROR(putDb, "DISABLE", &trueVal);
+	}
+	else {
+		status = readFile(envVarMap.at("RAMP_FILE"));
 	}
 	if (status != asynSuccess) {
 		return status;
 	}
 
-	if (std::getenv("ALLOW_PERSIST") == "Yes") {
-		if (std::getenv("FAST_FILTER_VALUE") == NULL || std::getenv("FILTER_VALUE") == NULL || std::getenv("NPP") == NULL || std::getenv("FAST_PERSISTENT_SETTLETIME") == NULL ||
-			std::getenv("PERSISTENT_SETTLETIME") == NULL || std::getenv("FASTRATE") == NULL) {
-
-			const char *statMsg = "Missing parameters to allow persistent mode to be used";
-			this->writeDisabled = TRUE;
-			status = putDb("STAT", &statMsg);
-			status = putDb("DISABLE", &trueVal);
-			if (status != asynSuccess) {
-				return status;
-			}
-		}
-		else {
-			status = putDb("MAGNET:MODE.DISP", &falseVal);
-			if (status != asynSuccess) {
-				return status;
-			}
-			status = putDb("FAST:ZERO.DISP", &falseVal);
-			if (status != asynSuccess) {
-				return status;
-			}
-			status = putDb("RAMP:LEADS.DISP", &falseVal);
-			if (status != asynSuccess) {
-				return status;
-			}
-		}
-	}
-	else {
-		const char *magMode = "Non Persistent";
-
-		status = putDb("MAGNET:MODE", &magMode);
-		if (status != asynSuccess) {
-			return status;
-		}
-		status = putDb("FAST:ZERO", &falseVal);
-		if (status != asynSuccess) {
-			return status;
-		}
-		status = putDb("RAMP:LEADS", &falseVal);
-		if (status != asynSuccess) {
-			return status;
-		}
-		status = putDb("MAGNET:MODE.DISP", &trueVal);
-		if (status != asynSuccess) {
-			return status;
-		}
-		status = putDb("FAST:ZERO.DISP", &trueVal);
-		if (status != asynSuccess) {
-			return status;
-		}
-		status = putDb("RAMP:LEADS.DISP", &trueVal);
-		if (status != asynSuccess) {
-			return status;
-		}
-
-	}
-
-	if (std::getenv("USE_SWITCH") == "Yes" && (std::getenv("SWITCH_TEMP_PV") == NULL || std::getenv("SWITCH_HIGH") == NULL || std::getenv("SWITCH_LOW") == NULL ||
-		std::getenv("SWITCH_STABLE_NUMBER") == NULL || std::getenv("HEATER_TOLERANCE") == NULL || std::getenv("SWITCH_TOLERANCE") == NULL || std::getenv("SWITCH_TEMP_TOLERANCE") == NULL ||
-		std::getenv("HEATER_OUT") == NULL )){
-
-		const char *statMsg = "Missing parameters to allow a switch to be used";
-		this->writeDisabled = TRUE;
-		status = putDb("STAT", &statMsg);
-		if (status != asynSuccess) {
-			return status;
-		}
-		status = putDb("DISABLE", &trueVal);
-		if (status != asynSuccess) {
-			return status;
-		}
-	}
-
-	if (std::getenv("HEATER_OUT") != NULL) {
-		epicsFloat64 heatOut = std::stod(std::getenv("HEATER_OUT"));
-		status = putDb("HIDDEN:HEATER:VOLT:SP", &heatOut);
-		if (status != asynSuccess) {
-			return status;
-		}
-	}
-
-	if (std::getenv("USE_MAGNET_TEMP") == "Yes" && (std::getenv("MAGNET_TEMP_PV") == NULL || std::getenv("MAX_MAGNET_TEMP") == NULL || std::getenv("MIN_MAGNET_TEMP") == NULL)) {
-
-		const char *statMsg = "Missing parameters to allow the magnet temperature to be used";
-		this->writeDisabled = TRUE;
-		status = putDb("STAT", &statMsg);
-		if (status != asynSuccess) {
-			return status;
-		}
-		status = putDb("DISABLE", &trueVal);
-		if (status != asynSuccess) {
-			return status;
-		}
-	}
-
-	if (std::getenv("COMP_OFF_ACT") == "Yes" && (std::getenv("NO_OF_COMP") == NULL || std::getenv("MIN_NO_OF_COMP_ON") == NULL || std::getenv("COPM_1_STAT_PV") == NULL ||
-		std::getenv("COMP_2_STAT_PV") == NULL )) {
-		
-		const char *statMsg = "Missing parameters to allow actions on the state of the compressors";
-		this->writeDisabled = TRUE;
-		status = putDb("STAT", &statMsg);
-		if (status != asynSuccess) {
-			return status;
-		}
-		status = putDb("DISABLE", &trueVal);
-		if (status != asynSuccess) {
-			return status;
-		}
-	}
-
-	if (std::getenv("RAMP_FILE") == NULL) {
-		const char *statMsg = "Missing ramp file path";
-		this->writeDisabled = TRUE;
-		status = putDb("STAT", &statMsg);
-		if (status != asynSuccess) {
-			return status;
-		}
-		status = putDb("DISABLE", &trueVal);
-		if (status != asynSuccess) {
-			return status;
-		}
-	}
-	else {
-		status = readFile(std::getenv("RAMP_FILE"));
-		if (status != asynSuccess) {
-			return status;
-		}
-	}
-
 	double currT;
 	double initRate;
 	int i;
-	status = getDb("OUTPUT:FIELD:TESLA", &currT);
+	RETURN_IF_ASYNERROR(getDb, "OUTPUT:FIELD:TESLA", &currT);
 	for (i = 0; i <= sizeof(pMaxT_); i++) {
 		if (pMaxT_[i] > currT) {
 			break;
@@ -300,55 +276,63 @@ asynStatus CRYOSMSDriver::onStart()
 	else {
 		initRate = pRate_[i];
 	}
-	status = putDb("HIDDEN:RAMP:RATE:SP", &initRate);
+	RETURN_IF_ASYNERROR(putDb, "HIDDEN:RAMP:RATE:SP", &initRate);
+	return status;
+}
 
-	status = procDb("PAUSE");
-	if (status != asynSuccess) {
-		return status;
+asynStatus CRYOSMSDriver::onStart()
+{
+	asynStatus status;
+	int trueVal = 1;
+	int falseVal = 0;
+	std::vector<std::string> envVarsNames = {
+		"T_TO_A", "WRITE_UNIT", "DISPLAY_UNIT", "MAX_CURR", "ALLOW_PERSIST", "FAST_FILTER_VALUE", "FILTER_VALUE", "NPP", "FAST_PERSISTANT_SETTLETIME", "PERSISTNENT_SETTLETIME",
+		"FASTRATE", "USE_SWITCH", "SWITCH_TEMP_PV", "SWITCH_HIGH", "SWITCH_LOW", "SWITCH_STABLE_NUMBER", "HEATER_TOLERANCE", "SWITHC_TOLERANCE", "SWITCH_TEMP_tOLERANCE", "HEATER_OUT",
+		"USE_MAGNET_TEMP", "MAGNET_TEMP_PV", "MAX_MAGNET_TEMP", "MIN_MAGNET_TEMP", "COMP_OFF_ACT", "NO_OF_COMP", "MIN_NO_OF_COMP_ON", "COMP_1_STAT_PV", "COMP_2_STAT_PV", "RAMP_FILE" };
+	for (std::string envVar : envVarsNames)
+	{
+		envVarMap.insert(std::pair<std::string, const char* >(envVar, std::getenv(envVar.c_str())));
 	}
+
+	RETURN_IF_ASYNERROR(checkTToA);
+	
+
+	RETURN_IF_ASYNERROR(checkMaxCurr);
+
+	RETURN_IF_ASYNERROR(checkWriteUnit);
+
+	RETURN_IF_ASYNERROR(checkAllowPersist);
+
+	RETURN_IF_ASYNERROR(checkUseSwitch);
+
+	RETURN_IF_ASYNERROR(checkHeaterOut);
+
+	RETURN_IF_ASYNERROR(checkUseMagnetTemp);
+
+	RETURN_IF_ASYNERROR(checkCompOffAct);
+
+	RETURN_IF_ASYNERROR(checkRampFile);
+
+	RETURN_IF_ASYNERROR(procDb, "PAUSE");
 
 	std::string isPaused;
-	status = getDb("PAUSE", &isPaused);
-	if (status != asynSuccess) {
-		return status;
-	}
-	else if (isPaused == "ON"){
-		status = putDb("PAUSE:QUEUE", &trueVal);
-		if (status != asynSuccess) {
-			return status;
-		}
+	RETURN_IF_ASYNERROR(getDb, "PAUSE", &isPaused);
+	if (isPaused == "ON"){
+		RETURN_IF_ASYNERROR(putDb, "PAUSE:QUEUE", &trueVal);
 	}
 	
-	status = procDb("FAN:INIT");
-	if (status != asynSuccess) {
-		return status;
-	}
+	RETURN_IF_ASYNERROR(procDb, "FAN:INIT");
 
 	if (this->writeDisabled == FALSE) {
 		float targetVal;
-		status = getDb("RAMP:TARGET:DISPLAY", &targetVal);
-		if (status != asynSuccess) {
-			return status;
-		}
-		status = putDb("TARGET:SP", &targetVal);
-		if (status != asynSuccess) {
-			return status;
-		}
+		RETURN_IF_ASYNERROR(getDb, "RAMP:TARGET:DISPLAY", &targetVal);
+		RETURN_IF_ASYNERROR(putDb, "TARGET:SP", &targetVal);
 
 		double midTarget;
-		status = getDb("MID", &midTarget);
-		if (status != asynSuccess) {
-			return status;
-		}
-		else {
-			midTarget *= this->writeToDispConversion;
-		}
-		status = putDb("MID:SP", &midTarget);
-		if (status != asynSuccess) {
-			return status;
-		}
+		RETURN_IF_ASYNERROR(getDb, "MID", &midTarget);
+		midTarget *= this->writeToDispConversion;
+		RETURN_IF_ASYNERROR(putDb, "MID:SP", &midTarget);
 	}
-	
 	return status;
 }
 

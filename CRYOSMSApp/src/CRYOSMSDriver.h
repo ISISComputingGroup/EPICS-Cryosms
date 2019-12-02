@@ -7,10 +7,23 @@ class epicsShareClass CRYOSMSDriver : public asynPortDriver
 public:
 	CRYOSMSDriver(const char *portName, std::string devPrefix);
 	virtual asynStatus writeInt32(asynUser *pasynUser, epicsInt32 value);
-private:
-	std::string devicePrefix;
+	asynStatus checkTToA();
+	asynStatus checkMaxCurr();
+	asynStatus checkWriteUnit();
+	asynStatus checkAllowPersist();
+	asynStatus checkUseSwitch();
+	asynStatus checkHeaterOut();
+	asynStatus checkUseMagnetTemp();
+	asynStatus checkCompOffAct();
+	asynStatus checkRampFile();
+	std::map<std::string,const char*> envVarMap;
 	double writeToDispConversion;
 	bool writeDisabled;
+	asynStatus procDb(std::string pvSuffix);
+	asynStatus getDb(std::string pvSuffix, void *pbuffer);
+	asynStatus putDb(std::string pvSuffix, const void *value);
+private:
+	std::string devicePrefix;
 
 #define FIRST_SMS_PARAM P_deviceName
 
@@ -27,9 +40,6 @@ private:
 	epicsFloat64 *pRate_;
 	epicsFloat64 *pMaxT_;
 	asynStatus onStart();
-	asynStatus procDb(std::string pvSuffix);
-	asynStatus getDb(std::string pvSuffix, void *pbuffer);
-	asynStatus putDb(std::string pvSuffix, const void *value);
 	asynStatus readFile(const char *dir);
 	static void pollerTaskC(void* arg)
 	{
