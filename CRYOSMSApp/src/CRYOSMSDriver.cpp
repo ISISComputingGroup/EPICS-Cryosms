@@ -132,8 +132,8 @@ asynStatus CRYOSMSDriver::checkMaxCurr()
 		RETURN_IF_ASYNERROR(putDb, "DISABLE", &trueVal);
 	}
 	else {
-		RETURN_IF_ASYNERROR(putDb, "HIDDEN:OUTPUTMODE:SP", &falseVal);
 		epicsFloat64 maxCurr = std::stod(envVarMap.at("MAX_CURR"));
+		RETURN_IF_ASYNERROR(putDb, "HIDDEN:OUTPUTMODE:SP", &falseVal);
 		RETURN_IF_ASYNERROR(putDb, "HIDDEN:MAX:SP", &maxCurr);
 	}
 	return status;
@@ -159,7 +159,7 @@ asynStatus CRYOSMSDriver::checkAllowPersist()
 	asynStatus status;
 	int trueVal = 1;
 	int falseVal = 0;
-	if (envVarMap.at("ALLOW_PERSIST") == "Yes") {
+	if (!std::strcmp(envVarMap.at("ALLOW_PERSIST"), "Yes")) {
 		if (envVarMap.at("FAST_FILTER_VALUE") == NULL || envVarMap.at("FILTER_VALUE") == NULL || envVarMap.at("NPP") == NULL || envVarMap.at("FAST_PERSISTENT_SETTLETIME") == NULL ||
 			envVarMap.at("PERSISTENT_SETTLETIME") == NULL || envVarMap.at("FASTRATE") == NULL) {
 
@@ -190,8 +190,8 @@ asynStatus CRYOSMSDriver::checkUseSwitch()
 	asynStatus status = asynSuccess;
 	int trueVal = 1;
 
-	if (envVarMap.at("USE_SWITCH") == "Yes" && (envVarMap.at("SWITCH_TEMP_PV") == NULL || envVarMap.at("SWITCH_HIGH") == NULL || envVarMap.at("SWITCH_LOW") == NULL ||
-		envVarMap.at("SWITCH_STABLE_NUMBER") == NULL || envVarMap.at("HEATER_TOLERANCE") == NULL || envVarMap.at("SWITCH_TOLERANCE") == NULL || envVarMap.at("SWITCH_TEMP_TOLERANCE") == NULL ||
+	if (!std::strcmp(envVarMap.at("USE_SWITCH"), "Yes") && (envVarMap.at("SWITCH_TEMP_PV") == NULL || envVarMap.at("SWITCH_HIGH") == NULL || envVarMap.at("SWITCH_LOW") == NULL ||
+		envVarMap.at("SWITCH_STABLE_NUMBER") == NULL || envVarMap.at("HEATER_TOLERANCE") == NULL || envVarMap.at("SWITCH_TIMEOUT") == NULL || envVarMap.at("SWITCH_TEMP_TOLERANCE") == NULL ||
 		envVarMap.at("HEATER_OUT") == NULL)) 
 	{
 		const char *statMsg = "Missing parameters to allow a switch to be used";
@@ -218,7 +218,7 @@ asynStatus CRYOSMSDriver::checkUseMagnetTemp()
 	asynStatus status = asynSuccess;
 	int trueVal = 1;
 
-	if (envVarMap.at("USE_MAGNET_TEMP") == "Yes" && (envVarMap.at("MAGNET_TEMP_PV") == NULL || envVarMap.at("MAX_MAGNET_TEMP") == NULL || envVarMap.at("MIN_MAGNET_TEMP") == NULL)) {
+	if (!std::strcmp(envVarMap.at("USE_MAGNET_TEMP"),  "Yes") && (envVarMap.at("MAGNET_TEMP_PV") == NULL || envVarMap.at("MAX_MAGNET_TEMP") == NULL || envVarMap.at("MIN_MAGNET_TEMP") == NULL)) {
 
 		const char *statMsg = "Missing parameters to allow the magnet temperature to be used";
 		this->writeDisabled = TRUE;
@@ -232,7 +232,7 @@ asynStatus CRYOSMSDriver::checkCompOffAct()
 {
 	asynStatus status = asynSuccess;
 	int trueVal = 1;
-	if (envVarMap.at("COMP_OFF_ACT") == "Yes" && (envVarMap.at("NO_OF_COMP") == NULL || envVarMap.at("MIN_NO_OF_COMP_ON") == NULL || envVarMap.at("COPM_1_STAT_PV") == NULL ||
+	if (!std::strcmp(envVarMap.at("COMP_OFF_ACT"), "Yes") && (envVarMap.at("NO_OF_COMP") == NULL || envVarMap.at("MIN_NO_OF_COMP_ON") == NULL || envVarMap.at("COPM_1_STAT_PV") == NULL ||
 		envVarMap.at("COMP_2_STAT_PV") == NULL)) {
 
 		const char *statMsg = "Missing parameters to allow actions on the state of the compressors";
@@ -255,11 +255,11 @@ asynStatus CRYOSMSDriver::checkRampFile()
 	}
 	else {
 		status = readFile(envVarMap.at("RAMP_FILE"));
+		if (status != asynSuccess) {
+			this->writeDisabled = TRUE;
+			return status;
+		}
 	}
-	if (status != asynSuccess) {
-		return status;
-	}
-
 	double currT;
 	double initRate;
 	int i;
