@@ -5,6 +5,6 @@ SET TOP="."
 SET Tests_failed=%errorlevel%
 
 :: Change the directory depending on if you have a src sub directory
-call IOCNameSup\src\O.windows-x64\runner.exe --gtest_output=xml:%TOP%\test-reports\TEST-IOCName.xml
+call CRYOSMSApp\src\O.windows-x64\runner.exe --gtest_output=xml:%TOP%\test-reports\TEST-cryosms.xml
 
 exit /B %Tests_failed%

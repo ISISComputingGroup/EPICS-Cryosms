@@ -100,22 +100,22 @@ asynStatus CRYOSMSDriver::checkTToA()
 	}
 	else {
 		double teslaToAmps = std::stod(envVarMap.at("T_TO_A"));
-		RETURN_IF_ASYNERROR(putDb, "HIDDEN:CONSTANT:SP", &teslaToAmps);
-		if (envVarMap.at("WRITE_UNIT") == envVarMap.at("DISPLAY_UNIT") && envVarMap.at("WRITE_UNIT") != NULL) {
+		if (! std::strcmp(envVarMap.at("WRITE_UNIT"), envVarMap.at("DISPLAY_UNIT")) && envVarMap.at("WRITE_UNIT") != NULL) {
 			this->writeToDispConversion = 1.0;
 		}
-		else if (envVarMap.at("WRITE_UNIT") == "TESLA" && envVarMap.at("DISPLAY_UNIT") == "AMPS") {
+		else if (!std::strcmp(envVarMap.at("WRITE_UNIT"), "TESLA") && !std::strcmp(envVarMap.at("DISPLAY_UNIT"), "AMPS")) {
 			this->writeToDispConversion = teslaToAmps;
 		}
-		else if (envVarMap.at("WRITE_UNIT") == "AMPS" && envVarMap.at("DISPLAY_UNIT") == "TESLA") {
+		else if (!std::strcmp(envVarMap.at("WRITE_UNIT"), "AMPS") && !std::strcmp(envVarMap.at("DISPLAY_UNIT"), "TESLA")) {
 			this->writeToDispConversion = 1.0 / teslaToAmps;
 		}
-		else if (envVarMap.at("WRITE_UNIT") == "TESLA" && envVarMap.at("DISPLAY_UNIT") == "GAUSS") {
+		else if (!std::strcmp(envVarMap.at("WRITE_UNIT"), "TESLA") && !std::strcmp(envVarMap.at("DISPLAY_UNIT"), "GAUSS")) {
 			this->writeToDispConversion = 10000.0;
 		}
 		else {
 			this->writeToDispConversion = 10000.0 / teslaToAmps;
 		}
+		RETURN_IF_ASYNERROR(putDb, "HIDDEN:CONSTANT:SP", &teslaToAmps);
 	}
 	return status;
 }
@@ -181,7 +181,6 @@ asynStatus CRYOSMSDriver::checkAllowPersist()
 		RETURN_IF_ASYNERROR(putDb, "MAGNET:MODE.DISP", &trueVal);
 		RETURN_IF_ASYNERROR(putDb, "FAST:ZERO.DISP", &trueVal);
 		RETURN_IF_ASYNERROR(putDb, "RAMP:LEADS.DISP", &trueVal);
-
 	}
 	return status;
 }
@@ -295,7 +294,6 @@ asynStatus CRYOSMSDriver::onStart()
 	}
 
 	RETURN_IF_ASYNERROR(checkTToA);
-	
 
 	RETURN_IF_ASYNERROR(checkMaxCurr);
 

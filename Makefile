@@ -31,8 +31,9 @@ iocBoot_DEPEND_DIRS += $(filter %App,$(DIRS))
 
 # Add any additional dependency rules here:
 
+    
 include $(TOP)/configure/RULES_TOP
 
 .PHONY: test
 test:
-    run_tests.bat
+	run_tests.bat

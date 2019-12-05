@@ -1,8 +1,10 @@
 #ifndef CRYOSMSDRIVER_H
 #define CRYOSMSDRIVER_H
 
+#include <asynPortDriver.h>
+
 /// EPICS Asyn port driver class. 
-class epicsShareClass CRYOSMSDriver : public asynPortDriver
+class CRYOSMSDriver : public asynPortDriver
 {
 public:
 	CRYOSMSDriver(const char *portName, std::string devPrefix);
