@@ -246,8 +246,6 @@ record(bo, "$(P)OUTPUTMODE:SP")
     field(ONAM, "TESLA")
     field(VAL, "0")
     field(SDIS, "$(P)DISABLE")
-    field(SIML, "$(P)SIM")
-    field(SIOL, "$(P)SIM:OUTPUTMODE:SP")
 }
 
 record(bi, "$(P)PAUSE")
@@ -501,7 +499,7 @@ record(mbbi,"$(P)SIM:OUTPUTMODE")
     field(DTYP, "Soft Channel")
 }
 
-alias("$(P)SIM:OUTPUTMODE","$(P)SIM:OUTPUTMODE:SP")
+alias("$(P)SIM:OUTPUTMODE","$(P)SIM:OUTPUTMODE:_SP")
 
 record(mbbi,"$(P)SIM:RAMP:STAT")
 {
