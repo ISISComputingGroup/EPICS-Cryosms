@@ -64,7 +64,7 @@ setRampRate {
 }
 	
 getHeaterStatus {
-	out "HEATER";
+	out "G H";
 	wait 50;
 	in "%*8c HEATER STATUS: %s";
 	wait 100;
@@ -106,4 +106,11 @@ getPause {
 	wait 50;
 	in "%*8c PAUSE STATUS: %{OFF|ON}";
 	wait 100;
-}	
+}
+setMaxVolt {
+    InTerminator = CR LF 0X13;
+    out "SL %f";
+    wait 50;
+    in "%*8c VOLTAGE LIMIT: %*f VOLTS";
+    wait 100;    
+}

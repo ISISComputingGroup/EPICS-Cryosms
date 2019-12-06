@@ -139,13 +139,23 @@ asynStatus CRYOSMSDriver::checkMaxCurr()
 	return status;
 }
 
+asynStatus CRYOSMSDriver::checkMaxVolt()
+{
+	asynStatus status;
+	if (envVarMap.at("MAX_VOLT") != NULL) {
+		epicsFloat64 maxVolt = std::stod(envVarMap.at("MAX_VOLT"));
+		RETURN_IF_ASYNERROR(putDb, "HIDDEN:MAXVOLT:SP", &maxVolt);
+	}
+	return status;
+}
+
 asynStatus CRYOSMSDriver::checkWriteUnit()
 {
 	asynStatus status;
 	int trueVal = 1;
 	int falseVal = 0;
 
-	if (envVarMap.at("WRITE_UNIT") == "AMPS") {
+	if (!std::strcmp(envVarMap.at("WRITE_UNIT"), "AMPS")) {
 		RETURN_IF_ASYNERROR(putDb, "HIDDEN:OUTPUTMODE:SP", &falseVal);
 	}
 	else {
@@ -285,7 +295,7 @@ asynStatus CRYOSMSDriver::onStart()
 	int trueVal = 1;
 	int falseVal = 0;
 	std::vector<std::string> envVarsNames = {
-		"T_TO_A", "WRITE_UNIT", "DISPLAY_UNIT", "MAX_CURR", "ALLOW_PERSIST", "FAST_FILTER_VALUE", "FILTER_VALUE", "NPP", "FAST_PERSISTANT_SETTLETIME", "PERSISTNENT_SETTLETIME",
+		"T_TO_A", "WRITE_UNIT", "DISPLAY_UNIT", "MAX_CURR", "MAX_VOLT", "ALLOW_PERSIST", "FAST_FILTER_VALUE", "FILTER_VALUE", "NPP", "FAST_PERSISTANT_SETTLETIME", "PERSISTNENT_SETTLETIME",
 		"FASTRATE", "USE_SWITCH", "SWITCH_TEMP_PV", "SWITCH_HIGH", "SWITCH_LOW", "SWITCH_STABLE_NUMBER", "HEATER_TOLERANCE", "SWITHC_TOLERANCE", "SWITCH_TEMP_tOLERANCE", "HEATER_OUT",
 		"USE_MAGNET_TEMP", "MAGNET_TEMP_PV", "MAX_MAGNET_TEMP", "MIN_MAGNET_TEMP", "COMP_OFF_ACT", "NO_OF_COMP", "MIN_NO_OF_COMP_ON", "COMP_1_STAT_PV", "COMP_2_STAT_PV", "RAMP_FILE" };
 	for (std::string envVar : envVarsNames)
@@ -294,24 +304,27 @@ asynStatus CRYOSMSDriver::onStart()
 	}
 
 	RETURN_IF_ASYNERROR(checkTToA);
-
+	epicsThreadSleep(0.2);
 	RETURN_IF_ASYNERROR(checkMaxCurr);
-
+	epicsThreadSleep(0.2);
+	RETURN_IF_ASYNERROR(checkMaxVolt);
+	epicsThreadSleep(0.2);
 	RETURN_IF_ASYNERROR(checkWriteUnit);
-
+	epicsThreadSleep(0.2);
 	RETURN_IF_ASYNERROR(checkAllowPersist);
-
+	epicsThreadSleep(0.2);
 	RETURN_IF_ASYNERROR(checkUseSwitch);
-
+	epicsThreadSleep(0.2);
 	RETURN_IF_ASYNERROR(checkHeaterOut);
-
+	epicsThreadSleep(0.2);
 	RETURN_IF_ASYNERROR(checkUseMagnetTemp);
-
+	epicsThreadSleep(0.2);
 	RETURN_IF_ASYNERROR(checkCompOffAct);
-
+	epicsThreadSleep(0.2);
 	RETURN_IF_ASYNERROR(checkRampFile);
-
+	epicsThreadSleep(0.2);
 	RETURN_IF_ASYNERROR(procDb, "PAUSE");
+	epicsThreadSleep(0.2);
 
 	std::string isPaused;
 	RETURN_IF_ASYNERROR(getDb, "PAUSE", &isPaused);

@@ -424,6 +424,15 @@ record(ao, "$(P)HIDDEN:MAX:SP")
     field(SDIS, "$(P)DISABLE")
 }
 
+record(ao, "$(P)HIDDEN:MAXVOLT:SP")
+{
+    field(DTYP, "stream")
+    field(ASG, "HIDDEN")
+    field(OUT, "@cryosms.proto setMaxVolt $(PORT)")
+    field(SCAN, "Passive")
+    field(EGU, "VOLTS")
+    field(SDIS, "$(P)DISABLE")
+}
 
 record(bo, "$(P)HIDDEN:OUTPUTMODE:SP")
 {

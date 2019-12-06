@@ -11,6 +11,7 @@ public:
 	virtual asynStatus writeInt32(asynUser *pasynUser, epicsInt32 value);
 	asynStatus checkTToA();
 	asynStatus checkMaxCurr();
+	asynStatus checkMaxVolt();
 	asynStatus checkWriteUnit();
 	asynStatus checkAllowPersist();
 	asynStatus checkUseSwitch();
