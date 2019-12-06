@@ -77,7 +77,7 @@ asynStatus CRYOSMSDriver::writeInt32(asynUser *pasynUser, epicsInt32 value)
 {
 	int function = pasynUser->reason;
 	if (function == P_outputModeSet) {
-		return putDb("HIDDEN:OUTPUTMODE:SP", &value);
+		return putDb("OUTPUTMODE:_SP", &value);
 	}
 	else if (function == P_initLogic){
 		return onStart();
@@ -115,7 +115,7 @@ asynStatus CRYOSMSDriver::checkTToA()
 		else {
 			this->writeToDispConversion = 10000.0 / teslaToAmps;
 		}
-		RETURN_IF_ASYNERROR(putDb, "HIDDEN:CONSTANT:SP", &teslaToAmps);
+		RETURN_IF_ASYNERROR(putDb, "CONSTANT:_SP", &teslaToAmps);
 	}
 	return status;
 }
@@ -133,8 +133,8 @@ asynStatus CRYOSMSDriver::checkMaxCurr()
 	}
 	else {
 		epicsFloat64 maxCurr = std::stod(envVarMap.at("MAX_CURR"));
-		RETURN_IF_ASYNERROR(putDb, "HIDDEN:OUTPUTMODE:SP", &falseVal);
-		RETURN_IF_ASYNERROR(putDb, "HIDDEN:MAX:SP", &maxCurr);
+		RETURN_IF_ASYNERROR(putDb, "OUTPUTMODE:_SP", &falseVal);
+		RETURN_IF_ASYNERROR(putDb, "MAX:_SP", &maxCurr);
 	}
 	return status;
 }
@@ -144,7 +144,7 @@ asynStatus CRYOSMSDriver::checkMaxVolt()
 	asynStatus status;
 	if (envVarMap.at("MAX_VOLT") != NULL) {
 		epicsFloat64 maxVolt = std::stod(envVarMap.at("MAX_VOLT"));
-		RETURN_IF_ASYNERROR(putDb, "HIDDEN:MAXVOLT:SP", &maxVolt);
+		RETURN_IF_ASYNERROR(putDb, "MAXVOLT:_SP", &maxVolt);
 	}
 	return status;
 }
@@ -156,10 +156,10 @@ asynStatus CRYOSMSDriver::checkWriteUnit()
 	int falseVal = 0;
 
 	if (!std::strcmp(envVarMap.at("WRITE_UNIT"), "AMPS")) {
-		RETURN_IF_ASYNERROR(putDb, "HIDDEN:OUTPUTMODE:SP", &falseVal);
+		RETURN_IF_ASYNERROR(putDb, "OUTPUTMODE:_SP", &falseVal);
 	}
 	else {
-		RETURN_IF_ASYNERROR(putDb, "HIDDEN:OUTPUTMODE:SP", &trueVal);
+		RETURN_IF_ASYNERROR(putDb, "OUTPUTMODE:_SP", &trueVal);
 	}
 	return status;
 }
@@ -218,7 +218,7 @@ asynStatus CRYOSMSDriver::checkHeaterOut()
 
 	if (envVarMap.at("HEATER_OUT") != NULL) {
 		epicsFloat64 heatOut = std::stod(envVarMap.at("HEATER_OUT"));
-		RETURN_IF_ASYNERROR(putDb, "HIDDEN:HEATER:VOLT:SP", &heatOut);
+		RETURN_IF_ASYNERROR(putDb, "HEATER:VOLT:_SP", &heatOut);
 	}
 	return status;
 }
@@ -285,7 +285,7 @@ asynStatus CRYOSMSDriver::checkRampFile()
 	else {
 		initRate = pRate_[i];
 	}
-	RETURN_IF_ASYNERROR(putDb, "HIDDEN:RAMP:RATE:SP", &initRate);
+	RETURN_IF_ASYNERROR(putDb, "RAMP:RATE:_SP", &initRate);
 	return status;
 }
 

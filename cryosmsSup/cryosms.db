@@ -45,8 +45,8 @@ record(bi, "$(P)HEATER:STAT")
     field(DTYP, "stream")
     field(INP, "@cryosms.proto getHeaterStatus $(PORT)")
     field(SCAN, "Passive")
-    field(ZNAM, "Off")
-    field(ONAM, "On")
+    field(ZNAM, "OFF")
+    field(ONAM, "ON")
     field(SIML, "$(P)SIM")
     field(SIOL, "$(P)SIM:HEATER:STAT")
     field(SDIS, "$(P)DISABLE")
@@ -101,7 +101,6 @@ record(ao, "$(P)MID:SP")
 record(scalcout, "$(P)OUTPUT")
 {
     field(DESC, "Output from the PSU in $(DISPLAY_UNIT)")
-    field(FLNK, "$(P)GAUSS")
     field(EGU, "$(DISPLAY_UNIT)")
     field(INPA, "$(P)OUTPUT:CURR")
     field(INPB, "$(P)OUTPUT:FIELD:TESLA")
@@ -387,7 +386,7 @@ record(ao, "$(P)TARGET:SP")
 }
 ### HIDDEN:
 
-record(ao, "$(P)HIDDEN:CONSTANT:SP")
+record(ao, "$(P)CONSTANT:_SP")
 {
     field(DTYP, "stream")
     field(ASG, "HIDDEN")
@@ -395,11 +394,11 @@ record(ao, "$(P)HIDDEN:CONSTANT:SP")
     field(SCAN, "Passive")
     field(EGU, "T/A")
     field(SIML, "$(P)SIM")
-    field(SIOL, "$(P)SIM:HIDDEN:CONSTANT:SP")
+    field(SIOL, "$(P)SIM:CONSTANT:_SP")
     field(SDIS, "$(P)DISABLE")
 }
 
-record(ao, "$(P)HIDDEN:HEATER:VOLT:SP")
+record(ao, "$(P)HEATER:VOLT:_SP")
 {
     field(DTYP, "stream")
     field(ASG, "HIDDEN")
@@ -407,12 +406,12 @@ record(ao, "$(P)HIDDEN:HEATER:VOLT:SP")
     field(SCAN, "Passive")
     field(EGU, "V")
     field(SIML, "$(P)SIM")
-    field(SIOL, "$(P)SIM:HIDDEN:HEATER:VOLT:SP")
+    field(SIOL, "$(P)SIM:HEATER:VOLT:_SP")
     field(SDIS, "$(P)DISABLE")
 }
 
 
-record(ao, "$(P)HIDDEN:MAX:SP")
+record(ao, "$(P)MAX:_SP")
 {
     field(DTYP, "stream")
     field(ASG, "HIDDEN")
@@ -420,11 +419,11 @@ record(ao, "$(P)HIDDEN:MAX:SP")
     field(SCAN, "Passive")
     field(EGU, "$(WRITE_UNIT)")
     field(SIML, "$(P)SIM")
-    field(SIOL, "$(P)SIM:HIDDEN:MAX:SP")
+    field(SIOL, "$(P)SIM:MAX:_SP")
     field(SDIS, "$(P)DISABLE")
 }
 
-record(ao, "$(P)HIDDEN:MAXVOLT:SP")
+record(ao, "$(P)MAXVOLT:_SP")
 {
     field(DTYP, "stream")
     field(ASG, "HIDDEN")
@@ -434,7 +433,7 @@ record(ao, "$(P)HIDDEN:MAXVOLT:SP")
     field(SDIS, "$(P)DISABLE")
 }
 
-record(bo, "$(P)HIDDEN:OUTPUTMODE:SP")
+record(bo, "$(P)OUTPUTMODE:_SP")
 {
     field(DTYP, "stream")
     field(ASG, "HIDDEN")
@@ -443,12 +442,12 @@ record(bo, "$(P)HIDDEN:OUTPUTMODE:SP")
     field(ZNAM, "AMPS")
     field(ONAM, "TESLA")
     field(SIML, "$(P)SIM")
-    field(SIOL, "$(P)SIM:HIDDEN:OUTPUTMODE:SP")
+    field(SIOL, "$(P)SIM:OUTPUTMODE:_SP")
     field(SDIS, "$(P)DISABLE")
 }
 
 
-record(ao, "$(P)HIDDEN:RAMP:RATE:SP")
+record(ao, "$(P)RAMP:RATE:_SP")
 {
     field(DTYP, "stream")
     field(ASG, "HIDDEN")
@@ -456,7 +455,7 @@ record(ao, "$(P)HIDDEN:RAMP:RATE:SP")
     field(SCAN, "Passive")
     field(EGU, "A/s")
     field(SIML, "$(P)SIM")
-    field(SIOL, "$(P)SIM:HIDDEN:RAMP:RATE:SP")
+    field(SIOL, "$(P)SIM::RAMP:RATE:_SP")
     field(SDIS, "$(P)DISABLE")
 }
 
@@ -488,6 +487,14 @@ record(fanout, "$(P)FAN:UNITS")
 
 ### SIMULATION RECORDS ###
 
+record(bi, "$(P)SIM")
+{
+    field(DTYP, "Soft Channel")
+    field(ZNAM, "NO")
+    field(ONAM, "YES")
+    field(VAL, "$(RECSIM=0)")
+}
+
 record(ai,"$(P)SIM:OUTPUT:RAW")
 {
     field(SCAN, "Passive")
@@ -509,6 +516,7 @@ record(mbbi,"$(P)SIM:OUTPUTMODE")
 }
 
 alias("$(P)SIM:OUTPUTMODE","$(P)SIM:OUTPUTMODE:SP")
+alias("$(P)SIM:OUTPUTMODE","$(P)SIM:OUTPUTMODE:_SP")
 
 record(mbbi,"$(P)SIM:RAMP:STAT")
 {

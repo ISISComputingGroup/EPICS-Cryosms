@@ -66,7 +66,7 @@ setRampRate {
 getHeaterStatus {
 	out "G H";
 	wait 50;
-	in "%*8c HEATER STATUS: %s";
+	in "%*8c HEATER STATUS: %{OFF|ON}";
 	wait 100;
 }
 
@@ -86,7 +86,7 @@ setConstant {
 }
 
 setMaxTarget {
-    InTerminator = CR LF 0x13;
+    InTerminator = CR LF;
 	out "SET MAX %f";
 	wait 50;
 	in "%*8c MAX SETTING: %*f %*{AMPS|TESLA}";
