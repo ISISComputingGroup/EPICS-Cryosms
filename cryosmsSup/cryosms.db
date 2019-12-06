@@ -487,27 +487,13 @@ record(fanout, "$(P)FAN:UNITS")
 
 ### SIMULATION RECORDS ###
 
-record(bi, "$(P)SIM")
+record(bo, "$(P)SIM")
 {
     field(DTYP, "Soft Channel")
     field(ZNAM, "NO")
     field(ONAM, "YES")
     field(VAL, "$(RECSIM=0)")
 }
-
-record(ai,"$(P)SIM:OUTPUT:RAW")
-{
-    field(SCAN, "Passive")
-    field(DTYP, "Soft Channel")
-}
-
-record(bi,"$(P)SIM:PAUSE")
-{
-    field(SCAN, "Passive")
-    field(DTYP, "Soft Channel")
-}
-
-alias("$(P)SIM:PAUSE","$(P)SIM:PAUSE:SP")
 
 record(mbbi,"$(P)SIM:OUTPUTMODE")
 {
@@ -516,49 +502,3 @@ record(mbbi,"$(P)SIM:OUTPUTMODE")
 }
 
 alias("$(P)SIM:OUTPUTMODE","$(P)SIM:OUTPUTMODE:SP")
-alias("$(P)SIM:OUTPUTMODE","$(P)SIM:OUTPUTMODE:_SP")
-
-record(mbbi,"$(P)SIM:RAMP:STAT")
-{
-    field(SCAN, "Passive")
-    field(DTYP, "Soft Channel")
-}
-
-record(bi,"$(P)SIM:HEATER:STAT")
-{
-    field(SCAN, "Passive")
-    field(DTYP, "Soft Channel")
-}
-
-record(ai,"$(P)SIM:RAMP:TARGET")
-{
-    field(SCAN, "Passive")
-    field(DTYP, "Soft Channel")
-}
-
-record(ai,"$(P)SIM:RAMP:RATE")
-{
-    field(SCAN, "Passive")
-    field(DTYP, "Soft Channel")
-}
-
-record(bo,"$(P)SIM:INIT")
-{
-    field(SCAN, "Passive")
-    field(DTYP, "Soft Channel")
-}
-
-record(ai,"$(P)SIM:MID")
-{
-    field(SCAN, "Passive")
-    field(DTYP, "Soft Channel")
-}
-
-alias("$(P)SIM:MID","$(P)SIM:MID:SP")
-
-record(mbbi,"$(P)SIM:DIRECTION")
-{
-    field(SCAN, "Passive")
-    field(DTYP, "Soft Channel")
-}
-
