@@ -502,3 +502,46 @@ record(mbbi,"$(P)SIM:OUTPUTMODE")
 }
 
 alias("$(P)SIM:OUTPUTMODE","$(P)SIM:OUTPUTMODE:SP")
+
+record(mbbi,"$(P)SIM:RAMP:STAT")
+{
+    field(SCAN, "Passive")
+    field(DTYP, "Soft Channel")
+}
+
+record(bi,"$(P)SIM:HEATER:STAT")
+{
+    field(SCAN, "Passive")
+    field(DTYP, "Soft Channel")
+}
+
+record(ai,"$(P)SIM:RAMP:TARGET")
+{
+    field(SCAN, "Passive")
+    field(DTYP, "Soft Channel")
+}
+
+record(ai,"$(P)SIM:RAMP:RATE")
+{
+    field(SCAN, "Passive")
+    field(DTYP, "Soft Channel")
+}
+
+record(bo,"$(P)SIM:INIT")
+{
+    field(SCAN, "Passive")
+    field(DTYP, "Soft Channel")
+}
+
+record(ai,"$(P)SIM:MID")
+{
+    field(SCAN, "Passive")
+    field(DTYP, "Soft Channel")
+}
+
+record(mbbi,"$(P)SIM:DIRECTION")
+{
+    field(SCAN, "Passive")
+    field(DTYP, "Soft Channel")
+}
+
