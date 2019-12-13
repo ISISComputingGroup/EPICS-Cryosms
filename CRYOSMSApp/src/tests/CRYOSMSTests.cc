@@ -22,6 +22,9 @@ namespace {
 
 	class TToAParametrisedTests : public StartupTests, public ::testing::WithParamInterface<std::tuple<const char*, const char*, double>>
 	{
+	public:
+		static void SetUpTestCase() {}
+		static void TearDownTestCase() {}
 	};
 
 	CRYOSMSDriver* StartupTests::testDriver = NULL;

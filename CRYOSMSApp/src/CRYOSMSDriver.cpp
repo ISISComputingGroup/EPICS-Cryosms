@@ -304,27 +304,26 @@ asynStatus CRYOSMSDriver::onStart()
 	}
 
 	RETURN_IF_ASYNERROR(checkTToA);
-	epicsThreadSleep(0.2);
+
 	RETURN_IF_ASYNERROR(checkMaxCurr);
-	epicsThreadSleep(0.2);
+
 	RETURN_IF_ASYNERROR(checkMaxVolt);
-	epicsThreadSleep(0.2);
+
 	RETURN_IF_ASYNERROR(checkWriteUnit);
-	epicsThreadSleep(0.2);
+
 	RETURN_IF_ASYNERROR(checkAllowPersist);
-	epicsThreadSleep(0.2);
+
 	RETURN_IF_ASYNERROR(checkUseSwitch);
-	epicsThreadSleep(0.2);
+
 	RETURN_IF_ASYNERROR(checkHeaterOut);
-	epicsThreadSleep(0.2);
+
 	RETURN_IF_ASYNERROR(checkUseMagnetTemp);
-	epicsThreadSleep(0.2);
+
 	RETURN_IF_ASYNERROR(checkCompOffAct);
-	epicsThreadSleep(0.2);
+	epicsThreadSleep(0.2);//ramp not set correctly unless we wait briefly here
 	RETURN_IF_ASYNERROR(checkRampFile);
-	epicsThreadSleep(0.2);
+
 	RETURN_IF_ASYNERROR(procDb, "PAUSE");
-	epicsThreadSleep(0.2);
 
 	std::string isPaused;
 	RETURN_IF_ASYNERROR(getDb, "PAUSE", &isPaused);
