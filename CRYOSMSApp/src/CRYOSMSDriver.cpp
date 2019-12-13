@@ -29,17 +29,124 @@
 
 #include <epicsExport.h>
 
+#include <boost/msm/back/state_machine.hpp>
+#include <boost/msm/front/state_machine_def.hpp>
+
 #include "CRYOSMSDriver.h"
 
+namespace mpl = boost::mpl;
+namespace msm = boost::msm;
+
 #define INIT_ROW_NUM 60
+
+
+struct startRamp {};
+struct pauseRamp {};
+struct abortRamp {};
+struct resumeRamp {};
+struct targetReached {};
+
+struct cryosmsStateMachine : public msm::front::state_machine_def<cryosmsStateMachine>
+{
+	template <class Event, class FSM>
+	void on_entry(Event const&, FSM&)
+	{
+		std::cout << "entering QSM" << std::endl;
+	}
+	template <class Event, class FSM>
+	void on_exit(Event const&, FSM&)
+	{
+		std::cout << "leaving QSM" << std::endl;
+	}
+	struct ready : public msm::front::state<>
+	{
+		template <class Event, class FSM>
+		void on_entry(Event const&, FSM&)
+		{
+			std::cout << "entering ready" << std::endl;
+		}
+		template <class Event, class FSM>
+		void on_exit(Event const&, FSM&)
+		{
+			std::cout << "leaving ready" << std::endl;
+		}
+	};
+	struct ramping : public msm::front::state<>
+	{
+		template <class Event, class FSM>
+		void on_entry(Event const&, FSM&)
+		{
+			std::cout << "entering ramping" << std::endl;
+		}
+		template <class Event, class FSM>
+		void on_exit(Event const&, FSM&)
+		{
+			std::cout << "leaving ramping" << std::endl;
+		}
+	};
+	struct paused : public msm::front::state<>
+	{
+		template <class Event, class FSM>
+		void on_entry(Event const&, FSM&)
+		{
+			std::cout << "entering paused" << std::endl;
+		}
+		template <class Event, class FSM>
+		void on_exit(Event const&, FSM&)
+		{
+			std::cout << "leaving paused" << std::endl;
+		}
+	};
+	struct aborting : public msm::front::state<>
+	{
+		template <class Event, class FSM>
+		void on_entry(Event const&, FSM&)
+		{
+			std::cout << "entering aborting" << std::endl;
+		}
+		template <class Event, class FSM>
+		void on_exit(Event const&, FSM&)
+		{
+			std::cout << "leaving aborting" << std::endl;
+		}
+	};
+
+	typedef mpl::vector<ready> initial_state;
+
+	void startNewRamp(startRamp const&) {}
+	void pauseInRamp(pauseRamp const&) {}
+	void resumeRampFromPause(resumeRamp const&) {}
+	void abortRampFromRamping(abortRamp const&) {}
+	void abortRampFromPaused(abortRamp const&) {}
+	void reachTarget(targetReached const&){}
+
+	struct transition_table : mpl::vector<
+		//	   Start		Event			Target		Action					Guard
+		//	 +-------------+---------------+-----------+-----------------------+------------+
+		a_row< ready,	    startRamp,		ramping,    startNewRamp						>,
+		//	 +-------------+---------------+-----------+-----------------------+------------+
+		a_row< ramping,	    pauseRamp,		paused,		pauseInRamp							>,
+		a_row< ramping,		abortRamp,		aborting,	abortRampFromRamping				>,
+		a_row< ramping,		targetReached,  ready,		reachTarget							>,
+		//	 +-------------+---------------+-----------+-----------------------+------------+
+		a_row< paused,		resumeRamp,		ramping,	resumeRampFromPause					>,
+		a_row< paused,		abortRamp,		aborting,	abortRampFromPaused					>,
+		//	 +-------------+---------------+-----------+-----------------------+------------+
+		a_row< aborting,	targetReached,  ready,		reachTarget							>
+	> {};
+	template <class FSM, class Event>
+	void no_transition(Event const& e, FSM&, int state)
+	{
+		std::cout << "no transition from state " << state
+			<< " on event " << typeid(e).name() << std::endl;
+	}
+};
 
 #define RETURN_IF_ASYNERROR(func, ...) status = (func)(__VA_ARGS__); \
 if (status != asynSuccess)\
 {\
 return status; \
 }
-
-
 
 static const char *driverName = "CRYOSMSDriver"; ///< Name of driver for use in message printing 
 
@@ -59,6 +166,9 @@ CRYOSMSDriver::CRYOSMSDriver(const char *portName, std::string devPrefix)
 	createParam(P_initLogicString, asynParamOctet, &P_initLogic);
 	createParam(P_rateString, asynParamOctet, &P_Rate);
 	createParam(P_maxTString, asynParamOctet, &P_MaxT);
+	createParam(P_startRampString, asynParamOctet, &P_startRamp);
+	createParam(P_pauseRampString, asynParamOctet, &P_pauseRamp);
+	createParam(P_abortRampString, asynParamOctet, &P_abortRamp);
 	createParam(P_outputModeSetString, asynParamOctet, &P_outputModeSet);
 	this->devicePrefix = devPrefix;
 	this->writeDisabled = FALSE;
@@ -81,6 +191,9 @@ asynStatus CRYOSMSDriver::writeInt32(asynUser *pasynUser, epicsInt32 value)
 	}
 	else if (function == P_initLogic){
 		return onStart();
+	}
+	else if (function == P_startRamp) {
+		
 	}
 	else {
 		return asynSuccess;
@@ -304,27 +417,16 @@ asynStatus CRYOSMSDriver::onStart()
 	}
 
 	RETURN_IF_ASYNERROR(checkTToA);
-	epicsThreadSleep(0.2);
 	RETURN_IF_ASYNERROR(checkMaxCurr);
-	epicsThreadSleep(0.2);
 	RETURN_IF_ASYNERROR(checkMaxVolt);
-	epicsThreadSleep(0.2);
 	RETURN_IF_ASYNERROR(checkWriteUnit);
-	epicsThreadSleep(0.2);
 	RETURN_IF_ASYNERROR(checkAllowPersist);
-	epicsThreadSleep(0.2);
 	RETURN_IF_ASYNERROR(checkUseSwitch);
-	epicsThreadSleep(0.2);
 	RETURN_IF_ASYNERROR(checkHeaterOut);
-	epicsThreadSleep(0.2);
 	RETURN_IF_ASYNERROR(checkUseMagnetTemp);
-	epicsThreadSleep(0.2);
 	RETURN_IF_ASYNERROR(checkCompOffAct);
-	epicsThreadSleep(0.2);
 	RETURN_IF_ASYNERROR(checkRampFile);
-	epicsThreadSleep(0.2);
 	RETURN_IF_ASYNERROR(procDb, "PAUSE");
-	epicsThreadSleep(0.2);
 
 	std::string isPaused;
 	RETURN_IF_ASYNERROR(getDb, "PAUSE", &isPaused);

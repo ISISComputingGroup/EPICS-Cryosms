@@ -25,6 +25,7 @@ public:
 	asynStatus procDb(std::string pvSuffix);
 	asynStatus getDb(std::string pvSuffix, void *pbuffer);
 	asynStatus putDb(std::string pvSuffix, const void *value);
+	cryosmsStateMachine qsm;
 private:
 	std::string devicePrefix;
 
@@ -34,6 +35,9 @@ private:
 	int P_initLogic;
 	int P_Rate; //float
 	int P_MaxT; //float
+	int P_startRamp;
+	int P_pauseRamp;
+	int P_abortRamp;
 	int P_outputModeSet; //int as above
 
 #define LAST_SMS_PARAM 	P_outputModeSet
@@ -56,6 +60,9 @@ private:
 #define P_initLogicString "INIT_LOGIC"
 #define P_rateString "Rate"
 #define P_maxTString "MaxT"
+#define P_startRampString "RAMP_START"
+#define P_pauseRampString "RAMP_PAUSE"
+#define P_abortRampString "RAMP_ABORT"
 #define P_outputModeSetString "OUTPUTMODE_SET"
 
 #endif /* CRYOSMSDRIVER_H */
