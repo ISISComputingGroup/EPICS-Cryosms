@@ -1,5 +1,6 @@
 TOP = ../..
 include $(TOP)/configure/CONFIG
+USR_INCLUDES += -I"$(TOP)/../../../libraries/master/boost/include/"
 
 LIBRARY_IOC += cryosms
 

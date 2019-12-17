@@ -2,9 +2,12 @@
 #define CRYOSMSDRIVER_H
 
 #include <asynPortDriver.h>
+#include <QueuedStateMachine.h>
+#include <StateMachineDriver.h>
+#include <boost/msm/back/state_machine.hpp>
 
 /// EPICS Asyn port driver class. 
-class CRYOSMSDriver : public asynPortDriver
+class CRYOSMSDriver : public asynPortDriver, public SMDriver
 {
 public:
 	CRYOSMSDriver(const char *portName, std::string devPrefix);
@@ -25,7 +28,7 @@ public:
 	asynStatus procDb(std::string pvSuffix);
 	asynStatus getDb(std::string pvSuffix, void *pbuffer);
 	asynStatus putDb(std::string pvSuffix, const void *value);
-	cryosmsStateMachine qsm;
+	boost::msm::back::state_machine<cryosmsStateMachine> qsm;
 private:
 	std::string devicePrefix;
 

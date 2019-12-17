@@ -5,6 +5,8 @@
 record(bo, "$(P)ABORT:SP")
 {
     field(DESC, "Abort the current ramp")
+    field(DTYP, "asynInt32")
+    field(OUT, "@asyn($(ASYN_PORT),0,0)RAMP_ABORT")
     field(SDIS, "$(P)DISABLE")
     field(ZNAM, "OFF")
     field(ONAM, "ON")
@@ -264,6 +266,8 @@ record(bi, "$(P)PAUSE")
 record(bo, "$(P)PAUSE:SP")
 {
     field(DESC, "Pause the current ramp")
+    field(DTYP, "asynInt32")
+    field(OUT, "@asyn($(ASYN_PORT),0,0)RAMP_PAUSE")
     field(SDIS, "$(P)DISABLE")
     field(ZNAM, "OFF")
     field(ONAM, "ON")
@@ -366,6 +370,8 @@ record(stringin, "$(P)STAT")
 record(bo, "$(P)START:SP")
 {
     field(DESC, "Start a ramp to the current OUTPUT:SP")
+    field(DTYP, "asynInt32")
+    field(OUT, "@asyn($(ASYN_PORT),0,0)RAMP_START")
     field(SDIS, "$(P)DISABLE")
 }
 
