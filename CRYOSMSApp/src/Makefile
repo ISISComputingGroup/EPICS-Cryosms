@@ -25,4 +25,3 @@ endif
 endif
 
 include $(TOP)/configure/RULES
-
