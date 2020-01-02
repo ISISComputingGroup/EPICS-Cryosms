@@ -5,6 +5,8 @@
 #include <QueuedStateMachine.h>
 #include <StateMachineDriver.h>
 #include <boost/msm/back/state_machine.hpp>
+#include <boost/msm/front/state_machine_def.hpp>
+#include <queue>
 
 /// EPICS Asyn port driver class. 
 class CRYOSMSDriver : public asynPortDriver, public SMDriver
@@ -22,13 +24,33 @@ public:
 	asynStatus checkUseMagnetTemp();
 	asynStatus checkCompOffAct();
 	asynStatus checkRampFile();
+	void setRampRate();
+	void queueRamps();
 	std::map<std::string,const char*> envVarMap;
 	double writeToDispConversion;
 	bool writeDisabled;
 	asynStatus procDb(std::string pvSuffix);
 	asynStatus getDb(std::string pvSuffix, void *pbuffer);
 	asynStatus putDb(std::string pvSuffix, const void *value);
+	void getDbNoReturn(std::string pvSuffix, void *pbuffer);
+	void putDbNoReturn(std::string pvSuffix, const void *value);
+	std::deque<driverEvent> eventQueue;
+	double nextEventTime;
+	bool atTarget = true;
+	asynStatus startRampLogic();
+	asynStatus rampFastPersist();
+	void checkForTarget();
 	boost::msm::back::state_machine<cryosmsStateMachine> qsm;
+	void startRamp() override;
+	void pauseRamp() override;
+	void resumeRamp() override;
+	void coolSwitchLogic() override;
+	void warmSwitchLogic() override;
+	void rampFastLogic() override;
+	void rampZeroLogic() override;
+	void rampPersistLogic() override;
+	void waitFastPersist() override;
+	void waitNonPersist() override;
 private:
 	std::string devicePrefix;
 

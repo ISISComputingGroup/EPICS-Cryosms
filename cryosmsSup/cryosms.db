@@ -437,6 +437,18 @@ record(ao, "$(P)MAXVOLT:_SP")
     field(SDIS, "$(P)DISABLE")
 }
 
+record(ao, "$(P)MID:_SP")
+{
+    field(DTYP, "stream")
+    field(ASG, "HIDDEN")
+    field(OUT, "@cryosms.proto setMidTarget $(PORT)")
+    field(SCAN, "Passive")
+    field(EGU, "$(WRITE_UNIT)")
+    field(SIML, "$(P)SIM")
+    field(SIOL, "$(P)SIM:MID:_SP")
+    field(SDIS, "$(P)DISABLE")
+}
+
 record(bo, "$(P)OUTPUTMODE:_SP")
 {
     field(DTYP, "stream")
@@ -459,7 +471,21 @@ record(ao, "$(P)RAMP:RATE:_SP")
     field(SCAN, "Passive")
     field(EGU, "A/s")
     field(SIML, "$(P)SIM")
-    field(SIOL, "$(P)SIM::RAMP:RATE:_SP")
+    field(SIOL, "$(P)SIM:RAMP:RATE:_SP")
+    field(SDIS, "$(P)DISABLE")
+}
+
+record(mbbo, "$(P)START:_SP")
+{
+    field(DTYP, "stream")
+    field(ASG, "HIDDEN")
+    field(OUT, "@cryosms.proto setRampTarget $(PORT)")
+    field(SCAN, "Passive")
+    field(ZRVL, "0") field(ZRST, "ZERO")
+    field(ONVL, "1") field(ONST, "MID")
+    field(TWVL, "2") field(TWVL, "MAX")
+    field(SIML, "$(P)SIM")
+    field(SIOL, "$(P)SIM:START:_SP")
     field(SDIS, "$(P)DISABLE")
 }
 

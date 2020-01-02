@@ -47,6 +47,13 @@ getRampTarget {
     wait 100;
 }
 
+setRampTarget {
+	out "RAMP %{ZERO|MID|MAX}"; 
+	wait 50;
+	in "%*1c"; 
+	wait 100;
+}
+
 getRampRate {
     InTerminator = CR LF 0x13;
 	out "GET RATE";
@@ -99,7 +106,14 @@ getMidTarget {
 	in "%*8c MID SETTING: %f %*{AMPS|TESLA}";
 	wait 100;
 }
-	
+
+setMidTarget {
+	out "SET MID %f";
+	wait 50;
+	in "%*8c MID SETTING: %*f %*{AMPS|TESLA}",CR,LF;
+	wait 100;
+}
+
 getPause {
     InTerminator = CR LF 0x13;
 	out "P";
@@ -113,4 +127,11 @@ setMaxVolt {
     wait 50;
     in "%*8c VOLTAGE LIMIT: %*f VOLTS";
     wait 100;    
+}
+setHeaterOnOff {
+    InTerminator = CR LF;
+    out "H %{OFF|ON}";
+    wait 50;
+    in "%*8c HEATER STATUS: %*{OFF|ON} %*#s";
+    WAIT 100;
 }

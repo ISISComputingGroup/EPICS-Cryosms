@@ -8,6 +8,7 @@
 #include <cstdlib>
 #include <map>
 #include <string>
+#include <chrono>
 
 #include <epicsTypes.h>
 #include <epicsTime.h>
@@ -22,6 +23,8 @@
 #include <dbCommon.h>
 #include <dbAccess.h>
 #include <boRecord.h>
+#include <recGbl.h>
+#include <alarm.h>
 
 #include <asynPortDriver.h>
 #include <asynDriver.h>
@@ -79,6 +82,7 @@ void CRYOSMSDriver::pollerTask()
 
 asynStatus CRYOSMSDriver::writeInt32(asynUser *pasynUser, epicsInt32 value)
 {
+	asynStatus status = asynSuccess;
 	int function = pasynUser->reason;
 	int falseVal = 0;
 	int trueVal = 1;
@@ -89,24 +93,24 @@ asynStatus CRYOSMSDriver::writeInt32(asynUser *pasynUser, epicsInt32 value)
 		return onStart();
 	}
 	else if (function == P_startRamp && value == 1) {
-		qsm.process_event(startRamp{});
+		RETURN_IF_ASYNERROR(startRampLogic);
 		return putDb("START:SP", &falseVal);
 	}
 	else if (function == P_pauseRamp) {
 		if (value == 0) {
-			qsm.process_event(resumeRamp{});
+			qsm.process_event(resumeRampEvent{ static_cast<SMDriver*>(this) });
 		}
 		else {
-			qsm.process_event(pauseRamp{});
+			qsm.process_event(pauseRampEvent{ static_cast<SMDriver*>(this) });
 		}
-		return asynSuccess;
+		return status;
 	}
 	else if (function == P_abortRamp && value != 0) {
-		qsm.process_event(abortRamp{});
-		return asynSuccess;
+		qsm.process_event(abortRampEvent{ static_cast<SMDriver*>(this) });
+		return status;
 	}
 	else {
-		return asynSuccess;
+		return status;
 	}
 }
 
@@ -319,7 +323,7 @@ asynStatus CRYOSMSDriver::onStart()
 	int falseVal = 0;
 	std::vector<std::string> envVarsNames = {
 		"T_TO_A", "WRITE_UNIT", "DISPLAY_UNIT", "MAX_CURR", "MAX_VOLT", "ALLOW_PERSIST", "FAST_FILTER_VALUE", "FILTER_VALUE", "NPP", "FAST_PERSISTANT_SETTLETIME", "PERSISTNENT_SETTLETIME",
-		"FASTRATE", "USE_SWITCH", "SWITCH_TEMP_PV", "SWITCH_HIGH", "SWITCH_LOW", "SWITCH_STABLE_NUMBER", "HEATER_TOLERANCE", "SWITHC_TOLERANCE", "SWITCH_TEMP_tOLERANCE", "HEATER_OUT",
+		"FASTRATE", "USE_SWITCH", "SWITCH_TEMP_PV", "SWITCH_HIGH", "SWITCH_LOW", "SWITCH_STABLE_NUMBER", "HEATER_TOLERANCE", "SWITCH_TOLERANCE", "SWITCH_TEMP_TOLERANCE", "HEATER_OUT",
 		"USE_MAGNET_TEMP", "MAGNET_TEMP_PV", "MAX_MAGNET_TEMP", "MIN_MAGNET_TEMP", "COMP_OFF_ACT", "NO_OF_COMP", "MIN_NO_OF_COMP_ON", "COMP_1_STAT_PV", "COMP_2_STAT_PV", "RAMP_FILE" };
 	for (std::string envVar : envVarsNames)
 	{
@@ -368,7 +372,7 @@ asynStatus CRYOSMSDriver::onStart()
 	}
 
 	qsm.start();
-
+	epicsThreadCreate("Event Queue", epicsThreadPriorityHigh, epicsThreadStackMedium, (EPICSTHREADFUNC)::eventQueueThread, this);
 	return status;
 }
 
@@ -399,6 +403,35 @@ asynStatus CRYOSMSDriver::putDb(std::string pvSuffix, const void *value) {
 	}
 
 	return (asynStatus)dbPutField(&addr, addr.dbr_field_type, value, 1);
+}
+
+
+void CRYOSMSDriver::getDbNoReturn(std::string pvSuffix, void *pbuffer) {
+	DBADDR addr;
+	long numReq = 1;
+	std::string fullPV = this->devicePrefix + pvSuffix;
+	if (dbNameToAddr(fullPV.c_str(), &addr)) {
+		return;
+	}
+	if ((asynStatus)dbGetField(&addr, addr.dbr_field_type, &pbuffer, NULL, &numReq, NULL) != asynSuccess)
+	{
+		dbCommon *precord = addr.precord;
+		recGblSetSevr(precord, READ_ACCESS_ALARM, INVALID_ALARM);
+	}
+}
+
+void CRYOSMSDriver::putDbNoReturn(std::string pvSuffix, const void *value) {
+	DBADDR addr;
+	long numReq = 1;
+	std::string fullPV = this->devicePrefix + pvSuffix;
+	if (dbNameToAddr(fullPV.c_str(), &addr)) {
+		return;
+	}
+	if ((asynStatus)dbPutField(&addr, addr.dbr_field_type, value, 1) != asynSuccess)
+	{
+		dbCommon *precord = addr.precord;
+		recGblSetSevr(precord, READ_ACCESS_ALARM, INVALID_ALARM);
+	}
 }
 
 asynStatus CRYOSMSDriver::readFile(const char *dir)
@@ -446,13 +479,197 @@ asynStatus CRYOSMSDriver::readFile(const char *dir)
 	}
 
 	return asynSuccess;
+}
+
+void eventQueueThread(CRYOSMSDriver* dvr)
+{
+	while (1)
+	{
+		driverEvent dvrEv = dvr->eventQueue.front();
+		dvr->eventQueue.pop_front();
+		dvr->qsm.process_event(dvrEv);
+		if (!dvr->atTarget) {
+			dvr->checkForTarget();
+		}
+	}
+}
+
+asynStatus CRYOSMSDriver::startRampLogic() {
+	asynStatus status;
+	int trueVal = 1;
+	RETURN_IF_ASYNERROR(putDb, "OUTPUT:SP.DISP", &trueVal);
+	RETURN_IF_ASYNERROR(putDb, "START:SP.DISP", &trueVal);
+
+	int magMode;
+	RETURN_IF_ASYNERROR(getDb, "MAGNET:MODE", &magMode);
+	if (magMode == 1) {
+		
+		int switchStat;
+		RETURN_IF_ASYNERROR(getDb, "SWITCH:STAT", &switchStat);
+		if (switchStat = 1) {
+			eventQueue.push_back(coolSwitchEvent{ this });
+		}
+		eventQueue.push_back(rampFastEvent{ this });
+	}
+	eventQueue.push_back(warmSwitchEvent{ this });
+	eventQueue.push_back(startRampEvent{ this });
+}
+
+void CRYOSMSDriver::startRamp()
+{
+	double target;
+	getDbNoReturn("TARGET:SP", &target);
+	double currT;
+	getDbNoReturn("OUTPUT:FIELD:TESLA", &currT);
+	int direction = 1;
+	int iStart = 0;
+	int iStop = sizeof(pMaxT_);
+	if (target < currT) { 
+		direction = -1;
+		iStart = iStop;
+		iStop = 0;
+	}
+	double rampRate;
+	int i;
+	for (i = iStart; i*direction <= iStop * direction; i = i + direction) {
+		if (pMaxT_[i] > currT) {
+			break;
+		}
+	}
+	if (i == sizeof(pMaxT_)) {
+		rampRate = 0.0;
+	}
+	else {
+		rampRate = pRate_[i];
+	}
+	putDbNoReturn("RAMP:RATE:_SP", &rampRate);
 
 }
 
+void CRYOSMSDriver::coolSwitchLogic()
+{
+	int abortQueue;
+	getDbNoReturn("ABORT:QUEUE", &abortQueue);
+	if (abortQueue == 0) {
+		int falseVal = 0;
+		putDbNoReturn("HEATER:POWER:_SP", &falseVal);
+		std::chrono::system_clock::time_point timeOutTime = std::chrono::system_clock::now() + std::chrono::seconds(std::stoi(envVarMap.at("SWITCH_TIMEOUT")));
+		bool hasTimedOut = false;
+		int switchStat;
+		do {
+			getDbNoReturn("SWITCH:STAT", &switchStat);
+			getDbNoReturn("ABORT:QUEUE", &abortQueue);
+			if (abortQueue == 1) {
+				return;
+			}
+			if (timeOutTime < std::chrono::system_clock::now() && !hasTimedOut) {
+				int minorAlarm = 1;
+				int alarmStat = 7;
+				putDbNoReturn("SWITCH:STAT.NSTA", &alarmStat);
+				putDbNoReturn("SWITCH:STAT.NSEV", &minorAlarm);
+				hasTimedOut = true;
+			}
+		} while (switchStat == 1);
+	}
+	return;
+}
+
+void CRYOSMSDriver::warmSwitchLogic()
+{
+	int heaterStat;
+	getDbNoReturn("HEATER:STAT", &heaterStat);
+	int abortQueue;
+	getDbNoReturn("ABORT:QUEUE", &abortQueue);
+	if (heaterStat == 1 || abortQueue != 0) {
+		return;
+	}
+	double current;
+	getDbNoReturn("OUTPUT:CURR", &current);
+	double currentPersist;
+	getDbNoReturn("OUTPUT:PERSIST:CURR", &currentPersist);
+	double heaterTolerance = std::stod(envVarMap.at("HEATER_TOLERANCE"));
+	while (fabs(current - currentPersist) > heaterTolerance) {
+		epicsThreadSleep(1);
+	}
+	int heaterVal = 1;
+	putDbNoReturn("HEATER:_SP", &heaterVal);
+	std::chrono::system_clock::time_point timeOutTime = std::chrono::system_clock::now() + std::chrono::seconds(std::stoi(envVarMap.at("SWITCH_TIMEOUT")));
+	bool hasTimedOut = false;
+	int switchStat = 0;
+	do {
+		getDbNoReturn("SWITCH:STAT", &switchStat);
+		getDbNoReturn("ABORT:QUEUE", &abortQueue);
+		if (abortQueue == 1) {
+			return;
+		}
+		if (timeOutTime < std::chrono::system_clock::now() && !hasTimedOut) {
+			int minorAlarm = 1;
+			int alarmStat = 7;
+			putDbNoReturn("SWITCH:STAT.NSTA", &alarmStat);
+			putDbNoReturn("SWITCH:STAT.NSEV", &minorAlarm);
+			hasTimedOut = true;
+		}
+	} while (switchStat == 0);
+}
+
+void CRYOSMSDriver::rampFastLogic()
+{
+	double fastRate = std::stod(envVarMap.at("FAST_RATE"));
+	double currRampTarget;
+	getDbNoReturn("TARGET:SP", &currRampTarget);
+	double persistField;
+	getDbNoReturn("PERSIST:RAW", &persistField);
+	int trueVal = 1;
+	int falseVal = 0;
+	if (currRampTarget == 0 || std::signbit(persistField) == std::signbit(currRampTarget)) {
+		std::string statMsg = "Ramping fast to 0";
+		putDbNoReturn("MID:_SP", &falseVal);
+		putDbNoReturn("STAT", &statMsg);
+		putDbNoReturn("FAST:ZERO", &trueVal);
+		putDbNoReturn("RAMP:RATE:_SP", &fastRate);
+		eventQueue.push_front(targetReachedEvent{ this });//reverse order as we're pushing from the front
+		eventQueue.push_front(startRampZeroEvent{ this });
+	}
+	if (currRampTarget != 0) {
+		eventQueue.push_front(targetReachedEvent{ this });//reverse order as we're pushing from the front
+		eventQueue.push_front(rampPersistEvent{ this });
+	}
+}
+
+void CRYOSMSDriver::rampZeroLogic()
+{
+	int abortQueue;
+	getDbNoReturn("ABORT:QUEUE", &abortQueue);
+	if (abortQueue == 0) {
+		int falseVal = 0;
+		putDbNoReturn("PAUSE:_SP", &falseVal);
+		putDbNoReturn("START:_SP", &falseVal);
+		atTarget = false;
+	}
+}
+
+void CRYOSMSDriver::rampPersistLogic()
+{
+	std::string statMsg = "Ramping fast to field";
+	double rampTarget;
+	double fastRate = std::stod(envVarMap.at("FAST_RATE"));
+	getDbNoReturn("PERSIST:RAW", &rampTarget);
+	putDbNoReturn("MID:_SP", &rampTarget);
+	putDbNoReturn("RAMP:RATE:_SP", &fastRate);
+	atTarget = false;
+}
+
+void CRYOSMSDriver::waitFastPersist()
+{
+	epicsThreadSleep(std::stod(envVarMap.at("FAST_PERSISTENT_SETTLETIME")));
+}
+void CRYOSMSDriver::waitNonPersist()
+{
+	epicsThreadSleep(std::stod(envVarMap.at("NON_PERSISTENT_SETTLETIME")));
+}
 
 extern "C"
 {
-
 	int CRYOSMSConfigure(const char *portName, std::string devPrefix)
 	{
 		try
