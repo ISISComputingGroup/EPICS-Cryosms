@@ -45,128 +45,40 @@ struct rampPersistEvent : driverEvent {
 struct rampFastEvent : driverEvent {
 	using driverEvent::driverEvent;
 };
+struct rampMidEvent : driverEvent {
+	using driverEvent::driverEvent;
+};
+struct rampMidZeroEvent : driverEvent {
+	using driverEvent::driverEvent;
+};
+struct reachMidEvent : driverEvent {
+	using driverEvent::driverEvent;
+};
 
+struct ready : public msm::front::state<> {};
+struct ramping_ : public msm::front::state_machine_def<ramping_>
+{
+	struct rampMidSetUp : public msm::front::state<> {};
+	struct rampingMid : public msm::front::state<> {};
+	typedef rampMidSetUp initial_state;
+	void rampMid(rampMidEvent const& evt) {}
+	void rampMidZero(rampMidZeroEvent const& evt) {}
+	void reachMid(reachMidEvent const& evt) {}
+	typedef ramping_ ra_;
+	struct transition_table : mpl::vector<
+		a_row< rampMidSetUp, rampMidEvent, rampingMid, &ra_::rampMid>,
+		a_row< rampMidSetUp, rampMidZeroEvent, rampingMid, &ra_::rampMidZero>,
+		a_row< rampingMid, reachMidEvent, rampMidSetUp, &ra_::reachMid>
+	> {};
+};
+struct rampingZero : public msm::front::state<> {};
+struct rampingPersist : public msm::front::state<> {};
+struct paused : public msm::front::state<> {};
+struct aborting : public msm::front::state<> {};
+struct coolingSwitch : public msm::front::state<> {};
+struct warmingSwitch : public msm::front::state<> {};
+struct rampFastStartup : public msm::front::state<> {};
 
-struct ready : public msm::front::state<>
-{
-	template <class Event, class QSM>
-	void on_entry(Event const&, QSM&)
-	{
-		std::cout << "entering ready" << std::endl;
-	}
-	template <class Event, class QSM>
-	void on_exit(Event const&, QSM&)
-	{
-		std::cout << "leaving ready" << std::endl;
-	}
-};
-struct ramping : public msm::front::state<>
-{
-	template <class Event, class QSM>
-	void on_entry(Event const&, QSM&)
-	{
-		std::cout << "entering ramping" << std::endl;
-	}
-	template <class Event, class QSM>
-	void on_exit(Event const&, QSM&)
-	{
-		std::cout << "leaving ramping" << std::endl;
-	}
-};
-struct rampingZero : public msm::front::state<>
-{
-	template <class Event, class QSM>
-	void on_entry(Event const&, QSM&)
-	{
-		std::cout << "entering ramping 0" << std::endl;
-	}
-	template <class Event, class QSM>
-	void on_exit(Event const&, QSM&)
-	{
-		std::cout << "leaving ramping 0" << std::endl;
-		int falseVal = 0;
-		Event.dvr->putDbNoReturn("FAST:ZERO", &falseVal);
-	}
-};
-struct rampingPersist : public msm::front::state<>
-{
-	template <class Event, class QSM>
-	void on_entry(Event const&, QSM&)
-	{
-		std::cout << "entering ramping persist" << std::endl;
-	}
-	template <class Event, class QSM>
-	void on_exit(Event const&, QSM&)
-	{
-		std::cout << "leaving ramping persist" << std::endl;
-		Event.dvr->waitFastPersist();
-	}
-};
-struct paused : public msm::front::state<>
-{
-	template <class Event, class QSM>
-	void on_entry(Event const&, QSM&)
-	{
-		std::cout << "entering paused" << std::endl;
-	}
-	template <class Event, class QSM>
-	void on_exit(Event const&, QSM&)
-	{
-		std::cout << "leaving paused" << std::endl;
-	}
-};
-struct aborting : public msm::front::state<>
-{
-	template <class Event, class QSM>
-	void on_entry(Event const&, QSM&)
-	{
-		std::cout << "entering aborting" << std::endl;
-	}
-	template <class Event, class QSM>
-	void on_exit(Event const&, QSM&)
-	{
-		std::cout << "leaving aborting" << std::endl;
-	}
-};
-struct coolingSwitch : public msm::front::state<>
-{
-	template <class Event, class QSM>
-	void on_entry(Event const&, QSM&)
-	{
-		std::cout << "entering cooling switch" << std::endl;
-	}
-	template <class Event, class QSM>
-	void on_exit(Event const&, QSM&)
-	{
-		std::cout << "leaving cooling switch" << std::endl;
-	}
-};
-struct warmingSwitch : public msm::front::state<>
-{
-	template <class Event, class QSM>
-	void on_entry(Event const&, QSM&)
-	{
-		std::cout << "entering warming switch" << std::endl;
-	}
-	template <class Event, class QSM>
-	void on_exit(Event const&, QSM&)
-	{
-		std::cout << "leaving warming switch" << std::endl;
-	}
-};
-struct rampFastStartup : public msm::front::state<>
-{
-	template <class Event, class QSM>
-	void on_entry(Event const&, QSM&)
-	{
-		std::cout << "Performing ramp fast setup" << std::endl;
-	}
-	template <class Event, class QSM>
-	void on_exit(Event const&, QSM&)
-	{
-		std::cout << "Ramp Fast setup done" << std::endl;
-	}
-};
 struct cryosmsStateMachine : public msm::front::state_machine_def<cryosmsStateMachine>
 {
 	explicit cryosmsStateMachine(SMDriver* drv) : drv_(drv) {}
@@ -181,6 +93,7 @@ struct cryosmsStateMachine : public msm::front::state_machine_def<cryosmsStateMa
 	{
 		std::cout << "leaving QSM" << std::endl;
 	}
+	typedef msm::back::state_machine<ramping_> ramping;
 	void startNewRamp(startRampEvent const& evt) {
 		drv_->startRamp();
 	}

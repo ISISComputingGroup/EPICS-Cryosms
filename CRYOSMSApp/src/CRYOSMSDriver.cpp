@@ -532,9 +532,10 @@ void CRYOSMSDriver::startRamp()
 	double rampRate;
 	int i;
 	for (i = iStart; i*direction <= iStop * direction; i = i + direction) {
-		if (pMaxT_[i] > currT) {
+		if (pMaxT_[i]*direction > currT*direction) {
 			break;
 		}
+
 	}
 	if (i == sizeof(pMaxT_)) {
 		rampRate = 0.0;
