@@ -45,6 +45,8 @@ return status; \
 
 static const char *driverName = "CRYOSMSDriver"; ///< Name of driver for use in message printing 
 
+static void eventQueueThread(CRYOSMSDriver* drv);
+
 CRYOSMSDriver::CRYOSMSDriver(const char *portName, std::string devPrefix)
   : asynPortDriver(portName,
 	0, /* maxAddr */
@@ -70,7 +72,6 @@ CRYOSMSDriver::CRYOSMSDriver(const char *portName, std::string devPrefix)
 
 	pRate_ = (epicsFloat64 *)calloc(INIT_ROW_NUM, sizeof(epicsFloat64));
 	pMaxT_ = (epicsFloat64 *)calloc(INIT_ROW_NUM, sizeof(epicsFloat64));
-	
 }
 void CRYOSMSDriver::pollerTask()
 {
@@ -89,20 +90,22 @@ asynStatus CRYOSMSDriver::writeInt32(asynUser *pasynUser, epicsInt32 value)
 		return onStart();
 	}
 	else if (function == P_startRamp && value == 1) {
-		qsm.process_event(startRamp{});
+		eventQueue.push_back(&startRampEv);
+		eventQueue.push_back(&targetReachedEv);
 		return putDb("START:SP", &falseVal);
 	}
 	else if (function == P_pauseRamp) {
 		if (value == 0) {
-			qsm.process_event(resumeRamp{});
+			qsm.process_event(resumeRampEvent{this});
 		}
 		else {
-			qsm.process_event(pauseRamp{});
+			queuePaused = true;
 		}
 		return asynSuccess;
 	}
 	else if (function == P_abortRamp && value != 0) {
-		qsm.process_event(abortRamp{});
+		eventQueue.push_front(&abortRampEv);
+		epicsThreadResume(queueThreadId);
 		return asynSuccess;
 	}
 	else {
@@ -368,7 +371,7 @@ asynStatus CRYOSMSDriver::onStart()
 	}
 
 	qsm.start();
-
+	queueThreadId = epicsThreadCreate("Event Queue", epicsThreadPriorityHigh, epicsThreadStackMedium, (EPICSTHREADFUNC)::eventQueueThread, this);
 	return status;
 }
 
@@ -449,6 +452,49 @@ asynStatus CRYOSMSDriver::readFile(const char *dir)
 
 }
 
+static void eventQueueThread(CRYOSMSDriver* drv)
+{
+	while (1)
+	{
+		if (drv->eventQueue.empty()) {
+			epicsThreadSleep(1);
+			continue;
+		}
+		void* drvEv = drv->eventQueue.front();
+		drv->eventQueue.pop_front();
+		drv->qsm.process_event(drvEv);
+		while (!drv->atTarget) {
+			if (drv->queuePaused) {
+				drv->qsm.process_event(pauseRampEvent{ drv });
+				continue;
+			}
+			drv->checkForTarget();
+		}
+	}
+}
+
+void CRYOSMSDriver::checkForTarget()
+{
+	epicsThreadSleep(1);
+	simulatedRampIncrement++;
+	if (simulatedRampIncrement > 5) {
+		atTarget = true;
+	}
+}
+
+void CRYOSMSDriver::resumeRamp()
+{
+	queuePaused = false;
+	epicsThreadResume(queueThreadId);
+}
+
+void CRYOSMSDriver::abortRamp()
+{
+	std::deque<void*> emptyQueue;
+	std::swap(eventQueue, emptyQueue);
+	eventQueue.push_back(&abortRampEv);
+	eventQueue.push_back(&targetReachedEv);
+}
 
 extern "C"
 {

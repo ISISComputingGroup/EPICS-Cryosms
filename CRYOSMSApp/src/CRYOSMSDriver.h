@@ -28,7 +28,20 @@ public:
 	asynStatus procDb(std::string pvSuffix);
 	asynStatus getDb(std::string pvSuffix, void *pbuffer);
 	asynStatus putDb(std::string pvSuffix, const void *value);
+	std::deque<void*> eventQueue;
+	epicsThreadId queueThreadId;
+	bool atTarget = true;
+	bool abortQueue = true;
+	void checkForTarget();
+	int simulatedRampIncrement;
 	boost::msm::back::state_machine<cryosmsStateMachine> qsm;
+	void resumeRamp() override;
+	void abortRamp() override;
+	startRampEvent startRampEv = startRampEvent{ this };
+	abortRampEvent abortRampEv = abortRampEvent{ this };
+	pauseRampEvent pauseRampEv = pauseRampEvent{ this };
+	resumeRampEvent resumeRampEv = resumeRampEvent{ this };
+	targetReachedEvent targetReachedEv = targetReachedEvent{ this };
 private:
 	std::string devicePrefix;
 
