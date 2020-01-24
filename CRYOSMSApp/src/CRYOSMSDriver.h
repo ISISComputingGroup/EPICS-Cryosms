@@ -5,7 +5,23 @@
 #include <QueuedStateMachine.h>
 #include <StateMachineDriver.h>
 #include <boost/msm/back/state_machine.hpp>
+#include <boost/variant/variant.hpp>
 
+typedef boost::variant<startRampEvent, abortRampEvent, pauseRampEvent, resumeRampEvent, targetReachedEvent> eventVariant;
+
+struct processEventVisitor : boost::static_visitor<>
+{
+	processEventVisitor(boost::msm::back::state_machine<cryosmsStateMachine>& qsm, std::deque<eventVariant>& eventQueue) : _qsm(qsm), _eventQueue(eventQueue) {}
+	boost::msm::back::state_machine<cryosmsStateMachine>& _qsm;
+	std::deque<eventVariant>& _eventQueue;
+
+	template <typename qsmEventType>
+	void operator()(qsmEventType const& qsmEvent) const
+	{
+		_eventQueue.pop_front();
+		_qsm.process_event(qsmEvent);
+	}
+};
 /// EPICS Asyn port driver class. 
 class CRYOSMSDriver : public asynPortDriver, public SMDriver
 {
@@ -28,7 +44,7 @@ public:
 	asynStatus procDb(std::string pvSuffix);
 	asynStatus getDb(std::string pvSuffix, void *pbuffer);
 	asynStatus putDb(std::string pvSuffix, const void *value);
-	std::deque<void*> eventQueue;
+	std::deque<eventVariant> eventQueue;
 	epicsThreadId queueThreadId;
 	bool atTarget = true;
 	bool abortQueue = true;
@@ -36,12 +52,8 @@ public:
 	int simulatedRampIncrement;
 	boost::msm::back::state_machine<cryosmsStateMachine> qsm;
 	void resumeRamp() override;
+	void startRamping() override;
 	void abortRamp() override;
-	startRampEvent startRampEv = startRampEvent{ this };
-	abortRampEvent abortRampEv = abortRampEvent{ this };
-	pauseRampEvent pauseRampEv = pauseRampEvent{ this };
-	resumeRampEvent resumeRampEv = resumeRampEvent{ this };
-	targetReachedEvent targetReachedEv = targetReachedEvent{ this };
 private:
 	std::string devicePrefix;
 

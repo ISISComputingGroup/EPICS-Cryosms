@@ -56,7 +56,7 @@ CRYOSMSDriver::CRYOSMSDriver(const char *portName, std::string devPrefix)
 	ASYN_CANBLOCK, /* asynFlags.  This driver can block but it is not multi-device */
 	1, /* Autoconnect */
 	0,
-	0), qsm(static_cast<SMDriver*>(this))
+	0), qsm(this)
 {
 	createParam(P_deviceNameString, asynParamOctet, &P_deviceName);
 	createParam(P_initLogicString, asynParamOctet, &P_initLogic);
@@ -90,8 +90,8 @@ asynStatus CRYOSMSDriver::writeInt32(asynUser *pasynUser, epicsInt32 value)
 		return onStart();
 	}
 	else if (function == P_startRamp && value == 1) {
-		eventQueue.push_back(&startRampEv);
-		eventQueue.push_back(&targetReachedEv);
+		eventQueue.push_back(startRampEvent{ this });
+		eventQueue.push_back(targetReachedEvent{ this });
 		return putDb("START:SP", &falseVal);
 	}
 	else if (function == P_pauseRamp) {
@@ -104,7 +104,8 @@ asynStatus CRYOSMSDriver::writeInt32(asynUser *pasynUser, epicsInt32 value)
 		return asynSuccess;
 	}
 	else if (function == P_abortRamp && value != 0) {
-		eventQueue.push_front(&abortRampEv);
+		eventQueue.push_front(abortRampEvent{ this });
+		queuePaused = false;
 		epicsThreadResume(queueThreadId);
 		return asynSuccess;
 	}
@@ -460,12 +461,12 @@ static void eventQueueThread(CRYOSMSDriver* drv)
 			epicsThreadSleep(1);
 			continue;
 		}
-		void* drvEv = drv->eventQueue.front();
-		drv->eventQueue.pop_front();
-		drv->qsm.process_event(drvEv);
+		drv->simulatedRampIncrement = 0;
+		boost::apply_visitor(processEventVisitor(drv->qsm, drv->eventQueue), drv->eventQueue.front());
 		while (!drv->atTarget) {
 			if (drv->queuePaused) {
 				drv->qsm.process_event(pauseRampEvent{ drv });
+				epicsThreadSuspendSelf();
 				continue;
 			}
 			drv->checkForTarget();
@@ -488,12 +489,17 @@ void CRYOSMSDriver::resumeRamp()
 	epicsThreadResume(queueThreadId);
 }
 
+void CRYOSMSDriver::startRamping()
+{
+	atTarget = false;
+}
+
 void CRYOSMSDriver::abortRamp()
 {
-	std::deque<void*> emptyQueue;
+	std::deque<eventVariant> emptyQueue;
 	std::swap(eventQueue, emptyQueue);
-	eventQueue.push_back(&abortRampEv);
-	eventQueue.push_back(&targetReachedEv);
+	eventQueue.push_back(abortRampEvent{ this });
+	eventQueue.push_back(targetReachedEvent{ this });
 }
 
 extern "C"

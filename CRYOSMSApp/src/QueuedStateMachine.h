@@ -90,8 +90,8 @@ struct wrong : public msm::front::state<>
 };
 struct cryosmsStateMachine : public msm::front::state_machine_def<cryosmsStateMachine>
 {
-	explicit cryosmsStateMachine(SMDriver* drv) : drv_(drv) {}
-	SMDriver* drv_;
+	explicit cryosmsStateMachine(SMDriver* drv) : drv_(*drv) {}
+	SMDriver& drv_;
 	template <class Event, class QSM>
 	void on_entry(Event const&, QSM&)
 	{
@@ -103,16 +103,14 @@ struct cryosmsStateMachine : public msm::front::state_machine_def<cryosmsStateMa
 		std::cout << "leaving QSM" << std::endl;
 	}
 	void startNewRamp(startRampEvent const&) {
-		drv_->atTarget = false;
+		drv_.startRamping();
 	}
-	void pauseInRamp(pauseRampEvent const&) {
-		epicsThreadSuspendSelf();
-	}
+	void pauseInRamp(pauseRampEvent const&) {}
 	void resumeRampFromPause(resumeRampEvent const&) {
-		drv_->resumeRamp();
+		drv_.resumeRamp();
 	}
 	void abortRampFromRamping(abortRampEvent const&) {
-		drv_->abortRamp();
+		drv_.abortRamp();
 	}
 	void abortRampFromPaused(abortRampEvent const&) {}
 	void reachTarget(targetReachedEvent const&) {}
