@@ -141,6 +141,7 @@ asynStatus CRYOSMSDriver::checkMaxCurr()
 		RETURN_IF_ASYNERROR(putDb, "DISABLE", &trueVal);
 	}
 	else {
+		testVar = 1;
 		epicsFloat64 maxCurr = std::stod(envVarMap.at("MAX_CURR"));
 		RETURN_IF_ASYNERROR(putDb, "OUTPUTMODE:_SP", &falseVal);
 		RETURN_IF_ASYNERROR(putDb, "MAX:_SP", &maxCurr);
@@ -176,8 +177,8 @@ asynStatus CRYOSMSDriver::checkWriteUnit()
 	int falseVal = 0;
 
 	if (!std::strcmp(envVarMap.at("WRITE_UNIT"), "AMPS")) {
-		RETURN_IF_ASYNERROR(putDb, "OUTPUTMODE:_SP", &falseVal);
 		testVar = 1;
+		RETURN_IF_ASYNERROR(putDb, "OUTPUTMODE:_SP", &falseVal);
 	}
 	else {
 		testVar = 2;
@@ -240,6 +241,10 @@ asynStatus CRYOSMSDriver::checkUseSwitch()
 		this->writeDisabled = TRUE;
 		RETURN_IF_ASYNERROR(putDb, "STAT", &statMsg);
 		RETURN_IF_ASYNERROR(putDb, "DISABLE", &trueVal);
+	}
+	else
+	{
+		testVar = 1;
 	}
 	return status;
 }
@@ -373,7 +378,7 @@ asynStatus CRYOSMSDriver::onStart()
 	RETURN_IF_ASYNERROR(checkMaxVolt);
 
 	RETURN_IF_ASYNERROR(checkWriteUnit);
-	epicsThreadSleep(10);
+
 	RETURN_IF_ASYNERROR(checkAllowPersist);
 
 	RETURN_IF_ASYNERROR(checkUseSwitch);

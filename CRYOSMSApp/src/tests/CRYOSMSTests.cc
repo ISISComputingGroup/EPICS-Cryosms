@@ -16,7 +16,7 @@ namespace {
 		}
 		virtual void TearDown() {
 			testDriver->writeDisabled = 0;
-			testDriver->testVar = 1;
+			testDriver->testVar = 0;
 		}
 		static CRYOSMSDriver* testDriver;
 	};
@@ -154,7 +154,7 @@ namespace {
 		ASSERT_EQ(testDriver->writeDisabled, 1);
 	}
 
-	TEST_F(StartupTests, test_GIVEN_use_switch_yes_WHEN_required_values_exist_THEN_write_enabled)
+	TEST_F(StartupTests, test_GIVEN_use_switch_yes_WHEN_required_values_exist_THEN_nothing_happens)
 	{
 		testDriver->envVarMap["USE_SWITCH"] = "Yes";
 		testDriver->envVarMap["SWITCH_TEMP_PV"] = "";
@@ -196,7 +196,7 @@ namespace {
 		ASSERT_EQ(testDriver->writeDisabled, 1);
 	}
 
-	TEST_F(StartupTests, test_GIVEN_use_magnet_temp_yes_WHEN_required_values_exist_THEN_write_enabled)
+	TEST_F(StartupTests, test_GIVEN_use_magnet_temp_yes_WHEN_required_values_exist_THEN_nothing_happens)
 	{
 		testDriver->envVarMap["USE_MAGNET_TEMP"] = "Yes";
 		testDriver->envVarMap["MAGNET_TEMP_PV"] = "";
@@ -205,14 +205,14 @@ namespace {
 		testDriver->checkUseMagnetTemp();
 		ASSERT_EQ(testDriver->testVar, 1);
 	}
-	TEST_F(StartupTests, test_GIVEN_IOC_WHEN_use_magnet_temp_not_yes_THEN_correc_pvs_get_set)
+	TEST_F(StartupTests, test_GIVEN_IOC_WHEN_use_magnet_temp_not_yes_THEN_nothing_happens)
 	{
 		testDriver->envVarMap["USE_MAGNET_TEMP"] = "Yes";
 		testDriver->envVarMap["MAGNET_TEMP_PV"] = "";
 		testDriver->envVarMap["MAX_MAGNET_TEMP"] = "";
 		testDriver->envVarMap["MIN_MAGNET_TEMP"] = "";
 		testDriver->checkUseMagnetTemp();
-		ASSERT_EQ(testDriver->testVar, 2);
+		ASSERT_EQ(testDriver->testVar, 1);
 	}
 
 	///COMP OFF ACT
@@ -284,7 +284,7 @@ namespace {
 	}
 	TEST_F(StartupTests, test_GIVEN_IOC_WHEN_max_volt_invalid_THEN_correct_code_reached)
 	{
-		testDriver->envVarMap["MAX_VOLT"] = "1";
+		testDriver->envVarMap["MAX_VOLT"] = "";
 		testDriver->checkMaxVolt();
 		ASSERT_EQ(testDriver->testVar, 1);
 	}
@@ -299,13 +299,13 @@ namespace {
 	TEST_F(StartupTests, test_GIVEN_IOC_WHEN_write_unit_set_to_amps_THEN_communicate_in_amps)
 	{
 		testDriver->envVarMap["WRITE_UNIT"] = "AMPS";
-		testDriver->checkMaxVolt();
+		testDriver->checkWriteUnit();
 		ASSERT_EQ(testDriver->testVar, 1);
 	}
 	TEST_F(StartupTests, test_GIVEN_IOC_WHEN_write_unit_no_set_to_amps_THEN_default_to_communicating_in_tesla)
 	{
 		testDriver->envVarMap["WRITE_UNIT"] = "";
-		testDriver->checkMaxVolt();
+		testDriver->checkWriteUnit();
 		ASSERT_EQ(testDriver->testVar, 2);
 	}
 }
