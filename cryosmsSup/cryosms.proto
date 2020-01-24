@@ -64,7 +64,8 @@ setRampRate {
 }
 	
 getHeaterStatus {
-	out "G H";
+    InTerminator = CR LF 0x13;
+	out "HEATER";
 	wait 50;
 	in "%*8c HEATER STATUS: %{OFF|ON}";
 	wait 100;
