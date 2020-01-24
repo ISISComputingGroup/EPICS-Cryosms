@@ -41,6 +41,8 @@ public:
 	std::map<std::string,const char*> envVarMap;
 	double writeToDispConversion;
 	bool writeDisabled;
+	int testVar; //for use in google tests where functionality can not be tested with PV values
+	bool started = false;
 	asynStatus procDb(std::string pvSuffix);
 	asynStatus getDb(std::string pvSuffix, void *pbuffer);
 	asynStatus putDb(std::string pvSuffix, const void *value);
@@ -72,8 +74,8 @@ private:
 #define NUM_SMS_PARAMS	(&LAST_SMS_PARAM - &FIRST_SMS_PARAM + 1)
 
 
-	epicsFloat64 *pRate_;
-	epicsFloat64 *pMaxT_;
+	std::vector<double> pRate_;
+	std::vector<double> pMaxT_;
 	asynStatus onStart();
 	asynStatus readFile(const char *dir);
 	static void pollerTaskC(void* arg)
