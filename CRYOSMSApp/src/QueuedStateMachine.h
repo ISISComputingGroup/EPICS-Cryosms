@@ -7,6 +7,8 @@
 
 namespace mpl = boost::mpl;
 namespace msm = boost::msm;
+
+///Events (trigger state transitions when sent to qsm):
 struct driverEvent {
 	driverEvent(SMDriver* dvr) : dvr(dvr) {}
 	SMDriver* dvr;
@@ -27,7 +29,7 @@ struct targetReachedEvent : driverEvent {
 	using driverEvent::driverEvent;
 };
 
-
+///States (have code that executes on entrance/exit, shown here for proof of concept/debugging):
 struct ready : public msm::front::state<>
 {
 	template <class Event, class QSM>
@@ -43,94 +45,47 @@ struct ready : public msm::front::state<>
 };
 struct ramping : public msm::front::state<>
 {
-	template <class Event, class QSM>
-	void on_entry(Event const&, QSM&)
-	{
-		std::cout << "entering ramping" << std::endl;
-	}
-	template <class Event, class QSM>
-	void on_exit(Event const&, QSM&)
-	{
-		std::cout << "leaving ramping" << std::endl;
-	}
 };
 struct paused : public msm::front::state<>
 {
-	template <class Event, class QSM>
-	void on_entry(Event const&, QSM&)
-	{
-		std::cout << "entering paused" << std::endl;
-	}
-	template <class Event, class QSM>
-	void on_exit(Event const&, QSM&)
-	{
-		std::cout << "leaving paused" << std::endl;
-	}
-};
-struct aborting : public msm::front::state<>
-{
-	template <class Event, class QSM>
-	void on_entry(Event const&, QSM&)
-	{
-		std::cout << "entering aborting" << std::endl;
-	}
-	template <class Event, class QSM>
-	void on_exit(Event const&, QSM&)
-	{
-		std::cout << "leaving aborting" << std::endl;
-	}
-};
-struct wrong : public msm::front::state<>
-{
-	template <class Event, class QSM>
-	void on_entry(Event const&, QSM&)
-	{
-		std::cout << "something is wrong" << std::endl;
-	}
 };
 struct cryosmsStateMachine : public msm::front::state_machine_def<cryosmsStateMachine>
 {
 	explicit cryosmsStateMachine(SMDriver* drv) : drv_(*drv) {}
 	SMDriver& drv_;
-	template <class Event, class QSM>
-	void on_entry(Event const&, QSM&)
-	{
-		std::cout << "entering QSM" << std::endl;
-	}
-	template <class Event, class QSM>
-	void on_exit(Event const&, QSM&)
-	{
-		std::cout << "leaving QSM" << std::endl;
-	}
+	
+	///Actions (executed when a state transition occurs, passed the event which triggers the transition): 
 	void startNewRamp(startRampEvent const&) {
 		drv_.startRamping();
 	}
-	void pauseInRamp(pauseRampEvent const&) {}
+	void pauseInRamp(pauseRampEvent const&) {
+		drv_.pauseRamp();
+	}
 	void resumeRampFromPause(resumeRampEvent const&) {
 		drv_.resumeRamp();
 	}
-	void abortRampFromRamping(abortRampEvent const&) {
+	void abortRamp(abortRampEvent const&) {
 		drv_.abortRamp();
 	}
-	void abortRampFromPaused(abortRampEvent const&) {}
-	void reachTarget(targetReachedEvent const&) {}
-	void somethingwrong(driverEvent const&) {}
+	void reachTarget(targetReachedEvent const&) {
+		drv_.reachTarget();
+	}
 	typedef mpl::vector<ready> initial_state;
 	typedef cryosmsStateMachine csm; //declutters transition table
 
+	///Table of valid state transitions:
 	struct transition_table : mpl::vector<
-		//	   Start		Event			Target		Action					Guard
-		//	 +-------------+---------------+-----------+--------------------------+----------+
-		a_row< ready,		startRampEvent,		ramping,	&csm::startNewRamp					>,
-		//	 +-------------+---------------+-----------+--------------------------+----------+
-		a_row< ramping,		pauseRampEvent,		paused,		&csm::pauseInRamp					>,
-		a_row< ramping,		abortRampEvent,		aborting,	&csm::abortRampFromRamping			>,
-		a_row< ramping,		targetReachedEvent,	ready,		&csm::reachTarget					>,
-		//	 +-------------+---------------+-----------+--------------------------+----------+
-		a_row< paused,		resumeRampEvent,		ramping,	&csm::resumeRampFromPause			>,
-		a_row< paused,		abortRampEvent,		aborting,	&csm::abortRampFromPaused			>,
-		//	 +-------------+---------------+-----------+--------------------------+----------+
-		a_row< aborting,	targetReachedEvent,	ready,		&csm::reachTarget					>
+		//	   Start		Event				Target		Action					
+		//	 +-------------+-------------------+-----------+-----------------------------+
+		a_row< ready,		startRampEvent,		ramping,	&csm::startNewRamp			>,
+		//	 +-------------+-------------------+-----------+-----------------------------+
+		a_row< ramping,		pauseRampEvent,		paused,		&csm::pauseInRamp			>,
+		a_row< ramping,		abortRampEvent,		ready,		&csm::abortRamp				>,
+		a_row< ramping,		targetReachedEvent,	ready,		&csm::reachTarget			>,
+		//	 +-------------+-------------------+-----------+-----------------------------+
+		a_row< paused,		resumeRampEvent,	ramping,	&csm::resumeRampFromPause	>,
+		a_row< paused,		abortRampEvent,		ready,		&csm::abortRamp				>
+		//	 +-------------+-------------------+-----------+-----------------------------+
 	> {};
 	template <class QSM, class Event>
 	void no_transition(Event const& e, QSM&, int state)

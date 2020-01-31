@@ -22,6 +22,8 @@
 #include <dbCommon.h>
 #include <dbAccess.h>
 #include <boRecord.h>
+#include <recGbl.h>
+#include <alarm.h>
 
 #include <asynPortDriver.h>
 #include <asynDriver.h>
@@ -473,6 +475,21 @@ asynStatus CRYOSMSDriver::putDb(std::string pvSuffix, const void *value) {
 	return (asynStatus)dbPutField(&addr, addr.dbr_field_type, value, 1);
 }
 
+void CRYOSMSDriver::putDbNoReturn(std::string pvSuffix, const void *value) {
+	DBADDR addr;
+	long numReq = 1;
+	std::string fullPV = this->devicePrefix + pvSuffix;
+	if (dbNameToAddr(fullPV.c_str(), &addr)) {
+		return;
+	}
+	if ((asynStatus)dbPutField(&addr, addr.dbr_field_type, value, 1) != asynSuccess)
+	{
+		dbCommon *precord = addr.precord;
+		recGblSetSevr(precord, READ_ACCESS_ALARM, INVALID_ALARM);
+		errlogSevPrintf(errlogMajor, "Error returned when attenpting to set %s to %s", pvSuffix, value);
+	}
+}
+
 asynStatus CRYOSMSDriver::readFile(const char *dir)
 {
 	//Reads ramp rates from a file and places them in an array
@@ -540,28 +557,44 @@ void CRYOSMSDriver::checkForTarget()
 {
 	epicsThreadSleep(1);
 	simulatedRampIncrement++;
-	if (simulatedRampIncrement > 5) {
+	if (simulatedRampIncrement >= 3) {
 		atTarget = true;
 	}
+}
+
+void CRYOSMSDriver::pauseRamp()
+{
+	int twoval = 2;
+	putDbNoReturn("QSM:STATE", &twoval);
 }
 
 void CRYOSMSDriver::resumeRamp()
 {
 	queuePaused = false;
 	epicsThreadResume(queueThreadId);
+	int zeroVal = 0;
+	putDbNoReturn("QSM:STATE", &zeroVal);
 }
 
 void CRYOSMSDriver::startRamping()
 {
 	atTarget = false;
+	int zeroVal = 0;
+	putDbNoReturn("QSM:STATE", &zeroVal);
 }
 
 void CRYOSMSDriver::abortRamp()
 {
 	std::deque<eventVariant> emptyQueue;
 	std::swap(eventQueue, emptyQueue);
-	eventQueue.push_back(abortRampEvent{ this });
-	eventQueue.push_back(targetReachedEvent{ this });
+	int oneVal = 1;
+	putDbNoReturn("QSM:STATE", &oneVal);
+}
+
+void CRYOSMSDriver::reachTarget()
+{
+	int oneVal = 1;
+	putDbNoReturn("QSM:STATE", &oneVal);
 }
 
 extern "C"
