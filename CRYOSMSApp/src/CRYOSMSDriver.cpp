@@ -462,32 +462,6 @@ asynStatus CRYOSMSDriver::procDb(std::string pvSuffix) {
 	return (asynStatus)dbProcess(precord);
 }
 
-asynStatus CRYOSMSDriver::putDb(std::string pvSuffix, const void *value) {
-	DBADDR addr;
-	std::string fullPV = this->devicePrefix + pvSuffix;
-	if (dbNameToAddr(fullPV.c_str(), &addr)) {
-		return asynError;
-	}
-	return (asynStatus)dbPutField(&addr, addr.dbr_field_type, value, 1);
-}
-
-void CRYOSMSDriver::putDbNoReturn(std::string pvSuffix, const void *value) {
-	/*  Functions the same as putDb, but returns nothing. Instead, if an error is encountered, it will print to the log and set an alarm on the pv
-		(if a valid pv name is provided)
-	*/
-	DBADDR addr;
-	std::string fullPV = this->devicePrefix + pvSuffix;
-	if (dbNameToAddr(fullPV.c_str(), &addr)) {
-		errlogSevPrintf(errlogMajor, "Invalid PV for putDb: %s", pvSuffix);
-		return;
-	}
-	if (dbPutField(&addr, addr.dbr_field_type, value, 1) != asynSuccess) {
-		dbCommon *precord = addr.precord;
-		recGblSetSevr(precord, READ_ACCESS_ALARM, INVALID_ALARM);
-		errlogSevPrintf(errlogMajor, "Error returned when attenpting to set %s to %s", pvSuffix, value);
-	}
-}
-
 asynStatus CRYOSMSDriver::getDb(std::string pvSuffix, int &pbuffer) {
 	DBADDR addr;
 	std::string fullPV = this->devicePrefix + pvSuffix;
@@ -534,6 +508,32 @@ asynStatus CRYOSMSDriver::getDb(std::string pvSuffix, std::string &pbuffer) {
 	std::string* val = (std::string*)addr.pfield;
 	pbuffer = *val;
 	return asynSuccess;
+}
+
+asynStatus CRYOSMSDriver::putDb(std::string pvSuffix, const void *value) {
+	DBADDR addr;
+	std::string fullPV = this->devicePrefix + pvSuffix;
+	if (dbNameToAddr(fullPV.c_str(), &addr)) {
+		return asynError;
+	}
+	return (asynStatus)dbPutField(&addr, addr.dbr_field_type, value, 1);
+}
+
+void CRYOSMSDriver::putDbNoReturn(std::string pvSuffix, const void *value) {
+	/*  Functions the same as putDb, but returns nothing. Instead, if an error is encountered, it will print to the log and set an alarm on the pv
+		(if a valid pv name is provided)
+	*/
+	DBADDR addr;
+	std::string fullPV = this->devicePrefix + pvSuffix;
+	if (dbNameToAddr(fullPV.c_str(), &addr)) {
+		errlogSevPrintf(errlogMajor, "Invalid PV for putDb: %s", pvSuffix);
+		return;
+	}
+	if (dbPutField(&addr, addr.dbr_field_type, value, 1) != asynSuccess) {
+		dbCommon *precord = addr.precord;
+		recGblSetSevr(precord, READ_ACCESS_ALARM, INVALID_ALARM);
+		errlogSevPrintf(errlogMajor, "Error returned when attenpting to set %s to %s", pvSuffix, value);
+	}
 }
 
 asynStatus CRYOSMSDriver::readFile(const char *dir)
