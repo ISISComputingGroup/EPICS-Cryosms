@@ -513,27 +513,18 @@ asynStatus CRYOSMSDriver::getDb(std::string pvSuffix, std::string &pbuffer) {
 asynStatus CRYOSMSDriver::putDb(std::string pvSuffix, const void *value) {
 	DBADDR addr;
 	std::string fullPV = this->devicePrefix + pvSuffix;
-	if (dbNameToAddr(fullPV.c_str(), &addr)) {
-		return asynError;
-	}
-	return (asynStatus)dbPutField(&addr, addr.dbr_field_type, value, 1);
-}
-
-void CRYOSMSDriver::putDbNoReturn(std::string pvSuffix, const void *value) {
-	/*  Functions the same as putDb, but returns nothing. Instead, if an error is encountered, it will print to the log and set an alarm on the pv
-		(if a valid pv name is provided)
-	*/
-	DBADDR addr;
-	std::string fullPV = this->devicePrefix + pvSuffix;
+	asynStatus status;
 	if (dbNameToAddr(fullPV.c_str(), &addr)) {
 		errlogSevPrintf(errlogMajor, "Invalid PV for putDb: %s", pvSuffix);
-		return;
+		return asynError;
 	}
-	if (dbPutField(&addr, addr.dbr_field_type, value, 1) != asynSuccess) {
+	status = (asynStatus)dbPutField(&addr, addr.dbr_field_type, value, 1);
+	if (status) {
 		dbCommon *precord = addr.precord;
 		recGblSetSevr(precord, READ_ACCESS_ALARM, INVALID_ALARM);
 		errlogSevPrintf(errlogMajor, "Error returned when attenpting to set %s to %s", pvSuffix, value);
 	}
+	return status;
 }
 
 asynStatus CRYOSMSDriver::readFile(const char *dir)
@@ -621,7 +612,7 @@ void CRYOSMSDriver::pauseRamp()
 */
 {
 	int trueVal = 1;
-	putDbNoReturn("PAUSE:_SP", &trueVal);
+	putDb("PAUSE:_SP", &trueVal);
 }
 
 void CRYOSMSDriver::resumeRamp()
@@ -631,7 +622,7 @@ void CRYOSMSDriver::resumeRamp()
 	queuePaused = false;
 	epicsThreadResume(queueThreadId);
 	int falseVal = 0;
-	putDbNoReturn("PAUSE:_SP", &falseVal);
+	putDb("PAUSE:_SP", &falseVal);
 }
 
 void CRYOSMSDriver::startRamping()
@@ -643,8 +634,8 @@ void CRYOSMSDriver::startRamping()
 	double currVal = 0;
 	getDb("OUTPUT:RAW", currVal);
 	currVal += 30;
-	putDbNoReturn("MID:_SP", &currVal);
-	putDbNoReturn("START:_SP", &trueVal);
+	putDb("MID:_SP", &currVal);
+	putDb("START:_SP", &trueVal);
 }
 
 void CRYOSMSDriver::abortRamp()
@@ -656,13 +647,13 @@ void CRYOSMSDriver::abortRamp()
 	eventQueue.push_back(targetReachedEvent{ this });
 	int trueVal = 1;
 	int falseVal = 0;
-	putDbNoReturn("PAUSE:_SP", &trueVal);
+	putDb("PAUSE:_SP", &trueVal);
 
 	double currVal;
 	getDb("OUTPUT:RAW", currVal);
-	putDbNoReturn("MID:_SP", &currVal);
-	putDbNoReturn("PAUSE:_SP", &falseVal);
-	putDbNoReturn("PAUSE:SP", &falseVal);
+	putDb("MID:_SP", &currVal);
+	putDb("PAUSE:_SP", &falseVal);
+	putDb("PAUSE:SP", &falseVal);
 
 }
 
