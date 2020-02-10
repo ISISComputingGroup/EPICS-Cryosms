@@ -89,7 +89,7 @@ record(ai, "$(P)MID")
     field(DESC, "ramp target read from device")
     field(DTYP, "stream")
     field(INP, "@cryosms.proto getMidTarget $(PORT)")
-    field(SCAN, "Passive")
+    field(SCAN, "1 second")
     field(SIML, "$(P)SIM")
     field(SIOL, "$(P)SIM:MID")
     field(SDIS, "$(P)DISABLE")
@@ -315,7 +315,7 @@ record(mbbi, "$(P)RAMP:STAT")
     field(DESC, "The status of the ramp from the PSU")
     field(DTYP, "stream")
     field(INP, "@cryosms.proto getRampStatus $(PORT)")
-    field(SCAN, "1 second")
+    field(SCAN, ".1 second")
     field(ZRVL, "0") field(ZRST, "RAMPING")
     field(ONVL, "1") field(ONST, "HOLDING ON TARGET")
     field(TWVL, "2") field(TWST, "HOLDING ON PAUSE")
@@ -432,6 +432,18 @@ record(ao, "$(P)MAX:_SP")
     field(SDIS, "$(P)DISABLE")
 }
 
+record(ao, "$(P)MID:_SP")
+{
+    field(DTYP, "stream")
+    field(ASG, "HIDDEN")
+    field(OUT, "@cryosms.proto setMidTarget $(PORT)")
+    field(SCAN, "Passive")
+    field(EGU, "$(WRITE_UNIT)")
+    field(SIML, "$(P)SIM")
+    field(SIOL, "$(P)SIM:MID:_SP")
+    field(SDIS, "$(P)DISABLE")
+}
+
 record(ao, "$(P)MAXVOLT:_SP")
 {
     field(DTYP, "stream")
@@ -466,6 +478,28 @@ record(ao, "$(P)RAMP:RATE:_SP")
     field(SIML, "$(P)SIM")
     field(SIOL, "$(P)SIM::RAMP:RATE:_SP")
     field(SDIS, "$(P)DISABLE")
+}
+
+record(mbbo, "$(P)START:_SP")
+{
+    field(DTYP, "stream")
+    field(ASG, "HIDDEN")
+    field(OUT, "@cryosms.proto setRampTarget $(PORT)")
+    field(ZRVL, "0") field(ZRST, "ZERO")
+    field(ONVL, "1") field(ONST, "MID")
+    field(TWVL, "2") field(TWST, "MAX")
+    field(SIML, "$(P)SIM")
+    field(SIOL, "$(P)SIM::RAMP:RATE:_SP")
+    field(SDIS, "$(P)DISABLE")
+}
+
+record(bo, "$(P)PAUSE:_SP")
+{
+    field(DTYP, "stream")
+    field(ASG, "hidden")
+    field(OUT, "@cryosms.proto setPause $(PORT)")
+    field(ZNAM, "OFF")
+    field(ONAM, "ON")
 }
 
 ### FANOUTS
@@ -547,6 +581,12 @@ record(bo,"$(P)SIM:INIT")
 }
 
 record(ai,"$(P)SIM:MID")
+{
+    field(SCAN, "Passive")
+    field(DTYP, "Soft Channel")
+}
+
+record(ai,"$(P)SIM:MAX")
 {
     field(SCAN, "Passive")
     field(DTYP, "Soft Channel")

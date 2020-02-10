@@ -44,7 +44,9 @@ public:
 	int testVar; //for use in google tests where functionality can not be tested with PV values
 	bool started = false;
 	asynStatus procDb(std::string pvSuffix);
-	asynStatus getDb(std::string pvSuffix, void *pbuffer);
+	asynStatus getDb(std::string pvSuffix, int &pbuffer);
+	asynStatus getDb(std::string pvSuffix, double &pbuffer);
+	asynStatus getDb(std::string pvSuffix, std::string &pbuffer);
 	asynStatus putDb(std::string pvSuffix, const void *value);
 	void putDbNoReturn(std::string pvSuffix, const void *value);
 	std::deque<eventVariant> eventQueue;
@@ -52,13 +54,13 @@ public:
 	bool atTarget = true;
 	bool abortQueue = true;
 	void checkForTarget();
-	int simulatedRampIncrement;
 	boost::msm::back::state_machine<cryosmsStateMachine> qsm;
 	void resumeRamp() override;
 	void pauseRamp() override;
 	void startRamping() override;
 	void abortRamp() override;
 	void reachTarget() override;
+	void continueAbort() override;
 private:
 	std::string devicePrefix;
 

@@ -10,6 +10,7 @@ public:
 	virtual void startRamping() = 0;
 	virtual void abortRamp() = 0;
 	virtual void reachTarget() = 0;
+	virtual void continueAbort() = 0;
 	bool queuePaused = false;
 	bool atTarget = true;
 };

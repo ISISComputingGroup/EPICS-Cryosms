@@ -62,13 +62,13 @@ CRYOSMSDriver::CRYOSMSDriver(const char *portName, std::string devPrefix)
 	0), qsm(this)
 {
 	createParam(P_deviceNameString, asynParamOctet, &P_deviceName);
-	createParam(P_initLogicString, asynParamOctet, &P_initLogic);
+	createParam(P_initLogicString, asynParamInt32, &P_initLogic);
 	createParam(P_rateString, asynParamOctet, &P_Rate);
 	createParam(P_maxTString, asynParamOctet, &P_MaxT);
-	createParam(P_startRampString, asynParamOctet, &P_startRamp);
-	createParam(P_pauseRampString, asynParamOctet, &P_pauseRamp);
-	createParam(P_abortRampString, asynParamOctet, &P_abortRamp);
-	createParam(P_outputModeSetString, asynParamOctet, &P_outputModeSet);
+	createParam(P_startRampString, asynParamInt32, &P_startRamp);
+	createParam(P_pauseRampString, asynParamInt32, &P_pauseRamp);
+	createParam(P_abortRampString, asynParamInt32, &P_abortRamp);
+	createParam(P_outputModeSetString, asynParamInt32, &P_outputModeSet);
 	this->devicePrefix = devPrefix;
 	this->writeDisabled = FALSE;
 
@@ -106,9 +106,9 @@ asynStatus CRYOSMSDriver::writeInt32(asynUser *pasynUser, epicsInt32 value)
 		return asynSuccess;
 	}
 	else if (function == P_abortRamp && value != 0) {
-		eventQueue.push_front(abortRampEvent{ this });
 		queuePaused = false;
 		epicsThreadResume(queueThreadId);
+		qsm.process_event(abortRampEvent{ this });
 		return asynSuccess;
 	}
 	else {
@@ -364,7 +364,7 @@ asynStatus CRYOSMSDriver::checkRampFile()
 	double currT;
 	double initRate;
 	int i;
-	RETURN_IF_ASYNERROR(getDb, "OUTPUT:FIELD:TESLA", &currT);
+	RETURN_IF_ASYNERROR(getDb, "OUTPUT:FIELD:TESLA", currT);
 	for (i = 0; i <= sizeof(pMaxT_); i++) {
 		if (pMaxT_[i] > currT) {
 			break;
@@ -426,21 +426,21 @@ asynStatus CRYOSMSDriver::onStart()
 
 	RETURN_IF_ASYNERROR(procDb, "PAUSE");
 
-	std::string isPaused;
-	RETURN_IF_ASYNERROR(getDb, "PAUSE", &isPaused);
-	if (isPaused == "ON"){
+	int isPaused;
+	RETURN_IF_ASYNERROR(getDb, "PAUSE", isPaused);
+	if (isPaused == 1){
 		RETURN_IF_ASYNERROR(putDb, "PAUSE:QUEUE", &trueVal);
 	}
 	
 	RETURN_IF_ASYNERROR(procDb, "FAN:INIT");
 
 	if (this->writeDisabled == FALSE) {
-		float targetVal;
-		RETURN_IF_ASYNERROR(getDb, "RAMP:TARGET:DISPLAY", &targetVal);
+		double targetVal;
+		RETURN_IF_ASYNERROR(getDb, "RAMP:TARGET:DISPLAY", targetVal);
 		RETURN_IF_ASYNERROR(putDb, "TARGET:SP", &targetVal);
 
 		double midTarget;
-		RETURN_IF_ASYNERROR(getDb, "MID", &midTarget);
+		RETURN_IF_ASYNERROR(getDb, "MID", midTarget);
 		midTarget *= this->writeToDispConversion;
 		RETURN_IF_ASYNERROR(putDb, "MID:SP", &midTarget);
 	}
@@ -462,15 +462,6 @@ asynStatus CRYOSMSDriver::procDb(std::string pvSuffix) {
 	return (asynStatus)dbProcess(precord);
 }
 
-asynStatus CRYOSMSDriver::getDb(std::string pvSuffix, void *pbuffer) {
-	DBADDR addr;
-	long numReq = 1;
-	std::string fullPV = this->devicePrefix + pvSuffix;
-	if (dbNameToAddr(fullPV.c_str(), &addr)) {
-		return asynError;
-	}
-	return (asynStatus)dbGetField(&addr, addr.dbr_field_type, &pbuffer, NULL, &numReq, NULL);
-}
 asynStatus CRYOSMSDriver::putDb(std::string pvSuffix, const void *value) {
 	DBADDR addr;
 	std::string fullPV = this->devicePrefix + pvSuffix;
@@ -481,18 +472,68 @@ asynStatus CRYOSMSDriver::putDb(std::string pvSuffix, const void *value) {
 }
 
 void CRYOSMSDriver::putDbNoReturn(std::string pvSuffix, const void *value) {
+	/*  Functions the same as putDb, but returns nothing. Instead, if an error is encountered, it will print to the log and set an alarm on the pv
+		(if a valid pv name is provided)
+	*/
 	DBADDR addr;
-	long numReq = 1;
 	std::string fullPV = this->devicePrefix + pvSuffix;
 	if (dbNameToAddr(fullPV.c_str(), &addr)) {
+		errlogSevPrintf(errlogMajor, "Invalid PV for putDb: %s", pvSuffix);
 		return;
 	}
-	if ((asynStatus)dbPutField(&addr, addr.dbr_field_type, value, 1) != asynSuccess)
-	{
+	if (dbPutField(&addr, addr.dbr_field_type, value, 1) != asynSuccess) {
 		dbCommon *precord = addr.precord;
 		recGblSetSevr(precord, READ_ACCESS_ALARM, INVALID_ALARM);
 		errlogSevPrintf(errlogMajor, "Error returned when attenpting to set %s to %s", pvSuffix, value);
 	}
+}
+
+asynStatus CRYOSMSDriver::getDb(std::string pvSuffix, int &pbuffer) {
+	DBADDR addr;
+	std::string fullPV = this->devicePrefix + pvSuffix;
+	if (dbNameToAddr(fullPV.c_str(), &addr)) {
+		errlogSevPrintf(errlogMajor, "Invalid PV for getDb: %s", pvSuffix);
+		return asynError;
+	}
+	if (!(addr.dbr_field_type == DBR_INT64 || addr.dbr_field_type == DBR_ENUM)) {
+		errlogSevPrintf(errlogFatal, "Attempting to read field of incorrect data type: %s is not type int", fullPV.c_str());
+		return asynError;
+	}
+	int* val = (int*)addr.pfield;
+	pbuffer = *val;
+	return asynSuccess;
+}
+
+asynStatus CRYOSMSDriver::getDb(std::string pvSuffix, double &pbuffer) {
+	DBADDR addr;
+	std::string fullPV = this->devicePrefix + pvSuffix;
+	if (dbNameToAddr(fullPV.c_str(), &addr)) {
+		errlogSevPrintf(errlogMajor, "Invalid PV for getDb: %s", pvSuffix);
+		return asynError;
+	}
+	if (addr.dbr_field_type != DBR_DOUBLE) {
+		errlogSevPrintf(errlogFatal, "Attempting to read field of incorrect data type: %s is not type double", fullPV.c_str());
+		return asynError;
+	}
+	double* val = (double*)addr.pfield;
+	pbuffer = *val;
+	return asynSuccess;
+}
+
+asynStatus CRYOSMSDriver::getDb(std::string pvSuffix, std::string &pbuffer) {
+	DBADDR addr;
+	std::string fullPV = this->devicePrefix + pvSuffix;
+	if (dbNameToAddr(fullPV.c_str(), &addr)) {
+		errlogSevPrintf(errlogMajor, "Invalid PV for getDb: %s", pvSuffix);
+		return asynError;
+	}
+	if (addr.dbr_field_type != DBR_STRING) {
+		errlogSevPrintf(errlogFatal, "Attempting to read field of incorrect data type: %s is not type string", fullPV.c_str());
+		return asynError;
+	}
+	std::string* val = (std::string*)addr.pfield;
+	pbuffer = *val;
+	return asynSuccess;
 }
 
 asynStatus CRYOSMSDriver::readFile(const char *dir)
@@ -538,6 +579,9 @@ asynStatus CRYOSMSDriver::readFile(const char *dir)
 }
 
 static void eventQueueThread(CRYOSMSDriver* drv)
+/*	Function run by the event queue thread. Will continually process whichever is the next event in the queue before removing it. Will be suspended when
+	the queue is paused, and will not process new events while waiting to reach a target (pauses and aborts processed elsewhere)
+*/
 {
 	while (1)
 	{
@@ -545,11 +589,14 @@ static void eventQueueThread(CRYOSMSDriver* drv)
 			epicsThreadSleep(1);
 			continue;
 		}
-		drv->simulatedRampIncrement = 0;
 		boost::apply_visitor(processEventVisitor(drv->qsm, drv->eventQueue), drv->eventQueue.front());
 		while (!drv->atTarget) {
+			epicsThreadSleep(1);
+			/*  Let the IOC update status from the machine, being over-cautious here as c and the db seem to disagree on the duration of "0.1 seconds". Need to wait otherwise it will think
+				ramp has completed before it has started. This is a temporary solution, in a future ticket more rigorous checks for target will be implemented and waiting here won't be needed.*/
 			if (drv->queuePaused) {
 				drv->qsm.process_event(pauseRampEvent{ drv });
+				if (!drv->queuePaused) continue;
 				epicsThreadSuspendSelf();
 				continue;
 			}
@@ -559,47 +606,73 @@ static void eventQueueThread(CRYOSMSDriver* drv)
 }
 
 void CRYOSMSDriver::checkForTarget()
+/*	Check if ramp status is "holding on target"
+*/
 {
-	epicsThreadSleep(1);
-	simulatedRampIncrement++;
-	if (simulatedRampIncrement >= 3) {
+	int stat;
+	getDb("RAMP:STAT", stat);
+	if (stat == 1) {
 		atTarget = true;
 	}
 }
 
 void CRYOSMSDriver::pauseRamp()
+/* tells PSU to pause
+*/
 {
-	int twoval = 2;
-	putDbNoReturn("QSM:STATE", &twoval);
+	int trueVal = 1;
+	putDbNoReturn("PAUSE:_SP", &trueVal);
 }
 
 void CRYOSMSDriver::resumeRamp()
+/* tells PSU to resume and unpauses the queue
+*/
 {
 	queuePaused = false;
 	epicsThreadResume(queueThreadId);
-	int zeroVal = 0;
-	putDbNoReturn("QSM:STATE", &zeroVal);
+	int falseVal = 0;
+	putDbNoReturn("PAUSE:_SP", &falseVal);
 }
 
 void CRYOSMSDriver::startRamping()
+/* tells PSU to start its ramp
+*/
 {
 	atTarget = false;
-	int zeroVal = 0;
-	putDbNoReturn("QSM:STATE", &zeroVal);
+	int trueVal = 1;
+	double currVal = 0;
+	getDb("OUTPUT:RAW", currVal);
+	currVal += 30;
+	putDbNoReturn("MID:_SP", &currVal);
+	putDbNoReturn("START:_SP", &trueVal);
 }
 
 void CRYOSMSDriver::abortRamp()
+/* Empties the queue, tells PSU to take the current location as its target
+*/
 {
 	std::deque<eventVariant> emptyQueue;
 	std::swap(eventQueue, emptyQueue);
-	int oneVal = 1;
-	putDbNoReturn("QSM:STATE", &oneVal);
+	eventQueue.push_back(targetReachedEvent{ this });
+	int trueVal = 1;
+	int falseVal = 0;
+	putDbNoReturn("PAUSE:_SP", &trueVal);
+
+	double currVal;
+	getDb("OUTPUT:RAW", currVal);
+	putDbNoReturn("MID:_SP", &currVal);
+	putDbNoReturn("PAUSE:_SP", &falseVal);
+	putDbNoReturn("PAUSE:SP", &falseVal);
+
 }
 
 void CRYOSMSDriver::reachTarget()
 {
-	int oneVal = 1;
-	putDbNoReturn("QSM:STATE", &oneVal);
+}
+
+void CRYOSMSDriver::continueAbort()
+{
+	queuePaused = false;
 }
 
 extern "C"
