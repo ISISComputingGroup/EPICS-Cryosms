@@ -118,6 +118,13 @@ namespace {
 		ASSERT_EQ(testDriver->testVar, 1);
 	}
 
+	TEST_F(StartupTests, test_GIVEN_IOC_WHEN_allow_persist_no_THEN_correct_values_set)
+	{
+		testDriver->envVarMap["ALLOW_PERSIST"] = "NO";
+		testDriver->checkAllowPersist();
+		ASSERT_EQ(testDriver->testVar, 2);
+	}
+
 	///use switch
 	class UseSwitchParametrisedTests : public StartupTests, public ::testing::WithParamInterface<std::string>
 	{
@@ -169,6 +176,13 @@ namespace {
 		ASSERT_EQ(testDriver->testVar, 1);
 	}
 
+	TEST_F(StartupTests, test_GIVEN_IOC_WHEN_use_switch_no_THEN_nothing_happens)
+	{
+		testDriver->envVarMap["USE_SWITCH"] = "No";
+		testDriver->checkUseSwitch();
+		ASSERT_EQ(testDriver->testVar, 1);
+	}
+
 	///Use magnet temp
 	class UseMagnetTempParametrisedTests : public StartupTests, public ::testing::WithParamInterface<std::string>
 	{
@@ -207,10 +221,7 @@ namespace {
 	}
 	TEST_F(StartupTests, test_GIVEN_IOC_WHEN_use_magnet_temp_not_yes_THEN_nothing_happens)
 	{
-		testDriver->envVarMap["USE_MAGNET_TEMP"] = "Yes";
-		testDriver->envVarMap["MAGNET_TEMP_PV"] = "";
-		testDriver->envVarMap["MAX_MAGNET_TEMP"] = "";
-		testDriver->envVarMap["MIN_MAGNET_TEMP"] = "";
+		testDriver->envVarMap["USE_MAGNET_TEMP"] = "No";
 		testDriver->checkUseMagnetTemp();
 		ASSERT_EQ(testDriver->testVar, 1);
 	}
@@ -250,6 +261,13 @@ namespace {
 		testDriver->envVarMap["MIN_NO_OF_COMP_ON"] = "";
 		testDriver->envVarMap["COMP_1_STAT_PV"] = "";
 		testDriver->envVarMap["COMP_2_STAT_PV"] = "";
+		testDriver->checkCompOffAct();
+		ASSERT_EQ(testDriver->testVar, 1);
+	}
+
+	TEST_F(StartupTests, test_GIVEN_IOC_WHEN_comp_off_act_not_yes_THEN_write_enabled)
+	{
+		testDriver->envVarMap["COMP_OFF_ACT"] = "No";
 		testDriver->checkCompOffAct();
 		ASSERT_EQ(testDriver->testVar, 1);
 	}

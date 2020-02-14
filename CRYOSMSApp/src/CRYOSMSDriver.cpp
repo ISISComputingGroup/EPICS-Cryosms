@@ -130,7 +130,7 @@ asynStatus CRYOSMSDriver::checkMaxCurr()
 	If not supplied, disables puts and posts relevant status message
 */
 {
-	asynStatus status;
+	asynStatus status = asynSuccess;
 	int trueVal = 1;
 	int falseVal = 0;
 	if (envVarMap.at("MAX_CURR") == NULL) {
@@ -172,7 +172,7 @@ asynStatus CRYOSMSDriver::checkWriteUnit()
 {
 /* Checks if the user wants to send data to the PSU in units of amps. Sends this choice to the machine if so, otherwise defaults to tesla.
 */
-	asynStatus status;
+	asynStatus status = asynSuccess;
 	int trueVal = 1;
 	int falseVal = 0;
 
@@ -193,7 +193,7 @@ asynStatus CRYOSMSDriver::checkAllowPersist()
 	FAST:ZERO and RAMP:LEADS to 0 and disable them.
 */
 {
-	asynStatus status;
+	asynStatus status = asynSuccess;
 	int trueVal = 1;
 	int falseVal = 0;
 	if (!std::strcmp(envVarMap.at("ALLOW_PERSIST"), "Yes")) {
@@ -309,7 +309,7 @@ asynStatus CRYOSMSDriver::checkRampFile()
 	into memory, then read the current field value from the device and send back an appropriate ramp rate based on the ramp table.
 */
 {
-	asynStatus status;
+	asynStatus status = asynSuccess;
 	int trueVal = 1;
 	testVar = 1;
 	if (envVarMap.at("RAMP_FILE") == NULL) {
