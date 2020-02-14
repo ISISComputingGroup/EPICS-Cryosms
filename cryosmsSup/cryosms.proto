@@ -2,6 +2,14 @@ ReplyTimeout = 200;
 OutTerminator = CR LF;
 InTerminator = 0x13;
 
+getDirection {
+    InTerminator = CR LF;
+	out "GET SIGN";
+	wait 50;
+	in "CURRENT DIRECTION: %{ZERO|NEGATIVE|POSITIVE}";
+	wait 100;
+}
+
 getOutputMode {
     InTerminator = CR LF 0x13;
     out "T";
@@ -16,4 +24,94 @@ setOutputMode {
     wait 50;
     in "%*8c UNITS: %*{AMPS|TESLA}";
     wait 100;
+}
+
+getOutput {
+    InTerminator = CR LF 0x13;
+	out "GET O";
+	wait 50;
+	in "%*8c OUTPUT: %f %(\$1OUTPUT:RAW:UNIT){AMPS|TESLA} AT %(\$1OUTPUT:VOLT)f VOLTS ";
+	wait 100;
+}
+
+getRampStatus {
+    InTerminator = CR LF 0x13;
+	out "RAMP STATUS";
+	wait 50;
+	in "%*8c RAMP STATUS: %{RAMPING|HOLDING ON TARGET|HOLDING ON PAUSE|QUENCH TRIP|EXTERNAL TRIP} %*#s";
+	wait 100;
+}
+
+getRampTarget {
+    in "%*8c RAMP STATUS: RAMPING FROM %*f TO %f %(\$1){AMPS|TESLA} AT %*f %*{A/SEC|VOLTS})";
+    wait 100;
+}
+
+getRampRate {
+    InTerminator = CR LF 0x13;
+	out "GET RATE";
+	wait 50;
+	in "%*8c RAMP RATE: %f A/SEC";
+	wait 100;
+}
+
+setRampRate {
+    InTerminator = CR LF 0x13;
+	out "SET RAMP %f";
+	wait 50;
+	in "%*8c RAMP RATE: %*f A/SEC";
+	wait 100;
+}
+	
+getHeaterStatus {
+    InTerminator = CR LF 0x13;
+	out "HEATER";
+	wait 50;
+	in "%*8c HEATER STATUS: %{OFF|ON}";
+	wait 100;
+}
+
+setHeaterValue {
+	out "S H %f";
+	wait 50;
+	in "%*8c HEATER OUTPUT: %*f VOLTS";
+	wait 100;
+}
+
+setConstant {
+    InTerminator = CR LF 0x13;
+	out "SET TPA %f";
+	wait 50;
+	in "%*8c FIELD CONSTANT: %*f T/A";
+	wait 100;
+}
+
+setMaxTarget {
+    InTerminator = CR LF;
+	out "SET MAX %f";
+	wait 50;
+	in "%*8c MAX SETTING: %*f %*{AMPS|TESLA}";
+	wait 100;
+}
+
+getMidTarget {
+	out "GET MID";
+	wait 50;
+	in "%*8c MID SETTING: %f %*{AMPS|TESLA}";
+	wait 100;
+}
+	
+getPause {
+    InTerminator = CR LF 0x13;
+	out "P";
+	wait 50;
+	in "%*8c PAUSE STATUS: %{OFF|ON}";
+	wait 100;
+}
+setMaxVolt {
+    InTerminator = CR LF 0X13;
+    out "SL %f";
+    wait 50;
+    in "%*8c VOLTAGE LIMIT: %*f VOLTS";
+    wait 100;    
 }
