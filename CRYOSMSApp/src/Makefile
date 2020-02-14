@@ -1,14 +1,7 @@
 TOP = ../..
 include $(TOP)/configure/CONFIG
 
-LIBRARY_IOC += cryosms
-
-cryosms_INC += CRYOSMSDriver.h
-cryosms_SRCS += CRYOSMSDriver.cpp
-cryosms_LIBS += $(EPICS_BASE_IOC_LIBS)
-cryosms_LIBS += asyn
-cryosms_DBD += drvAsynIPPort.dbd
-cryosms_DBD += asyn.dbd
+LIBRARY_IOC += CRYOSMS
 
 DBD += CRYOSMS.dbd
 
@@ -24,4 +17,13 @@ endif
 endif
 
 include $(TOP)/configure/RULES
+CRYOSMS_DBD += drvAsynIPPort.dbd
+CRYOSMS_DBD += asyn.dbd
 
+CRYOSMS_INC += CRYOSMSDriver.h
+CRYOSMS_SRCS += CRYOSMSDriver.cpp
+
+CRYOSMS_LIBS += asyn
+CRYOSMS_LIBS += $(EPICS_BASE_IOC_LIBS)
+
+include $(TOP)/configure/RULES
