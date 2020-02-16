@@ -351,17 +351,6 @@ record(calc, "$(P)READY")
     field(CALC, "A==1?1:0")
 }
 
-record(bo, "$(P)SIM")
-{
-    field(SCAN, "Passive")
-    field(DTYP, "Soft Channel")
-    field(ZNAM, "NO")
-    field(ONAM, "YES")
-    field(VAL, "$(RECSIM=0)")
-    field(PINI, "YES")
-}
-
-
 record(stringin, "$(P)STAT")
 {
     field(DESC, "The latest status message")
@@ -431,7 +420,7 @@ record(ao, "$(P)MAXVOLT:_SP")
     field(ASG, "HIDDEN")
     field(OUT, "@cryosms.proto setMaxVolt $(PORT)")
     field(SCAN, "Passive")
-    field(EGU, "VOLTS")
+    field(EGU, "V")
     field(SDIS, "$(P)DISABLE")
 }
 
@@ -495,6 +484,7 @@ record(fanout, "$(P)FAN:OUTPUT")
 
 record(bo, "$(P)SIM")
 {
+    field(SCAN, "Passive")
     field(DTYP, "Soft Channel")
     field(ZNAM, "NO")
     field(ONAM, "YES")
