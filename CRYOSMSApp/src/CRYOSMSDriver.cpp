@@ -6,6 +6,7 @@
 #include <exception>
 #include <iostream>
 #include <cstdlib>
+#include <cstring>
 #include <map>
 #include <string>
 

@@ -9,7 +9,7 @@ ifneq ($(findstring windows,$(EPICS_HOST_ARCH)),)
 ifeq ($(findstring 10.0,$(VCVERSION)),)
 SRC_DIRS += $(TOP)/CRYOSMSApp/src/tests
 TESTPROD_HOST += runner
-USR_CPPFLAGS += -I$(GTEST)/googletest/include 
+USR_CPPFLAGS += -I$(GTEST)/googletest/include
 runner_INC += CRYOSMSDriver.h
 runner_LIBS += gtest $(EPICS_BASE_IOC_LIBS) asyn
 runner_SRCS += run_all_tests.cc CRYOSMSTests.cc CRYOSMSDriver.cpp
