@@ -16,7 +16,6 @@ runner_SRCS += run_all_tests.cc CRYOSMSTests.cc CRYOSMSDriver.cpp
 endif
 endif
 
-include $(TOP)/configure/RULES
 CRYOSMS_DBD += drvAsynIPPort.dbd
 CRYOSMS_DBD += asyn.dbd
 
