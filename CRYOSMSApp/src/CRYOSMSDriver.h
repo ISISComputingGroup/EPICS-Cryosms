@@ -23,7 +23,7 @@ public:
 	double writeToDispConversion;
 	bool writeDisabled;
 	int testVar; //for use in google tests where functionality can not be tested with PV values
-	bool started = false;
+	bool started;
 	asynStatus procDb(std::string pvSuffix);
 	asynStatus getDb(std::string pvSuffix, void *pbuffer);
 	asynStatus putDb(std::string pvSuffix, const void *value);
