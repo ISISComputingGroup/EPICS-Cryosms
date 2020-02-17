@@ -6,6 +6,7 @@
 #include <exception>
 #include <iostream>
 #include <cstdlib>
+#include <cstring>
 #include <map>
 #include <string>
 
@@ -38,10 +39,24 @@
 #include "CRYOSMSDriver.h"
 
 
-#define RETURN_IF_ASYNERROR(func, ...) status = (func)(__VA_ARGS__); \
+#define RETURN_IF_ASYNERROR0(func) status = (func)(); \
 if (status != asynSuccess)\
 {\
-errlogSevPrintf(errlogMajor, "Error returned when calling %s with arguments %s", #func, __VA_ARGS__);\
+errlogSevPrintf(errlogMajor, "Error returned when calling %s", #func);\
+return status; \
+}
+
+#define RETURN_IF_ASYNERROR1(func, arg) status = (func)(arg); \
+if (status != asynSuccess)\
+{\
+errlogSevPrintf(errlogMajor, "Error returned when calling %s with arguments %s", #func, arg);\
+return status; \
+}
+
+#define RETURN_IF_ASYNERROR2(func, arg1, arg2) status = (func)(arg1, arg2); \
+if (status != asynSuccess)\
+{\
+errlogSevPrintf(errlogMajor, "Error returned when calling %s with arguments %s", #func, arg1);\
 return status; \
 }
 
@@ -59,7 +74,7 @@ CRYOSMSDriver::CRYOSMSDriver(const char *portName, std::string devPrefix)
 	ASYN_CANBLOCK, /* asynFlags.  This driver can block but it is not multi-device */
 	1, /* Autoconnect */
 	0,
-	0), qsm(this)
+	0), qsm(this), started(false), devicePrefix(devPrefix), writeDisabled(FALSE)
 {
 	createParam(P_deviceNameString, asynParamOctet, &P_deviceName);
 	createParam(P_initLogicString, asynParamInt32, &P_initLogic);
@@ -69,8 +84,6 @@ CRYOSMSDriver::CRYOSMSDriver(const char *portName, std::string devPrefix)
 	createParam(P_pauseRampString, asynParamInt32, &P_pauseRamp);
 	createParam(P_abortRampString, asynParamInt32, &P_abortRamp);
 	createParam(P_outputModeSetString, asynParamInt32, &P_outputModeSet);
-	this->devicePrefix = devPrefix;
-	this->writeDisabled = FALSE;
 
 	std::vector<epicsFloat64*> pRate_; //variables which store the data read from the ramp rate file
 	std::vector<epicsFloat64*> pMaxT_;
@@ -130,8 +143,8 @@ asynStatus CRYOSMSDriver::checkTToA()
 		errlogSevPrintf(errlogMajor, "T_TO_A not provided, check macros are correct");
 		const char *statMsg = "No calibration from Tesla to Amps supplied";
 		this->writeDisabled = TRUE;
-		RETURN_IF_ASYNERROR(putDb, "STAT", &statMsg);
-		RETURN_IF_ASYNERROR(putDb, "DISABLE", &trueVal);
+		RETURN_IF_ASYNERROR2(putDb, "STAT", &statMsg);
+		RETURN_IF_ASYNERROR2(putDb, "DISABLE", &trueVal);
 	}
 	else try {
 		double teslaToAmps = std::stod(envVarMap.at("T_TO_A"));
@@ -150,7 +163,7 @@ asynStatus CRYOSMSDriver::checkTToA()
 		else {
 			this->writeToDispConversion = 10000.0 / teslaToAmps;
 		}
-		RETURN_IF_ASYNERROR(putDb, "CONSTANT:_SP", &teslaToAmps);
+		RETURN_IF_ASYNERROR2(putDb, "CONSTANT:_SP", &teslaToAmps);
 	}
 	catch (std::exception &e) {
 		errlogSevPrintf(errlogMajor, "Invalid value of T_TO_A provided");
@@ -170,14 +183,14 @@ asynStatus CRYOSMSDriver::checkMaxCurr()
 		errlogSevPrintf(errlogMajor, "MAX_CURR not provided, check macros are correct");
 		const char *statMsg = "No Max Current given, writes not allowed";
 		this->writeDisabled = TRUE;
-		RETURN_IF_ASYNERROR(putDb, "STAT", &statMsg);
-		RETURN_IF_ASYNERROR(putDb, "DISABLE", &trueVal);
+		RETURN_IF_ASYNERROR2(putDb, "STAT", &statMsg);
+		RETURN_IF_ASYNERROR2(putDb, "DISABLE", &trueVal);
 	}
 	else {
 		testVar = 1;
 		epicsFloat64 maxCurr = std::stod(envVarMap.at("MAX_CURR"));
-		RETURN_IF_ASYNERROR(putDb, "OUTPUTMODE:_SP", &falseVal);
-		RETURN_IF_ASYNERROR(putDb, "MAX:_SP", &maxCurr);
+		RETURN_IF_ASYNERROR2(putDb, "OUTPUTMODE:_SP", &falseVal);
+		RETURN_IF_ASYNERROR2(putDb, "MAX:_SP", &maxCurr);
 	}
 	return status;
 }
@@ -192,7 +205,7 @@ asynStatus CRYOSMSDriver::checkMaxVolt()
 		try {
 			epicsFloat64 maxVolt = std::stod(envVarMap.at("MAX_VOLT"));
 			testVar = 2;
-			RETURN_IF_ASYNERROR(putDb, "MAXVOLT:_SP", &maxVolt);
+			RETURN_IF_ASYNERROR2(putDb, "MAXVOLT:_SP", &maxVolt);
 		}
 		catch (std::exception &e) {
 			errlogSevPrintf(errlogMajor, "Invalid value of MAX_VOLT provided");
@@ -211,11 +224,11 @@ asynStatus CRYOSMSDriver::checkWriteUnit()
 
 	if (!std::strcmp(envVarMap.at("WRITE_UNIT"), "AMPS")) {
 		testVar = 1;
-		RETURN_IF_ASYNERROR(putDb, "OUTPUTMODE:_SP", &falseVal);
+		RETURN_IF_ASYNERROR2(putDb, "OUTPUTMODE:_SP", &falseVal);
 	}
 	else {
 		testVar = 2;
-		RETURN_IF_ASYNERROR(putDb, "OUTPUTMODE:_SP", &trueVal);
+		RETURN_IF_ASYNERROR2(putDb, "OUTPUTMODE:_SP", &trueVal);
 	}
 	return status;
 }
@@ -236,24 +249,24 @@ asynStatus CRYOSMSDriver::checkAllowPersist()
 			errlogSevPrintf(errlogMajor, "ALLOW_PERSIST set to yes but other values required for this mode not provided, check macros are correct");
 			const char *statMsg = "Missing parameters to allow persistent mode to be used";
 			this->writeDisabled = TRUE;
-			RETURN_IF_ASYNERROR(putDb, "STAT", &statMsg);
-			RETURN_IF_ASYNERROR(putDb, "DISABLE", &trueVal);
+			RETURN_IF_ASYNERROR2(putDb, "STAT", &statMsg);
+			RETURN_IF_ASYNERROR2(putDb, "DISABLE", &trueVal);
 		}
 		else {
 			testVar = 1;
-			RETURN_IF_ASYNERROR(putDb, "MAGNET:MODE.DISP", &falseVal);
-			RETURN_IF_ASYNERROR(putDb, "FAST:ZERO.DISP", &falseVal);
-			RETURN_IF_ASYNERROR(putDb, "RAMP:LEADS.DISP", &falseVal);
+			RETURN_IF_ASYNERROR2(putDb, "MAGNET:MODE.DISP", &falseVal);
+			RETURN_IF_ASYNERROR2(putDb, "FAST:ZERO.DISP", &falseVal);
+			RETURN_IF_ASYNERROR2(putDb, "RAMP:LEADS.DISP", &falseVal);
 		}
 	}
 	else {
 		testVar = 2;
-		RETURN_IF_ASYNERROR(putDb, "MAGNET:MODE", &falseVal);
-		RETURN_IF_ASYNERROR(putDb, "FAST:ZERO", &falseVal);
-		RETURN_IF_ASYNERROR(putDb, "RAMP:LEADS", &falseVal);
-		RETURN_IF_ASYNERROR(putDb, "MAGNET:MODE.DISP", &trueVal);
-		RETURN_IF_ASYNERROR(putDb, "FAST:ZERO.DISP", &trueVal);
-		RETURN_IF_ASYNERROR(putDb, "RAMP:LEADS.DISP", &trueVal);
+		RETURN_IF_ASYNERROR2(putDb, "MAGNET:MODE", &falseVal);
+		RETURN_IF_ASYNERROR2(putDb, "FAST:ZERO", &falseVal);
+		RETURN_IF_ASYNERROR2(putDb, "RAMP:LEADS", &falseVal);
+		RETURN_IF_ASYNERROR2(putDb, "MAGNET:MODE.DISP", &trueVal);
+		RETURN_IF_ASYNERROR2(putDb, "FAST:ZERO.DISP", &trueVal);
+		RETURN_IF_ASYNERROR2(putDb, "RAMP:LEADS.DISP", &trueVal);
 	}
 	return status;
 }
@@ -272,8 +285,8 @@ asynStatus CRYOSMSDriver::checkUseSwitch()
 		errlogSevPrintf(errlogMajor, "USE_SWITCH set to yes but other values required for this mode not provided, check macros are correct");
 		const char *statMsg = "Missing parameters to allow a switch to be used";
 		this->writeDisabled = TRUE;
-		RETURN_IF_ASYNERROR(putDb, "STAT", &statMsg);
-		RETURN_IF_ASYNERROR(putDb, "DISABLE", &trueVal);
+		RETURN_IF_ASYNERROR2(putDb, "STAT", &statMsg);
+		RETURN_IF_ASYNERROR2(putDb, "DISABLE", &trueVal);
 	}
 	else
 	{
@@ -290,7 +303,7 @@ asynStatus CRYOSMSDriver::checkHeaterOut()
 
 	if (envVarMap.at("HEATER_OUT") != NULL) {
 		epicsFloat64 heatOut = std::stod(envVarMap.at("HEATER_OUT"));
-		RETURN_IF_ASYNERROR(putDb, "HEATER:VOLT:_SP", &heatOut);
+		RETURN_IF_ASYNERROR2(putDb, "HEATER:VOLT:_SP", &heatOut);
 	}
 	return status;
 }
@@ -307,8 +320,8 @@ asynStatus CRYOSMSDriver::checkUseMagnetTemp()
 		errlogSevPrintf(errlogMajor, "USE_MAGNET_TEMP set to yes but other values required for this mode not provided, check macros are correct");
 		const char *statMsg = "Missing parameters to allow the magnet temperature to be used";
 		this->writeDisabled = TRUE;
-		RETURN_IF_ASYNERROR(putDb, "STAT", &statMsg);
-		RETURN_IF_ASYNERROR(putDb, "DISABLE", &trueVal);
+		RETURN_IF_ASYNERROR2(putDb, "STAT", &statMsg);
+		RETURN_IF_ASYNERROR2(putDb, "DISABLE", &trueVal);
 	}
 	else {
 		testVar = 1;
@@ -328,8 +341,8 @@ asynStatus CRYOSMSDriver::checkCompOffAct()
 		errlogSevPrintf(errlogMajor, "COMP_OFF_ACT set to yes but other values required for this mode not provided, check macros are correct");
 		const char *statMsg = "Missing parameters to allow actions on the state of the compressors";
 		this->writeDisabled = TRUE;
-		RETURN_IF_ASYNERROR(putDb, "STAT", &statMsg);
-		RETURN_IF_ASYNERROR(putDb, "DISABLE", &trueVal);
+		RETURN_IF_ASYNERROR2(putDb, "STAT", &statMsg);
+		RETURN_IF_ASYNERROR2(putDb, "DISABLE", &trueVal);
 	}
 	else {
 		testVar = 1;
@@ -350,8 +363,8 @@ asynStatus CRYOSMSDriver::checkRampFile()
 		const char *statMsg = "Missing ramp file path";
 		this->writeDisabled = TRUE;
 		testVar = 0;
-		RETURN_IF_ASYNERROR(putDb, "STAT", &statMsg);
-		RETURN_IF_ASYNERROR(putDb, "DISABLE", &trueVal);
+		RETURN_IF_ASYNERROR2(putDb, "STAT", &statMsg);
+		RETURN_IF_ASYNERROR2(putDb, "DISABLE", &trueVal);
 	}
 	else {
 		status = readFile(envVarMap.at("RAMP_FILE"));
@@ -364,7 +377,7 @@ asynStatus CRYOSMSDriver::checkRampFile()
 	double currT;
 	double initRate;
 	int i;
-	RETURN_IF_ASYNERROR(getDb, "OUTPUT:FIELD:TESLA", currT);
+	RETURN_IF_ASYNERROR2(getDb, "OUTPUT:FIELD:TESLA", currT);
 	for (i = 0; i <= sizeof(pMaxT_); i++) {
 		if (pMaxT_[i] > currT) {
 			break;
@@ -376,7 +389,7 @@ asynStatus CRYOSMSDriver::checkRampFile()
 	else {
 		initRate = pRate_[i];
 	}
-	RETURN_IF_ASYNERROR(putDb, "RAMP:RATE:_SP", &initRate);
+	RETURN_IF_ASYNERROR2(putDb, "RAMP:RATE:_SP", &initRate);
 	return status;
 }
 
@@ -396,59 +409,61 @@ asynStatus CRYOSMSDriver::onStart()
 	started = true;
 	int trueVal = 1;
 	int falseVal = 0;
-	std::vector<std::string> envVarsNames = {
+	const char* envVarsNames[] = {
 		"T_TO_A", "WRITE_UNIT", "DISPLAY_UNIT", "MAX_CURR", "MAX_VOLT", "ALLOW_PERSIST", "FAST_FILTER_VALUE", "FILTER_VALUE", "NPP", "FAST_PERSISTANT_SETTLETIME", "PERSISTNENT_SETTLETIME",
 		"FASTRATE", "USE_SWITCH", "SWITCH_TEMP_PV", "SWITCH_HIGH", "SWITCH_LOW", "SWITCH_STABLE_NUMBER", "HEATER_TOLERANCE", "SWITCH_TOLERANCE", "SWITCH_TEMP_TOLERANCE", "HEATER_OUT",
 		"USE_MAGNET_TEMP", "MAGNET_TEMP_PV", "MAX_MAGNET_TEMP", "MIN_MAGNET_TEMP", "COMP_OFF_ACT", "NO_OF_COMP", "MIN_NO_OF_COMP_ON", "COMP_1_STAT_PV", "COMP_2_STAT_PV", "RAMP_FILE" };
-	for (std::string envVar : envVarsNames)
+	
+	for(int i=0; i<sizeof(envVarsNames)/ sizeof(const char*); ++i)
 	{
-		envVarMap.insert(std::pair<std::string, const char* >(envVar, std::getenv(envVar.c_str())));
+		envVarMap.insert(std::pair<std::string, const char* >(envVarsNames[i], std::getenv(envVarsNames[i])));
 	}
-	RETURN_IF_ASYNERROR(checkTToA);
 
-	RETURN_IF_ASYNERROR(checkMaxCurr);
+	RETURN_IF_ASYNERROR0(checkTToA);
 
-	RETURN_IF_ASYNERROR(checkMaxVolt);
+	RETURN_IF_ASYNERROR0(checkMaxCurr);
 
-	RETURN_IF_ASYNERROR(checkWriteUnit);
+	RETURN_IF_ASYNERROR0(checkMaxVolt);
 
-	RETURN_IF_ASYNERROR(checkAllowPersist);
+	RETURN_IF_ASYNERROR0(checkWriteUnit);
 
-	RETURN_IF_ASYNERROR(checkUseSwitch);
+	RETURN_IF_ASYNERROR0(checkAllowPersist);
 
-	RETURN_IF_ASYNERROR(checkHeaterOut);
+	RETURN_IF_ASYNERROR0(checkUseSwitch);
 
-	RETURN_IF_ASYNERROR(checkUseMagnetTemp);
+	RETURN_IF_ASYNERROR0(checkHeaterOut);
 
-	RETURN_IF_ASYNERROR(checkCompOffAct);
+	RETURN_IF_ASYNERROR0(checkUseMagnetTemp);
 
-	RETURN_IF_ASYNERROR(checkRampFile);
+	RETURN_IF_ASYNERROR0(checkCompOffAct);
 
-	RETURN_IF_ASYNERROR(procDb, "PAUSE");
+	RETURN_IF_ASYNERROR0(checkRampFile);
+
+	RETURN_IF_ASYNERROR1(procDb, "PAUSE");
 
 	int isPaused;
-	RETURN_IF_ASYNERROR(getDb, "PAUSE", isPaused);
+	RETURN_IF_ASYNERROR2(getDb, "PAUSE", isPaused);
 	if (isPaused == 1){
-		RETURN_IF_ASYNERROR(putDb, "PAUSE:QUEUE", &trueVal);
+		RETURN_IF_ASYNERROR2(putDb, "PAUSE:QUEUE", &trueVal);
 	}
 	
-	RETURN_IF_ASYNERROR(procDb, "FAN:INIT");
+	RETURN_IF_ASYNERROR1(procDb, "FAN:INIT");
 
 	if (this->writeDisabled == FALSE) {
 		double targetVal;
-		RETURN_IF_ASYNERROR(getDb, "RAMP:TARGET:DISPLAY", targetVal);
-		RETURN_IF_ASYNERROR(putDb, "TARGET:SP", &targetVal);
+		RETURN_IF_ASYNERROR2(getDb, "RAMP:TARGET:DISPLAY", targetVal);
+		RETURN_IF_ASYNERROR2(putDb, "TARGET:SP", &targetVal);
 
 		double midTarget;
-		RETURN_IF_ASYNERROR(getDb, "MID", midTarget);
+		RETURN_IF_ASYNERROR2(getDb, "MID", midTarget);
 		midTarget *= this->writeToDispConversion;
-		RETURN_IF_ASYNERROR(putDb, "MID:SP", &midTarget);
+		RETURN_IF_ASYNERROR2(putDb, "MID:SP", &midTarget);
 	}
 
 	qsm.start();
 	queueThreadId = epicsThreadCreate("Event Queue", epicsThreadPriorityHigh, epicsThreadStackMedium, (EPICSTHREADFUNC)::eventQueueThread, this);
 
-	RETURN_IF_ASYNERROR(putDb, "INIT", &trueVal);
+	RETURN_IF_ASYNERROR2(putDb, "INIT", &trueVal);
 	return status;
 }
 
