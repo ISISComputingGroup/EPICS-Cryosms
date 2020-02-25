@@ -5,9 +5,23 @@
 #include <QueuedStateMachine.h>
 #include <StateMachineDriver.h>
 #include <boost/msm/back/state_machine.hpp>
-#include <boost/msm/front/state_machine_def.hpp>
-#include <queue>
+#include <boost/variant/variant.hpp>
 
+typedef boost::variant<startRampEvent, abortRampEvent, pauseRampEvent, resumeRampEvent, targetReachedEvent, coolSwitchEvent, warmSwitchEvent> eventVariant;
+
+struct processEventVisitor : boost::static_visitor<>
+{
+	processEventVisitor(boost::msm::back::state_machine<cryosmsStateMachine>& qsm, std::deque<eventVariant>& eventQueue) : _qsm(qsm), _eventQueue(eventQueue) {}
+	boost::msm::back::state_machine<cryosmsStateMachine>& _qsm;
+	std::deque<eventVariant>& _eventQueue;
+
+	template <typename qsmEventType>
+	void operator()(qsmEventType const& qsmEvent) const
+	{
+		_eventQueue.pop_front();
+		_qsm.process_event(qsmEvent);
+	}
+};
 /// EPICS Asyn port driver class. 
 class CRYOSMSDriver : public asynPortDriver, public SMDriver
 {
@@ -29,21 +43,25 @@ public:
 	std::map<std::string,const char*> envVarMap;
 	double writeToDispConversion;
 	bool writeDisabled;
+	int testVar; //for use in google tests where functionality can not be tested with PV values
+	bool started;
 	asynStatus procDb(std::string pvSuffix);
-	asynStatus getDb(std::string pvSuffix, void *pbuffer);
+	asynStatus getDb(std::string pvSuffix, int &pbuffer);
+	asynStatus getDb(std::string pvSuffix, double &pbuffer);
+	asynStatus getDb(std::string pvSuffix, std::string &pbuffer);
 	asynStatus putDb(std::string pvSuffix, const void *value);
-	void getDbNoReturn(std::string pvSuffix, void *pbuffer);
-	void putDbNoReturn(std::string pvSuffix, const void *value);
-	std::deque<driverEvent> eventQueue;
-	double nextEventTime;
+	std::deque<eventVariant> eventQueue;
+	epicsThreadId queueThreadId;
 	bool atTarget = true;
-	asynStatus startRampLogic();
-	asynStatus rampFastPersist();
+	bool abortQueue = true;
 	void checkForTarget();
-	boost::msm::back::state_machine<cryosmsStateMachine> qsm;
-	void startRamp() override;
-	void pauseRamp() override;
 	void resumeRamp() override;
+	void pauseRamp() override;
+	void startRamping() override;
+	void startRamp() override;
+	void abortRamp() override;
+	void reachTarget() override;
+	void continueAbort() override;
 	void coolSwitchLogic() override;
 	void warmSwitchLogic() override;
 	void rampFastLogic() override;
@@ -51,6 +69,7 @@ public:
 	void rampPersistLogic() override;
 	void waitFastPersist() override;
 	void waitNonPersist() override;
+	boost::msm::back::state_machine<cryosmsStateMachine> qsm;
 private:
 	std::string devicePrefix;
 
@@ -69,8 +88,8 @@ private:
 #define NUM_SMS_PARAMS	(&LAST_SMS_PARAM - &FIRST_SMS_PARAM + 1)
 
 
-	epicsFloat64 *pRate_;
-	epicsFloat64 *pMaxT_;
+	std::vector<double> pRate_;
+	std::vector<double> pMaxT_;
 	asynStatus onStart();
 	asynStatus readFile(const char *dir);
 	static void pollerTaskC(void* arg)
