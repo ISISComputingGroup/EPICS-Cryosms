@@ -7,7 +7,7 @@ public:
 	virtual ~SMDriver() = default;
 	virtual void resumeRamp() = 0;
 	virtual void pauseRamp() = 0;
-	virtual void startRamping() = 0;
+	virtual void startRamping(double rate, double target, int rampDir) = 0;
 	virtual void abortRamp() = 0;
 	virtual void reachTarget() = 0;
 	virtual void continueAbort() = 0;

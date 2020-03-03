@@ -38,6 +38,7 @@ public:
 	asynStatus checkUseMagnetTemp();
 	asynStatus checkCompOffAct();
 	asynStatus checkRampFile();
+	asynStatus setupRamp();
 	std::map<std::string,const char*> envVarMap;
 	double writeToDispConversion;
 	bool writeDisabled;
@@ -56,7 +57,7 @@ public:
 	boost::msm::back::state_machine<cryosmsStateMachine> qsm;
 	void resumeRamp() override;
 	void pauseRamp() override;
-	void startRamping() override;
+	void startRamping(double rate, double target, int rampDir) override;
 	void abortRamp() override;
 	void reachTarget() override;
 	void continueAbort() override;

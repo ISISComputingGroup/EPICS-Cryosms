@@ -105,8 +105,7 @@ asynStatus CRYOSMSDriver::writeInt32(asynUser *pasynUser, epicsInt32 value)
 		return onStart();
 	}
 	else if (function == P_startRamp && value == 1) {
-		eventQueue.push_back(startRampEvent{ this });
-		eventQueue.push_back(targetReachedEvent{ this });
+		setupRamp();
 		return putDb("START:SP", &falseVal);
 	}
 	else if (function == P_pauseRamp) {
@@ -379,7 +378,7 @@ asynStatus CRYOSMSDriver::checkRampFile()
 	int i;
 	RETURN_IF_ASYNERROR2(getDb, "OUTPUT:FIELD:TESLA", currT);
 	for (i = 0; i <= sizeof(pMaxT_); i++) {
-		if (pMaxT_[i] > currT) {
+		if (pMaxT_[i] > abs(currT)) {
 			break;
 		}
 	}
@@ -640,16 +639,97 @@ void CRYOSMSDriver::resumeRamp()
 	putDb("PAUSE:_SP", &falseVal);
 }
 
-void CRYOSMSDriver::startRamping()
+asynStatus CRYOSMSDriver::setupRamp()
+{
+	asynStatus status;
+	atTarget = false;
+	int trueVal = 1;
+	double startVal = 0;
+	double targetVal = 0;
+	RETURN_IF_ASYNERROR2(getDb, "OUTPUT:RAW", startVal);
+	RETURN_IF_ASYNERROR2(getDb, "MID:SP", targetVal);
+	if ((startVal >= 0 && targetVal >= 0) || (startVal < 0 && targetVal < 0))  // same sign
+	{
+		if (abs(startVal) > abs(targetVal)) 
+		{
+			for (int i = 0; i <= sizeof(pMaxT_); i++) 
+			{
+				if (pMaxT_[i] > abs(startVal) && pMaxT_[i] < abs(targetVal)) 
+				{
+					//ramp to next boundary in ramp file if it is between the start field and the target
+					eventQueue.push_back(startRampEvent{ this, pRate_[i], pMaxT_[i] });
+				}
+				else if (pMaxT_[i] > abs(startVal) && pMaxT_[i] > abs(targetVal))
+				{
+					eventQueue.push_back(startRampEvent{ this, pRate_[i], targetVal }); //ramp to end target if it's before the next boundary
+					break;
+				}
+			}
+		}
+		else
+		{
+			for (int i = sizeof(pMaxT_); i >= 0; i--)
+			{
+				double boundary = (i == 0) ? 0 : pMaxT_[i - 1];
+				
+				if (boundary < abs(startVal) && boundary > abs(targetVal))
+				{
+					//ramp rates are "up to" field magnitudes, so when walking backwards through file take the rate for the next highest boundary
+					eventQueue.push_back(startRampEvent{ this, pRate_[i], boundary });
+				}
+				else if (boundary < abs(startVal) && boundary < abs(targetVal))
+				{
+					eventQueue.push_back(startRampEvent{ this, pRate_[i], abs(targetVal) });
+					break;
+				}
+			}
+		}
+	}
+	else // opposite signs
+	{
+		for (int i = sizeof(pMaxT_); i>= 0; i--)
+		{
+			//ramp down to (and including) 0, boundary by boundary
+			if (i == 0)
+			{
+				eventQueue.push_back(startRampEvent{ this, pRate_[i], 0});
+			}
+			else if (pMaxT_[i - 1] < abs(startVal))
+			{
+				eventQueue.push_back(startRampEvent{ this, pRate_[i], pMaxT_[i - 1] });
+			}
+		}
+		int newSign = (targetVal > 0) ? 1 : -1;
+		for (int i = 0; i <= sizeof(pMaxT_); i++) 
+		{
+			//at the end, go straight to the target
+			if (pMaxT_[i] >= abs(targetVal))
+			{
+				eventQueue.push_back(startRampEvent{ this, pRate_[i], abs(targetVal), newSign});
+				break;
+			}
+			//until then, go to the boundaries
+			eventQueue.push_back(startRampEvent{ this, pRate_[i], pMaxT_[i], newSign});
+			newSign = 0; // 0 = no change, only change the sign on the first ramp
+		}
+	}
+
+
+	eventQueue.push_back(targetReachedEvent{ this });
+}
+
+void CRYOSMSDriver::startRamping(double rate, double target, int newSign)
 /* tells PSU to start its ramp
 */
 {
-	atTarget = false;
 	int trueVal = 1;
-	double currVal = 0;
-	getDb("OUTPUT:RAW", currVal);
-	currVal += 30;
-	putDb("MID:_SP", &currVal);
+	if (newSign)
+	{
+		std::string signString = (newSign == 1) ? "+" : "-";
+		putDb("DIRECTION:_SP", &signString);
+	}
+	putDb("MID:_SP", &target);
+	putDb("RAMP:RATE:_SP", &rate);
 	putDb("START:_SP", &trueVal);
 }
 

@@ -11,11 +11,19 @@ namespace msm = boost::msm;
 
 ///Events (trigger state transitions when sent to qsm):
 struct driverEvent {
-	driverEvent(SMDriver* dvr) : dvr(dvr) {}
+	driverEvent(SMDriver* _dvr) : dvr(_dvr) {}
 	SMDriver* dvr;
 };
-struct startRampEvent : driverEvent {
-	using driverEvent::driverEvent;
+struct startRampEvent {
+	/*	rate: ramp rate for ramp to start
+		target: absolute value to ramp to, direction decided elsewhere
+	*/
+	startRampEvent(SMDriver* _dvr, double _rate, double _target, int _rampDir) : dvr(_dvr), rate(_rate), target(_target), rampDir(_rampDir) {}
+	startRampEvent(SMDriver* _dvr, double _rate, double _target) : dvr(_dvr), rate(_rate), target(_target), rampDir(0) {}
+	SMDriver* dvr;
+	double rate;
+	double target;
+	int rampDir;
 };
 struct pauseRampEvent : driverEvent {
 	using driverEvent::driverEvent;
@@ -81,8 +89,9 @@ struct cryosmsStateMachine : public msm::front::state_machine_def<cryosmsStateMa
 	SMDriver& drv_;
 	
 	///Actions (executed when a state transition occurs, gets passed the event which triggers the transition): 
-	void startNewRamp(startRampEvent const&) {
-		drv_.startRamping(); //Putting as much of the ode as possible in the driver to keep this file as legible as possible
+	//Putting as much of the code as possible in the driver to keep this file as legible as possible
+	void startNewRamp(startRampEvent const& evt) {
+		drv_.startRamping(evt.rate, evt.target, evt.rampDir); 
 	}
 	void pauseInRamp(pauseRampEvent const&) {
 		drv_.pauseRamp();
@@ -112,7 +121,7 @@ struct cryosmsStateMachine : public msm::front::state_machine_def<cryosmsStateMa
 		a_row< ramping,		pauseRampEvent,		paused,		&csm::pauseInRamp			>,
 		a_row< ramping,		targetReachedEvent,	ready,		&csm::reachTarget			>,
 		a_row< ramping,		abortRampEvent,		aborting,	&csm::abortRamp				>,
-		_row<  ramping,		resumeRampEvent,	ramping									>,
+		a_row< ramping,		startRampEvent,		ramping,	&csm::startNewRamp			>,
 		//	 +-------------+-------------------+-----------+-----------------------------+
 		a_row< paused,		resumeRampEvent,	ramping,	&csm::resumeRampFromPause	>,
 		a_row< paused,		abortRampEvent,		aborting,	&csm::abortRamp				>,

@@ -396,6 +396,17 @@ record(ao, "$(P)CONSTANT:_SP")
     field(SDIS, "$(P)DISABLE")
 }
 
+record(mbbo, "$(P)DIRECTION:_SP")
+{
+    field(DTYP, "stream")
+    field(ASG, "HIDDEN")
+    field(OUT, "@cryosms.proto setDirection")
+    field(SCAN, "Passive")
+    field(ZRST, "0")
+    field(ONST, "-")
+    field(TWST, "+")
+}    
+
 record(ao, "$(P)HEATER:VOLT:_SP")
 {
     field(DTYP, "stream")
