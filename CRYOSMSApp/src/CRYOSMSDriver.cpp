@@ -105,11 +105,15 @@ asynStatus CRYOSMSDriver::writeInt32(asynUser *pasynUser, epicsInt32 value)
 		return onStart();
 	}
 	else if (function == P_startRamp && value == 1) {
+		// start the ramp, next event in the queue is the ramp finishing
 		eventQueue.push_back(startRampEvent{ this });
 		eventQueue.push_back(targetReachedEvent{ this });
+		// set START:SP back to 0 so that it can be easily set back to 1 whenever the user wants to start a new ramp
 		return putDb("START:SP", &falseVal);
 	}
 	else if (function == P_pauseRamp) {
+		// 0 = paused off (running)
+		// 1 = paused on (paused)
 		if (value == 0) {
 			qsm.process_event(resumeRampEvent{this});
 		}
@@ -443,7 +447,7 @@ asynStatus CRYOSMSDriver::onStart()
 
 	int isPaused;
 	RETURN_IF_ASYNERROR2(getDb, "PAUSE", isPaused);
-	if (isPaused == 1){
+	if (isPaused){
 		RETURN_IF_ASYNERROR2(putDb, "PAUSE:QUEUE", &trueVal);
 	}
 	
@@ -537,7 +541,7 @@ asynStatus CRYOSMSDriver::putDb(std::string pvSuffix, const void *value) {
 	if (status) {
 		dbCommon *precord = addr.precord;
 		recGblSetSevr(precord, READ_ACCESS_ALARM, INVALID_ALARM);
-		errlogSevPrintf(errlogMajor, "Error returned when attenpting to set %s to %s", pvSuffix, value);
+		errlogSevPrintf(errlogMajor, "Error returned when attempting to set %s to %s", pvSuffix, value);
 	}
 	return status;
 }
@@ -589,7 +593,7 @@ static void eventQueueThread(CRYOSMSDriver* drv)
 	the queue is paused, and will not process new events while waiting to reach a target (pauses and aborts processed elsewhere)
 */
 {
-	while (1)
+	while (true)
 	{
 		if (drv->eventQueue.empty()) {
 			epicsThreadSleep(1);
@@ -615,24 +619,27 @@ void CRYOSMSDriver::checkForTarget()
 /*	Check if ramp status is "holding on target"
 */
 {
-	int stat;
-	getDb("RAMP:STAT", stat);
-	if (stat == 1) {
+	int rampStatus;
+	int holdingOnTarget = 1;
+	getDb("RAMP:STAT", rampStatus);
+	if (rampStatus == holdingOnTarget) {
 		atTarget = true;
 	}
 }
 
 void CRYOSMSDriver::pauseRamp()
-/* tells PSU to pause
-*/
+/**
+ * Tells PSU to pause
+ */
 {
 	int trueVal = 1;
 	putDb("PAUSE:_SP", &trueVal);
 }
 
 void CRYOSMSDriver::resumeRamp()
-/* tells PSU to resume and unpauses the queue
-*/
+/**
+ * Tells PSU to resume and unpauses the queue
+ */
 {
 	queuePaused = false;
 	epicsThreadResume(queueThreadId);
@@ -641,8 +648,10 @@ void CRYOSMSDriver::resumeRamp()
 }
 
 void CRYOSMSDriver::startRamping()
-/* tells PSU to start its ramp
-*/
+/**
+ * Reads the current output, adds a value large enough to see relevant behaviour in the tests,
+ * sets the midpoint to this value and tells device to ramp to mid.
+ */
 {
 	atTarget = false;
 	int trueVal = 1;
@@ -654,8 +663,10 @@ void CRYOSMSDriver::startRamping()
 }
 
 void CRYOSMSDriver::abortRamp()
-/* Empties the queue, tells PSU to take the current location as its target
-*/
+/**
+ * Empties the queue, pauses the device, reads current output, tells the device that this is the new midpoint,
+ * unpauses the device and sets the user-facing pause value to unpaused.
+ */
 {
 	std::deque<eventVariant> emptyQueue;
 	std::swap(eventQueue, emptyQueue);
