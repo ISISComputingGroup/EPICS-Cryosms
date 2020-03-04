@@ -74,7 +74,8 @@ CRYOSMSDriver::CRYOSMSDriver(const char *portName, std::string devPrefix)
 	ASYN_CANBLOCK, /* asynFlags.  This driver can block but it is not multi-device */
 	1, /* Autoconnect */
 	0,
-	0), qsm(this), started(false), devicePrefix(devPrefix), writeDisabled(FALSE)
+	0), qsm(this), started(false), devicePrefix(devPrefix), writeDisabled(FALSE), atTarget(true), abortQueue(true)
+
 {
 	createParam(P_deviceNameString, asynParamOctet, &P_deviceName);
 	createParam(P_initLogicString, asynParamInt32, &P_initLogic);
@@ -106,8 +107,8 @@ asynStatus CRYOSMSDriver::writeInt32(asynUser *pasynUser, epicsInt32 value)
 	}
 	else if (function == P_startRamp && value == 1) {
 		// start the ramp, next event in the queue is the ramp finishing
-		eventQueue.push_back(startRampEvent{ this });
-		eventQueue.push_back(targetReachedEvent{ this });
+		eventQueue.push_back(startRampEvent(this));
+		eventQueue.push_back(targetReachedEvent(this));
 		// set START:SP back to 0 so that it can be easily set back to 1 whenever the user wants to start a new ramp
 		return putDb("START:SP", &falseVal);
 	}
@@ -115,7 +116,7 @@ asynStatus CRYOSMSDriver::writeInt32(asynUser *pasynUser, epicsInt32 value)
 		// 0 = paused off (running)
 		// 1 = paused on (paused)
 		if (value == 0) {
-			qsm.process_event(resumeRampEvent{this});
+			qsm.process_event(resumeRampEvent(this));
 		}
 		else {
 			queuePaused = true;
@@ -125,7 +126,7 @@ asynStatus CRYOSMSDriver::writeInt32(asynUser *pasynUser, epicsInt32 value)
 	else if (function == P_abortRamp && value != 0) {
 		queuePaused = false;
 		epicsThreadResume(queueThreadId);
-		qsm.process_event(abortRampEvent{ this });
+		qsm.process_event(abortRampEvent(this));
 		return asynSuccess;
 	}
 	else {
@@ -605,7 +606,7 @@ static void eventQueueThread(CRYOSMSDriver* drv)
 			/*  Let the IOC update status from the machine, being over-cautious here as c and the db seem to disagree on the duration of "0.1 seconds". Need to wait otherwise it will think
 				ramp has completed before it has started. This is a temporary solution, in a future ticket more rigorous checks for target will be implemented and waiting here won't be needed.*/
 			if (drv->queuePaused) {
-				drv->qsm.process_event(pauseRampEvent{ drv });
+				drv->qsm.process_event(pauseRampEvent(drv));
 				if (!drv->queuePaused) continue;
 				epicsThreadSuspendSelf();
 				continue;
@@ -670,7 +671,7 @@ void CRYOSMSDriver::abortRamp()
 {
 	std::deque<eventVariant> emptyQueue;
 	std::swap(eventQueue, emptyQueue);
-	eventQueue.push_back(targetReachedEvent{ this });
+	eventQueue.push_back(targetReachedEvent(this));
 	int trueVal = 1;
 	int falseVal = 0;
 	putDb("PAUSE:_SP", &trueVal);

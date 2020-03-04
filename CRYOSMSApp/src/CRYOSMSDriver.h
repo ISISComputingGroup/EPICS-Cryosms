@@ -50,8 +50,8 @@ public:
 	asynStatus putDb(std::string pvSuffix, const void *value);
 	std::deque<eventVariant> eventQueue;
 	epicsThreadId queueThreadId;
-	bool atTarget = true;
-	bool abortQueue = true;
+	bool atTarget;
+	bool abortQueue;
 	void checkForTarget();
 	boost::msm::back::state_machine<cryosmsStateMachine> qsm;
 	void resumeRamp() override;
