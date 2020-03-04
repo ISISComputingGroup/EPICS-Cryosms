@@ -5,6 +5,8 @@
 record(bo, "$(P)ABORT:SP")
 {
     field(DESC, "Abort the current ramp")
+    field(DTYP, "asynInt32")
+    field(OUT, "@asyn($(ASYN_PORT),0,0)RAMP_ABORT")
     field(SDIS, "$(P)DISABLE")
     field(ZNAM, "OFF")
     field(ONAM, "ON")
@@ -87,7 +89,7 @@ record(ai, "$(P)MID")
     field(DESC, "ramp target read from device")
     field(DTYP, "stream")
     field(INP, "@cryosms.proto getMidTarget $(PORT)")
-    field(SCAN, "Passive")
+    field(SCAN, "1 second")
     field(SIML, "$(P)SIM")
     field(SIOL, "$(P)SIM:MID")
     field(SDIS, "$(P)DISABLE")
@@ -235,7 +237,7 @@ record(mbbi, "$(P)OUTPUTMODE")
     field(VAL, "0")
     field(SDIS, "$(P)DISABLE")
     field(SCAN, "1 second")
-    info(ARCHIVE, "VAL")
+    info(archive, "VAL")
     field(SIML, "$(P)SIM")
     field(SIOL, "$(P)SIM:OUTPUTMODE")
 }
@@ -268,6 +270,8 @@ record(bi, "$(P)PAUSE")
 record(bo, "$(P)PAUSE:SP")
 {
     field(DESC, "Pause the current ramp")
+    field(DTYP, "asynInt32")
+    field(OUT, "@asyn($(ASYN_PORT),0,0)RAMP_PAUSE")
     field(SDIS, "$(P)DISABLE")
     field(ZNAM, "OFF")
     field(ONAM, "ON")
@@ -311,7 +315,7 @@ record(mbbi, "$(P)RAMP:STAT")
     field(DESC, "The status of the ramp from the PSU")
     field(DTYP, "stream")
     field(INP, "@cryosms.proto getRampStatus $(PORT)")
-    field(SCAN, "1 second")
+    field(SCAN, ".1 second")
     field(ZRVL, "0") field(ZRST, "RAMPING")
     field(ONVL, "1") field(ONST, "HOLDING ON TARGET")
     field(TWVL, "2") field(TWST, "HOLDING ON PAUSE")
@@ -359,6 +363,9 @@ record(stringin, "$(P)STAT")
 record(bo, "$(P)START:SP")
 {
     field(DESC, "Start a ramp to the current OUTPUT:SP")
+    field(VAL, "0")
+    field(DTYP, "asynInt32")
+    field(OUT, "@asyn($(ASYN_PORT),0,0)RAMP_START")
     field(SDIS, "$(P)DISABLE")
 }
 
@@ -414,6 +421,18 @@ record(ao, "$(P)MAX:_SP")
     field(SDIS, "$(P)DISABLE")
 }
 
+record(ao, "$(P)MID:_SP")
+{
+    field(DTYP, "stream")
+    field(ASG, "HIDDEN")
+    field(OUT, "@cryosms.proto setMidTarget $(PORT)")
+    field(SCAN, "Passive")
+    field(EGU, "$(WRITE_UNIT)")
+    field(SIML, "$(P)SIM")
+    field(SIOL, "$(P)SIM:MID:_SP")
+    field(SDIS, "$(P)DISABLE")
+}
+
 record(ao, "$(P)MAXVOLT:_SP")
 {
     field(DTYP, "stream")
@@ -448,6 +467,28 @@ record(ao, "$(P)RAMP:RATE:_SP")
     field(SIML, "$(P)SIM")
     field(SIOL, "$(P)SIM::RAMP:RATE:_SP")
     field(SDIS, "$(P)DISABLE")
+}
+
+record(mbbo, "$(P)START:_SP")
+{
+    field(DTYP, "stream")
+    field(ASG, "HIDDEN")
+    field(OUT, "@cryosms.proto setRampTarget $(PORT)")
+    field(ZRVL, "0") field(ZRST, "ZERO")
+    field(ONVL, "1") field(ONST, "MID")
+    field(TWVL, "2") field(TWST, "MAX")
+    field(SIML, "$(P)SIM")
+    field(SIOL, "$(P)SIM::RAMP:RATE:_SP")
+    field(SDIS, "$(P)DISABLE")
+}
+
+record(bo, "$(P)PAUSE:_SP")
+{
+    field(DTYP, "stream")
+    field(ASG, "hidden")
+    field(OUT, "@cryosms.proto setPause $(PORT)")
+    field(ZNAM, "OFF")
+    field(ONAM, "ON")
 }
 
 ### FANOUTS
@@ -535,9 +576,14 @@ record(ai,"$(P)SIM:MID")
     field(DTYP, "Soft Channel")
 }
 
-record(mbbi,"$(P)SIM:DIRECTION")
+record(ai,"$(P)SIM:MAX")
 {
     field(SCAN, "Passive")
     field(DTYP, "Soft Channel")
 }
 
+record(mbbi,"$(P)SIM:DIRECTION")
+{
+    field(SCAN, "Passive")
+    field(DTYP, "Soft Channel")
+}

@@ -2,9 +2,28 @@
 #define CRYOSMSDRIVER_H
 
 #include <asynPortDriver.h>
+#include <QueuedStateMachine.h>
+#include <StateMachineDriver.h>
+#include <boost/msm/back/state_machine.hpp>
+#include <boost/variant/variant.hpp>
 
+typedef boost::variant<startRampEvent, abortRampEvent, pauseRampEvent, resumeRampEvent, targetReachedEvent> eventVariant;
+
+struct processEventVisitor : boost::static_visitor<>
+{
+	processEventVisitor(boost::msm::back::state_machine<cryosmsStateMachine>& qsm, std::deque<eventVariant>& eventQueue) : _qsm(qsm), _eventQueue(eventQueue) {}
+	boost::msm::back::state_machine<cryosmsStateMachine>& _qsm;
+	std::deque<eventVariant>& _eventQueue;
+
+	template <typename qsmEventType>
+	void operator()(qsmEventType const& qsmEvent) const
+	{
+		_eventQueue.pop_front();
+		_qsm.process_event(qsmEvent);
+	}
+};
 /// EPICS Asyn port driver class. 
-class CRYOSMSDriver : public asynPortDriver
+class CRYOSMSDriver : public asynPortDriver, public SMDriver
 {
 public:
 	CRYOSMSDriver(const char *portName, std::string devPrefix);
@@ -25,8 +44,22 @@ public:
 	int testVar; //for use in google tests where functionality can not be tested with PV values
 	bool started;
 	asynStatus procDb(std::string pvSuffix);
-	asynStatus getDb(std::string pvSuffix, void *pbuffer);
+	asynStatus getDb(std::string pvSuffix, int &pbuffer);
+	asynStatus getDb(std::string pvSuffix, double &pbuffer);
+	asynStatus getDb(std::string pvSuffix, std::string &pbuffer);
 	asynStatus putDb(std::string pvSuffix, const void *value);
+	std::deque<eventVariant> eventQueue;
+	epicsThreadId queueThreadId;
+	bool atTarget = true;
+	bool abortQueue = true;
+	void checkForTarget();
+	boost::msm::back::state_machine<cryosmsStateMachine> qsm;
+	void resumeRamp() override;
+	void pauseRamp() override;
+	void startRamping() override;
+	void abortRamp() override;
+	void reachTarget() override;
+	void continueAbort() override;
 private:
 	std::string devicePrefix;
 
@@ -34,6 +67,11 @@ private:
 
 	int P_deviceName; // string
 	int P_initLogic;
+	int P_Rate; //float
+	int P_MaxT; //float
+	int P_startRamp;
+	int P_pauseRamp;
+	int P_abortRamp;
 	int P_outputModeSet; //int as above
 
 #define LAST_SMS_PARAM 	P_outputModeSet
@@ -54,6 +92,11 @@ private:
 
 #define P_deviceNameString "DEVICE"
 #define P_initLogicString "INIT_LOGIC"
+#define P_rateString "Rate"
+#define P_maxTString "MaxT"
+#define P_startRampString "RAMP_START"
+#define P_pauseRampString "RAMP_PAUSE"
+#define P_abortRampString "RAMP_ABORT"
 #define P_outputModeSetString "OUTPUTMODE_SET"
 
 #endif /* CRYOSMSDRIVER_H */
