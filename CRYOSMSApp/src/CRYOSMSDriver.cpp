@@ -485,7 +485,7 @@ asynStatus CRYOSMSDriver::getDb(std::string pvSuffix, int &pbuffer) {
 	DBADDR addr;
 	std::string fullPV = this->devicePrefix + pvSuffix;
 	if (dbNameToAddr(fullPV.c_str(), &addr)) {
-		errlogSevPrintf(errlogMajor, "Invalid PV for getDb: %s", pvSuffix);
+		errlogSevPrintf(errlogMajor, "Invalid PV for getDb: %s", pvSuffix.c_str());
 		return asynError;
 	}
 	if (!(addr.dbr_field_type == DBR_INT64 || addr.dbr_field_type == DBR_ENUM)) {
@@ -501,7 +501,7 @@ asynStatus CRYOSMSDriver::getDb(std::string pvSuffix, double &pbuffer) {
 	DBADDR addr;
 	std::string fullPV = this->devicePrefix + pvSuffix;
 	if (dbNameToAddr(fullPV.c_str(), &addr)) {
-		errlogSevPrintf(errlogMajor, "Invalid PV for getDb: %s", pvSuffix);
+		errlogSevPrintf(errlogMajor, "Invalid PV for getDb: %s", pvSuffix.c_str());
 		return asynError;
 	}
 	if (addr.dbr_field_type != DBR_DOUBLE) {
@@ -517,7 +517,7 @@ asynStatus CRYOSMSDriver::getDb(std::string pvSuffix, std::string &pbuffer) {
 	DBADDR addr;
 	std::string fullPV = this->devicePrefix + pvSuffix;
 	if (dbNameToAddr(fullPV.c_str(), &addr)) {
-		errlogSevPrintf(errlogMajor, "Invalid PV for getDb: %s", pvSuffix);
+		errlogSevPrintf(errlogMajor, "Invalid PV for getDb: %s", pvSuffix.c_str());
 		return asynError;
 	}
 	if (addr.dbr_field_type != DBR_STRING) {
@@ -534,14 +534,14 @@ asynStatus CRYOSMSDriver::putDb(std::string pvSuffix, const void *value) {
 	std::string fullPV = this->devicePrefix + pvSuffix;
 	asynStatus status;
 	if (dbNameToAddr(fullPV.c_str(), &addr)) {
-		errlogSevPrintf(errlogMajor, "Invalid PV for putDb: %s", pvSuffix);
+		errlogSevPrintf(errlogMajor, "Invalid PV for putDb: %s", pvSuffix.c_str());
 		return asynError;
 	}
 	status = (asynStatus)dbPutField(&addr, addr.dbr_field_type, value, 1);
 	if (status) {
 		dbCommon *precord = addr.precord;
 		recGblSetSevr(precord, READ_ACCESS_ALARM, INVALID_ALARM);
-		errlogSevPrintf(errlogMajor, "Error returned when attempting to set %s to %s", pvSuffix, value);
+		errlogSevPrintf(errlogMajor, "Error returned when attempting to set %s", pvSuffix.c_str());
 	}
 	return status;
 }
