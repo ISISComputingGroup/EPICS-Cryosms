@@ -11,23 +11,23 @@ namespace msm = boost::msm;
 
 ///Events (trigger state transitions when sent to qsm):
 struct driverEvent {
-	driverEvent(SMDriver* dvr) : dvr(dvr) {}
+	driverEvent(SMDriver* dvr) : dvr(dvr) { }
 	SMDriver* dvr;
 };
 struct startRampEvent : driverEvent {
-	using driverEvent::driverEvent;
+	startRampEvent(SMDriver* dvr) : driverEvent(dvr) { }
 };
 struct pauseRampEvent : driverEvent {
-	using driverEvent::driverEvent;
+	pauseRampEvent(SMDriver* dvr) : driverEvent(dvr) { }
 };
 struct abortRampEvent : driverEvent {
-	using driverEvent::driverEvent;
+	abortRampEvent(SMDriver* dvr) : driverEvent(dvr) { }
 };
 struct resumeRampEvent : driverEvent {
-	using driverEvent::driverEvent;
+	resumeRampEvent(SMDriver* dvr) : driverEvent(dvr) { }
 };
 struct targetReachedEvent : driverEvent {
-	using driverEvent::driverEvent;
+	targetReachedEvent(SMDriver* dvr) : driverEvent(dvr) { }
 };
 
 ///States (have code that executes on entrance/exit, shown here for proof of concept/debugging):
