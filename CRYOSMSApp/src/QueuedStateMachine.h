@@ -26,16 +26,16 @@ struct startRampEvent {
 	int rampDir;
 };
 struct pauseRampEvent : driverEvent {
-	using driverEvent::driverEvent;
+	pauseRampEvent(SMDriver* _dvr) : driverEvent(_dvr) { }
 };
 struct abortRampEvent : driverEvent {
-	using driverEvent::driverEvent;
+	abortRampEvent(SMDriver* _dvr) : driverEvent(_dvr) { }
 };
 struct resumeRampEvent : driverEvent {
-	using driverEvent::driverEvent;
+	resumeRampEvent(SMDriver* _dvr) : driverEvent(_dvr) { }
 };
 struct targetReachedEvent : driverEvent {
-	using driverEvent::driverEvent;
+	targetReachedEvent(SMDriver* _dvr) : driverEvent(_dvr) { }
 };
 
 ///States (have code that executes on entrance/exit, shown here for proof of concept/debugging):
@@ -139,4 +139,4 @@ struct cryosmsStateMachine : public msm::front::state_machine_def<cryosmsStateMa
 		errlogSevPrintf(errlogMajor, "no transition from state %s on event %s", stateList[state].c_str(), typeid(e).name());
 	}
 };
-#endif // !QUEUEDSTATEMACHINE_H
+#endif !QUEUEDSTATEMACHINE_H
