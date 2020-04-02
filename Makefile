@@ -31,12 +31,9 @@ iocBoot_DEPEND_DIRS += $(filter %App,$(DIRS))
 
 # Add any additional dependency rules here:
 
-TEST_RUNNER = $(TOP)/CRYOSMSApp/src/O.$(EPICS_HOST_ARCH)/runner
-
 include $(TOP)/configure/RULES_TOP
 
 .PHONY: test
+
 test:
-ifneq ($(wildcard $(TEST_RUNNER)*),)
-	$(TEST_RUNNER) --gtest_output=xml:$(TOP)/test-reports/TEST-cryosms.xml
-endif
+	run_tests.bat $(EPICS_HOST_ARCH)
