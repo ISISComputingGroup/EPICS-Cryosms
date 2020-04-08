@@ -110,8 +110,10 @@ record(scalcout, "$(P)OUTPUT")
     field(INPA, "$(P)OUTPUT:CURR")
     field(INPB, "$(P)OUTPUT:FIELD:TESLA")
     field(INPC, "$(P)OUTPUT:FIELD:GAUSS")
-    field(INPD, "$(DISPLAY_UNIT)")
-    field(CALC, "D==\"AMPS\"?A:D==\"TESLA\"?B:C")
+    field(INDD, "$(DISPLAY_UNIT)")
+    field(INAA, "AMPS")
+    field(INBB, "TESLA")
+    field(CALC, "DD==AA?A:DD==BB?B:C")
 }
 
 record(calc, "$(P)OUTPUT:COIL")
@@ -129,7 +131,7 @@ record(scalcout, "$(P)OUTPUT:CURR")
     field(DESC, "OUTPUT:RAW in Amps")
     field(INPA, "$(P)OUTPUT:RAW:UNIT")
     field(INPB, "$(P)OUTPUT:RAW")
-    field(CALC, "A==\"AMPS\"?B:B*$(T_TO_A)")
+    field(CALC, "A=0?B:B/$(T_TO_A)")
 }
 
 record(scalcout, "$(P)OUTPUT:FIELD:GAUSS")
@@ -137,7 +139,7 @@ record(scalcout, "$(P)OUTPUT:FIELD:GAUSS")
     field(DESC, "OUTPUT:RAW in Gauss")
     field(INPA, "$(P)OUTPUT:RAW:UNIT")
     field(INPB, "$(P)OUTPUT:RAW")
-    field(CALC, "A==\"TESLA\"?B*10000:B*10000/$(T_TO_A)")
+    field(CALC, "A=1?B*10000:B*10000*$(T_TO_A)")
 }
 
 record(scalcout, "$(P)OUTPUT:FIELD:TESLA")
@@ -145,7 +147,7 @@ record(scalcout, "$(P)OUTPUT:FIELD:TESLA")
     field(DESC, "OUTPUT:RAW in Tesla")
     field(INPA, "$(P)OUTPUT:RAW:UNIT")
     field(INPB, "$(P)OUTPUT:RAW")
-    field(CALC, "A==\"TESLA\"?B:B/$(T_TO_A)")
+    field(CALC, "A=1?B:B*$(T_TO_A)")
 }
 
 record(scalcout, "$(P)OUTPUT:PERSIST")
@@ -156,8 +158,10 @@ record(scalcout, "$(P)OUTPUT:PERSIST")
     field(INPA, "$(P)OUTPUT:PERSIST:CURR")
     field(INPB, "$(P)OUTPUT:PERSIST:FIELD:TESLA")
     field(INPC, "$(P)OUTPUT:PERSIST:FIELD:GAUSS")
-    field(INPD, "$(DISPLAY_UNIT)")
-    field(CALC, "D==\"AMPS\"?A:D==\"TESLA\"?B:C")
+    field(INDD, "$(DISPLAY_UNIT)")
+    field(INAA, "AMPS")
+    field(INBB, "TESLA")
+    field(CALC, "DD==AA?A:DD==BB?B:C")
 }
 
 record(scalcout, "$(P)OUTPUT:PERSIST:CURR")
@@ -165,7 +169,8 @@ record(scalcout, "$(P)OUTPUT:PERSIST:CURR")
     field(DESC, "OUTPUT:PERSIST:RAW in Amps")
     field(INPA, "$(P)OUTPUT:PERSIST:RAW:UNIT")
     field(INPB, "$(P)OUTPUT:PERSIST:RAW")
-    field(CALC, "A==\"AMPS\"?B:B*$(T_TO_A)")
+    field(INAA, "AMPS")
+    field(CALC, "A==AA?B:B/$(T_TO_A)")
 }
 
 record(scalcout, "$(P)OUTPUT:PERSIST:FIELD:GAUSS")
@@ -173,7 +178,8 @@ record(scalcout, "$(P)OUTPUT:PERSIST:FIELD:GAUSS")
     field(DESC, "OUTPUT:PERSIST:RAW in Gauss")
     field(INPA, "$(P)OUTPUT:PERSIST:RAW:UNIT")
     field(INPB, "$(P)OUTPUT:PERSIST:RAW")
-    field(CALC, "A==\"TESLA\"?B*10000:B*10000/$(T_TO_A)")
+    field(INAA, "TESLA")
+    field(CALC, "A==AA?B*10000:B*10000*$(T_TO_A)")
 }
 
 record(scalcout, "$(P)OUTPUT:PERSIST:FIELD:TESLA")
@@ -181,7 +187,8 @@ record(scalcout, "$(P)OUTPUT:PERSIST:FIELD:TESLA")
     field(DESC, "OUTPUT:PERSIST:RAW in Tesla")
     field(INPA, "$(P)OUTPUT:PERSIST:RAW:UNIT")
     field(INPB, "$(P)OUTPUT:PERSIST:RAW")
-    field(CALC, "A==\"TESLA\"?B:B/$(T_TO_A)")
+    field(INAA, "TESLA")
+    field(CALC, "A==AA?B:B*$(T_TO_A)")
 }
 
 record(ai, "$(P)OUTPUT:PERSIST:RAW")
@@ -190,9 +197,11 @@ record(ai, "$(P)OUTPUT:PERSIST:RAW")
     #Persistent mode responses unknown, will need to check against real device before these PVs can be completed
 }
 
-record(ai, "$(P)OUTPUT:PERSIST:RAW:UNIT")
+record(bi, "$(P)OUTPUT:PERSIST:RAW:UNIT")
 {
     field(DESC, "The unit for OUTPUT:PERSIST:RAW")
+    field(ZNAM, "AMPS")
+    field(ONAM, "TESLA")
 }
 
 record(ai, "$(P)OUTPUT:RAW")
@@ -211,6 +220,8 @@ record(ai, "$(P)OUTPUT:RAW")
 record(bi, "$(P)OUTPUT:RAW:UNIT")
 {
     field(DESC, "The unit for OUTPUT:RAW") # returned as part of a “GO” command
+    field(ZNAM, "AMPS")
+    field(ONAM, "TESLA")
 }
 
 record(ao, "$(P)OUTPUT:SP")
@@ -345,7 +356,7 @@ record(scalcout, "$(P)RAMP:TARGET:DISPLAY")
     field(INPA, "$(P)RAMP:TARGET")
     field(INPB, "$(DISPLAY_UNIT)")
     field(INPC, "$(P)RAMP:TARGET.EGU")
-    field(CALC, "B==C?A:B==\"TESLA\"?A/$(T_TO_A):A*$(T_TO_A)")
+    field(CALC, "B==C?A:B==\"TESLA\"?A*$(T_TO_A):A/$(T_TO_A)")
 }
 
 record(calc, "$(P)READY")
@@ -400,11 +411,11 @@ record(mbbo, "$(P)DIRECTION:_SP")
 {
     field(DTYP, "stream")
     field(ASG, "HIDDEN")
-    field(OUT, "@cryosms.proto setDirection")
+    field(OUT, "@cryosms.proto setDirection $(PORT)")
     field(SCAN, "Passive")
-    field(ZRST, "0")
-    field(ONST, "-")
-    field(TWST, "+")
+    field(ZRVL, "0") field(ZRST, "0")
+    field(ONVL, "1") field(ONST, "-")
+    field(TWVL, "2") field(TWST, "+")
 }    
 
 record(ao, "$(P)HEATER:VOLT:_SP")

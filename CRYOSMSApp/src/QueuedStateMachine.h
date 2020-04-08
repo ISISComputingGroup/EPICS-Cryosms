@@ -19,7 +19,6 @@ struct startRampEvent {
 		target: absolute value to ramp to, direction decided elsewhere
 	*/
 	startRampEvent(SMDriver* _dvr, double _rate, double _target, int _rampDir) : dvr(_dvr), rate(_rate), target(_target), rampDir(_rampDir) {}
-	startRampEvent(SMDriver* _dvr, double _rate, double _target) : dvr(_dvr), rate(_rate), target(_target), rampDir(0) {}
 	SMDriver* dvr;
 	double rate;
 	double target;

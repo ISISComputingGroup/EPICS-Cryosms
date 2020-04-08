@@ -68,7 +68,7 @@ static void eventQueueThread(CRYOSMSDriver* drv);
 CRYOSMSDriver::CRYOSMSDriver(const char *portName, std::string devPrefix)
   : asynPortDriver(portName,
 	0, /* maxAddr */
-	NUM_SMS_PARAMS, /* num parameters */
+	static_cast<int>NUM_SMS_PARAMS, /* num parameters */
 	asynInt32Mask | asynInt32ArrayMask | asynFloat64Mask | asynFloat64ArrayMask | asynOctetMask | asynDrvUserMask, /* Interface mask */
 	asynInt32Mask | asynInt32ArrayMask | asynFloat64Mask | asynFloat64ArrayMask | asynOctetMask,  /* Interrupt mask */
 	ASYN_CANBLOCK, /* asynFlags.  This driver can block but it is not multi-device */
@@ -120,8 +120,6 @@ asynStatus CRYOSMSDriver::writeInt32(asynUser *pasynUser, epicsInt32 value)
 		return asynSuccess;
 	}
 	else if (function == P_abortRamp && value != 0) {
-		queuePaused = false;
-		epicsThreadResume(queueThreadId);
 		qsm.process_event(abortRampEvent{ this });
 		return asynSuccess;
 	}
@@ -148,21 +146,21 @@ asynStatus CRYOSMSDriver::checkTToA()
 		RETURN_IF_ASYNERROR2(putDb, "DISABLE", &trueVal);
 	}
 	else try {
-		double teslaToAmps = std::stod(envVarMap.at("T_TO_A"));
+		double teslaToAmps = 1/std::stod(envVarMap.at("T_TO_A"));
 		if (! std::strcmp(envVarMap.at("WRITE_UNIT"), envVarMap.at("DISPLAY_UNIT")) && envVarMap.at("WRITE_UNIT") != NULL) {
 			this->writeToDispConversion = 1.0;
 		}
 		else if (!std::strcmp(envVarMap.at("WRITE_UNIT"), "TESLA") && !std::strcmp(envVarMap.at("DISPLAY_UNIT"), "AMPS")) {
-			this->writeToDispConversion = teslaToAmps;
+			this->writeToDispConversion = 1.0 / teslaToAmps;
 		}
 		else if (!std::strcmp(envVarMap.at("WRITE_UNIT"), "AMPS") && !std::strcmp(envVarMap.at("DISPLAY_UNIT"), "TESLA")) {
-			this->writeToDispConversion = 1.0 / teslaToAmps;
+			this->writeToDispConversion = 1.0 * teslaToAmps;
 		}
 		else if (!std::strcmp(envVarMap.at("WRITE_UNIT"), "TESLA") && !std::strcmp(envVarMap.at("DISPLAY_UNIT"), "GAUSS")) {
 			this->writeToDispConversion = 10000.0; // 1 Tesla = 10^4 Gauss
 		}
 		else {
-			this->writeToDispConversion = 10000.0 / teslaToAmps;
+			this->writeToDispConversion = 10000.0 * teslaToAmps;
 		}
 		RETURN_IF_ASYNERROR2(putDb, "CONSTANT:_SP", &teslaToAmps);
 	}
@@ -379,12 +377,12 @@ asynStatus CRYOSMSDriver::checkRampFile()
 	double initRate;
 	int i;
 	RETURN_IF_ASYNERROR2(getDb, "OUTPUT:FIELD:TESLA", currT);
-	for (i = 0; i <= sizeof(pMaxT_); i++) {
+	for (i = 0; i <= static_cast<int>(pMaxT_.size()); i++) {
 		if (pMaxT_[i] > abs(currT)) {
 			break;
 		}
 	}
-	if (i == sizeof(pMaxT_)) {
+	if (i == static_cast<int>(pMaxT_.size())) {
 		initRate = 0.0;
 	}
 	else {
@@ -593,12 +591,12 @@ static void eventQueueThread(CRYOSMSDriver* drv)
 	while (true)
 	{
 		if (drv->eventQueue.empty()) {
-			epicsThreadSleep(1);
+			epicsThreadSleep(0.1);
 			continue;
 		}
 		boost::apply_visitor(processEventVisitor(drv->qsm, drv->eventQueue), drv->eventQueue.front());
 		while (!drv->atTarget) {
-			epicsThreadSleep(1);
+			epicsThreadSleep(0.1);
 			/*  Let the IOC update status from the machine, being over-cautious here as c and the db seem to disagree on the duration of "0.1 seconds". Need to wait otherwise it will think
 				ramp has completed before it has started. This is a temporary solution, in a future ticket more rigorous checks for target will be implemented and waiting here won't be needed.*/
 			if (drv->queuePaused) {
@@ -647,44 +645,63 @@ void CRYOSMSDriver::resumeRamp()
 asynStatus CRYOSMSDriver::setupRamp()
 {
 	asynStatus status;
-	atTarget = false;
 	int trueVal = 1;
 	double startVal = 0;
 	double targetVal = 0;
 	RETURN_IF_ASYNERROR2(getDb, "OUTPUT:RAW", startVal);
 	RETURN_IF_ASYNERROR2(getDb, "MID:SP", targetVal);
+	if (!std::strcmp(envVarMap.at("DISPLAY_UNIT"), "AMPS"))
+	{
+		double TtoA = std::stod(envVarMap.at("T_TO_A"));
+		targetVal = targetVal * TtoA;
+	}
+	else if (!std::strcmp(envVarMap.at("DISPLAY_UNIT"), "GAUSS"))
+	{
+		targetVal = targetVal / 10000; //10k Gauss = 1 Tesla
+	}
+	if (!std::strcmp(envVarMap.at("WRITE_UNIT"), "AMPS"))
+	{
+		double TtoA = std::stod(envVarMap.at("T_TO_A"));
+		startVal = startVal * TtoA;
+	}
+	int sign = (startVal >= 0) ? 1 : -1;
+
 	if ((startVal >= 0 && targetVal >= 0) || (startVal < 0 && targetVal < 0))  // same sign
 	{
-		if (abs(startVal) > abs(targetVal)) 
+		if (abs(startVal) < abs(targetVal)) 
 		{
-			for (int i = 0; i <= sizeof(pMaxT_); i++) 
+			for (int i = 0; i <= static_cast<int>(pMaxT_.size()) - 1; i++)
 			{
 				if (pMaxT_[i] > abs(startVal) && pMaxT_[i] < abs(targetVal)) 
 				{
 					//ramp to next boundary in ramp file if it is between the start field and the target
-					eventQueue.push_back(startRampEvent{ this, pRate_[i], pMaxT_[i] });
+					eventQueue.push_back(startRampEvent{ this, pRate_[i], pMaxT_[i], sign});
+					eventQueue.push_back(targetReachedEvent{ this });
 				}
-				else if (pMaxT_[i] > abs(startVal) && pMaxT_[i] > abs(targetVal))
+				else if (pMaxT_[i] > abs(startVal) && pMaxT_[i] >= abs(targetVal))
 				{
-					eventQueue.push_back(startRampEvent{ this, pRate_[i], targetVal }); //ramp to end target if it's before the next boundary
+					eventQueue.push_back(startRampEvent{ this, pRate_[i], targetVal, sign }); //ramp to end target if it's before the next boundary
+					eventQueue.push_back(targetReachedEvent{ this });
 					break;
 				}
 			}
 		}
 		else
 		{
-			for (int i = sizeof(pMaxT_); i >= 0; i--)
+			for (int i = static_cast<int>(pMaxT_.size()) - 1; i >= 0; i--)
 			{
 				double boundary = (i == 0) ? 0 : pMaxT_[i - 1];
 				
 				if (boundary < abs(startVal) && boundary > abs(targetVal))
 				{
 					//ramp rates are "up to" field magnitudes, so when walking backwards through file take the rate for the next highest boundary
-					eventQueue.push_back(startRampEvent{ this, pRate_[i], boundary });
+					eventQueue.push_back(startRampEvent{ this, pRate_[i], boundary, sign });
+					eventQueue.push_back(targetReachedEvent{ this });
 				}
-				else if (boundary < abs(startVal) && boundary < abs(targetVal))
+				else if (boundary < abs(startVal) && boundary <= abs(targetVal))
 				{
-					eventQueue.push_back(startRampEvent{ this, pRate_[i], abs(targetVal) });
+					eventQueue.push_back(startRampEvent{ this, pRate_[i], abs(targetVal), sign });
+					eventQueue.push_back(targetReachedEvent{ this });
 					break;
 				}
 			}
@@ -692,50 +709,63 @@ asynStatus CRYOSMSDriver::setupRamp()
 	}
 	else // opposite signs
 	{
-		for (int i = sizeof(pMaxT_); i>= 0; i--)
+		for (int i = static_cast<int>(pMaxT_.size()) - 1; i >= 0; i--)
 		{
 			//ramp down to (and including) 0, boundary by boundary
 			if (i == 0)
 			{
-				eventQueue.push_back(startRampEvent{ this, pRate_[i], 0});
+				eventQueue.push_back(startRampEvent{ this, pRate_[i], 0, sign });
+				eventQueue.push_back(targetReachedEvent{ this });
 			}
 			else if (pMaxT_[i - 1] < abs(startVal))
 			{
-				eventQueue.push_back(startRampEvent{ this, pRate_[i], pMaxT_[i - 1] });
+				eventQueue.push_back(startRampEvent{ this, pRate_[i], pMaxT_[i - 1], sign });
+				eventQueue.push_back(targetReachedEvent{ this });
 			}
 		}
-		int newSign = (targetVal > 0) ? 1 : -1;
-		for (int i = 0; i <= sizeof(pMaxT_); i++) 
+		sign = -1 * sign;
+		for (int i = 0; i <= static_cast<int>(pMaxT_.size()) - 1; i++)
 		{
 			//at the end, go straight to the target
 			if (pMaxT_[i] >= abs(targetVal))
 			{
-				eventQueue.push_back(startRampEvent{ this, pRate_[i], abs(targetVal), newSign});
+				eventQueue.push_back(startRampEvent{ this, pRate_[i], abs(targetVal), sign });
+				eventQueue.push_back(targetReachedEvent{ this });
 				break;
 			}
 			//until then, go to the boundaries
-			eventQueue.push_back(startRampEvent{ this, pRate_[i], pMaxT_[i], newSign});
-			newSign = 0; // 0 = no change, only change the sign on the first ramp
+			eventQueue.push_back(startRampEvent{ this, pRate_[i], pMaxT_[i], sign });
+			eventQueue.push_back(targetReachedEvent{ this });
 		}
 	}
-
-
-	eventQueue.push_back(targetReachedEvent{ this });
 }
 
-void CRYOSMSDriver::startRamping(double rate, double target, int newSign)
+void CRYOSMSDriver::startRamping(double rate, double target, int sign)
 /* tells PSU to start its ramp
 */
 {
+	double currOutput;
 	int trueVal = 1;
-	if (newSign)
+	int signString = (sign == 1) ? 2 : 1;
+	getDb("OUTPUT:RAW", currOutput);
+	putDb("DIRECTION:_SP", &signString);
+	if (!std::strcmp(envVarMap.at("WRITE_UNIT"), "AMPS"))
 	{
-		std::string signString = (newSign == 1) ? "+" : "-";
-		putDb("DIRECTION:_SP", &signString);
+		target = target / std::stod(envVarMap.at("T_TO_A"));
 	}
 	putDb("MID:_SP", &target);
 	putDb("RAMP:RATE:_SP", &rate);
 	putDb("START:_SP", &trueVal);
+
+	int rampStatus;
+	int ramping = 0;
+	getDb("RAMP:STAT", rampStatus);
+	while (rampStatus != ramping)
+	{
+		getDb("RAMP:STAT", rampStatus);
+		epicsThreadSleep(0.1);
+	}
+	atTarget = false;
 }
 
 void CRYOSMSDriver::abortRamp()
@@ -747,6 +777,8 @@ void CRYOSMSDriver::abortRamp()
 	std::deque<eventVariant> emptyQueue;
 	std::swap(eventQueue, emptyQueue);
 	eventQueue.push_back(targetReachedEvent{ this });
+	queuePaused = false;
+	epicsThreadResume(queueThreadId);
 	int trueVal = 1;
 	int falseVal = 0;
 	putDb("PAUSE:_SP", &trueVal);
