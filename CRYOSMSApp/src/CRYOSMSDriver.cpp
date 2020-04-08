@@ -74,7 +74,8 @@ CRYOSMSDriver::CRYOSMSDriver(const char *portName, std::string devPrefix)
 	ASYN_CANBLOCK, /* asynFlags.  This driver can block but it is not multi-device */
 	1, /* Autoconnect */
 	0,
-	0), qsm(this), started(false), devicePrefix(devPrefix), writeDisabled(FALSE)
+	0), qsm(this), started(false), devicePrefix(devPrefix), writeDisabled(FALSE), atTarget(true), abortQueue(true)
+
 {
 	createParam(P_deviceNameString, asynParamOctet, &P_deviceName);
 	createParam(P_initLogicString, asynParamInt32, &P_initLogic);
@@ -112,7 +113,7 @@ asynStatus CRYOSMSDriver::writeInt32(asynUser *pasynUser, epicsInt32 value)
 		// 0 = paused off (running)
 		// 1 = paused on (paused)
 		if (value == 0) {
-			qsm.process_event(resumeRampEvent{this});
+			qsm.process_event(resumeRampEvent(this));
 		}
 		else {
 			queuePaused = true;
@@ -600,7 +601,7 @@ static void eventQueueThread(CRYOSMSDriver* drv)
 			/*  Let the IOC update status from the machine, being over-cautious here as c and the db seem to disagree on the duration of "0.1 seconds". Need to wait otherwise it will think
 				ramp has completed before it has started. This is a temporary solution, in a future ticket more rigorous checks for target will be implemented and waiting here won't be needed.*/
 			if (drv->queuePaused) {
-				drv->qsm.process_event(pauseRampEvent{ drv });
+				drv->qsm.process_event(pauseRampEvent(drv));
 				if (!drv->queuePaused) continue;
 				epicsThreadSuspendSelf();
 				continue;

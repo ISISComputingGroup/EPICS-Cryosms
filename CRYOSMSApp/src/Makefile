@@ -27,3 +27,10 @@ CRYOSMS_LIBS += asyn
 CRYOSMS_LIBS += $(EPICS_BASE_IOC_LIBS)
 
 include $(TOP)/configure/RULES
+
+ifdef T_A
+install: dllPath.bat
+
+dllPath.bat:
+	$(CONVERTRELEASE) -a $(T_A) -T $(IOCS_APPL_TOP) $@
+endif
