@@ -598,8 +598,6 @@ static void eventQueueThread(CRYOSMSDriver* drv)
 		boost::apply_visitor(processEventVisitor(drv->qsm, drv->eventQueue), drv->eventQueue.front());
 		while (!drv->atTarget) {
 			epicsThreadSleep(0.1);
-			/*  Let the IOC update status from the machine, being over-cautious here as c and the db seem to disagree on the duration of "0.1 seconds". Need to wait otherwise it will think
-				ramp has completed before it has started. This is a temporary solution, in a future ticket more rigorous checks for target will be implemented and waiting here won't be needed.*/
 			if (drv->queuePaused) {
 				drv->qsm.process_event(pauseRampEvent(drv));
 				if (!drv->queuePaused) continue;
@@ -646,11 +644,13 @@ void CRYOSMSDriver::resumeRamp()
 asynStatus CRYOSMSDriver::setupRamp()
 {
 	asynStatus status;
-	int trueVal = 1;
 	double startVal = 0;
 	double targetVal = 0;
 	RETURN_IF_ASYNERROR2(getDb, "OUTPUT:RAW", startVal);
 	RETURN_IF_ASYNERROR2(getDb, "MID:SP", targetVal);
+
+	//The ramp file stores boundaries in Tesla, and the ramp rates to use up to those boundaries in Amps/second.
+	//To start, we therefore first convert the current device output (startVal) and target output (targetVal) into tesla.
 	if (!std::strcmp(envVarMap.at("DISPLAY_UNIT"), "AMPS"))
 	{
 		double TtoA = std::stod(envVarMap.at("T_TO_A"));
@@ -665,76 +665,90 @@ asynStatus CRYOSMSDriver::setupRamp()
 		double TtoA = std::stod(envVarMap.at("T_TO_A"));
 		startVal = startVal * TtoA;
 	}
+	//Next, find out if the device starts in +ve or -ve mode
 	int sign = (startVal >= 0) ? 1 : -1;
 
-	if ((startVal >= 0 && targetVal >= 0) || (startVal < 0 && targetVal < 0))  // same sign
+	//Now there are a number of different ways we might need to navigate the ramp table:
+	if ((startVal >= 0 && targetVal >= 0) || (startVal < 0 && targetVal < 0))  //1 start and target value are the same sign...
 	{
-		if (abs(startVal) < abs(targetVal)) 
+		if (abs(startVal) < abs(targetVal)) //1.1 ...with start being closer to 0:
 		{
+			//step upwards through the table,
 			for (int i = 0; i <= static_cast<int>(pMaxT_.size()) - 1; i++)
 			{
+				//once startVal has been passed, add a "start ramp" and "end ramp" event to the queue, with the current sign and the rate and boundary of each row  of the table,
 				if (pMaxT_[i] > abs(startVal) && pMaxT_[i] < abs(targetVal)) 
 				{
-					//ramp to next boundary in ramp file if it is between the start field and the target
 					eventQueue.push_back(startRampEvent{ this, pRate_[i], pMaxT_[i], sign});
 					eventQueue.push_back(targetReachedEvent{ this });
 				}
+				//until the target would be before the next boundary, so we replace the boundary in the argument for the start event with the target,
 				else if (pMaxT_[i] > abs(startVal) && pMaxT_[i] >= abs(targetVal))
 				{
-					eventQueue.push_back(startRampEvent{ this, pRate_[i], targetVal, sign }); //ramp to end target if it's before the next boundary
+					eventQueue.push_back(startRampEvent{ this, pRate_[i], targetVal, sign }); 
 					eventQueue.push_back(targetReachedEvent{ this });
+					//and we stop stepping through the table.
 					break;
 				}
 			}
 		}
-		else
+		else //1.2 ...with target being closer to zero than start
 		{
+			//step downwards through the table,
 			for (int i = static_cast<int>(pMaxT_.size()) - 1; i >= 0; i--)
 			{
+				//as we are going down in intensity, the bopundary for each ramp rate is the boundary listed in the previous row in the table, except for the first row where it is 0,
 				double boundary = (i == 0) ? 0 : pMaxT_[i - 1];
 				
+				//once we pass the startVal, add "start ramp" and "end ramp" events to queue with the current sign, rate for current row of table and boundary found in previous step
 				if (boundary < abs(startVal) && boundary > abs(targetVal))
 				{
-					//ramp rates are "up to" field magnitudes, so when walking backwards through file take the rate for the next highest boundary
 					eventQueue.push_back(startRampEvent{ this, pRate_[i], boundary, sign });
 					eventQueue.push_back(targetReachedEvent{ this });
 				}
+				//if target is before the next boundary, go to target instead,
 				else if (boundary < abs(startVal) && boundary <= abs(targetVal))
 				{
 					eventQueue.push_back(startRampEvent{ this, pRate_[i], abs(targetVal), sign });
 					eventQueue.push_back(targetReachedEvent{ this });
+					//then stop.
 					break;
 				}
 			}
 		}
 	}
-	else // opposite signs
+	else //2 start and target are opposite signs
 	{
+		//We have already found the initial sign (before this logic block), so start by simply stepping downwards through the table
 		for (int i = static_cast<int>(pMaxT_.size()) - 1; i >= 0; i--)
 		{
-			//ramp down to (and including) 0, boundary by boundary
+			//when we get to the bottom of the table, schedule a ramp to zero with the ramp rate from the lowest row,
 			if (i == 0)
 			{
 				eventQueue.push_back(startRampEvent{ this, pRate_[i], 0, sign });
 				eventQueue.push_back(targetReachedEvent{ this });
 			}
+			//until then, schedule ramps from highest row to loest, for all rows below the start val
 			else if (pMaxT_[i - 1] < abs(startVal))
 			{
 				eventQueue.push_back(startRampEvent{ this, pRate_[i], pMaxT_[i - 1], sign });
 				eventQueue.push_back(targetReachedEvent{ this });
 			}
 		}
+		//after we reach zero, flip the sign
 		sign = -1 * sign;
+		//now ramp upwards to target val:
 		for (int i = 0; i <= static_cast<int>(pMaxT_.size()) - 1; i++)
 		{
-			//at the end, go straight to the target
+			//If the target is beffore the next boundary, schedule a ramp to the target with the ramp rate of that boundary,
 			if (pMaxT_[i] >= abs(targetVal))
 			{
 				eventQueue.push_back(startRampEvent{ this, pRate_[i], abs(targetVal), sign });
 				eventQueue.push_back(targetReachedEvent{ this });
+				//and stop steppping through the table
 				break;
 			}
-			//until then, go to the boundaries
+			//until then, schedule ramps to each boundary from low to high.
 			eventQueue.push_back(startRampEvent{ this, pRate_[i], pMaxT_[i], sign });
 			eventQueue.push_back(targetReachedEvent{ this });
 		}
@@ -743,23 +757,27 @@ asynStatus CRYOSMSDriver::setupRamp()
 
 void CRYOSMSDriver::startRamping(double rate, double target, int sign)
 /* tells PSU to start its ramp
+	rate: ramp rate in A/s
+	target: ramp target in T. To avoid messy conversions all over the startup logic, conversion is handled here in a single place
+	sign: whether the output should be positive or negative.
 */
 {
-	double currOutput;
-	int trueVal = 1;
-	int signString = (sign == 1) ? 2 : 1;
-	getDb("OUTPUT:RAW", currOutput);
+	int trueVal = 1; //need a pointer to "1" later
+	int signString = (sign == 1) ? 2 : 1; //sign is handled by mbbo with 0 = 0, 1 = negative, 2 = positive
 	putDb("DIRECTION:_SP", &signString);
+	//convert from tesla to amps if amps is the write unit. Only other value of write unit is tesla, so do nothing if not amps.
 	if (!std::strcmp(envVarMap.at("WRITE_UNIT"), "AMPS"))
 	{
 		target = target / std::stod(envVarMap.at("T_TO_A"));
 	}
+	//put values in correct PVs, to be sent to device
 	putDb("MID:_SP", &target);
 	putDb("RAMP:RATE:_SP", &rate);
 	putDb("START:_SP", &trueVal);
 
+	//check that the ramp has started before going back to the event queue loop
 	int rampStatus;
-	int ramping = 0;
+	int ramping = 0; //ramp status is mbbi,  0 = ramping
 	getDb("RAMP:STAT", rampStatus);
 	while (rampStatus != ramping)
 	{
