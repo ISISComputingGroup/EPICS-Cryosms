@@ -197,7 +197,7 @@ record(ai, "$(P)OUTPUT:PERSIST:RAW:UNIT")
 
 record(ai, "$(P)OUTPUT:RAW")
 {
-    field(DESC, "Raw value returned from the PSU, A or T")# returned during a “GO” command
+    field(DESC, "Raw value returned from the PSU, A or T")# returned during a "GO" command
     field(DTYP, "stream")
     field(INP, "@cryosms.proto getOutput($(P)) $(PORT)")
     field(PREC, "3")
@@ -210,7 +210,7 @@ record(ai, "$(P)OUTPUT:RAW")
 
 record(bi, "$(P)OUTPUT:RAW:UNIT")
 {
-    field(DESC, "The unit for OUTPUT:RAW") # returned as part of a “GO” command
+    field(DESC, "The unit for OUTPUT:RAW") # returned as part of a "GO" command
 }
 
 record(ao, "$(P)OUTPUT:SP")
