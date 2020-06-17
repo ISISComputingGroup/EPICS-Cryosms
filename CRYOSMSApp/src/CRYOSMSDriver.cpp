@@ -147,26 +147,17 @@ asynStatus CRYOSMSDriver::checkTToA()
 		RETURN_IF_ASYNERROR2(putDb, "DISABLE", &trueVal);
 	}
 	else try {
-		double teslaToAmps = 1/std::stod(envVarMap.at("T_TO_A"));
-		if (! std::strcmp(envVarMap.at("WRITE_UNIT"), envVarMap.at("DISPLAY_UNIT")) && envVarMap.at("WRITE_UNIT") != NULL) {
-			this->writeToDispConversion = 1.0;
-		}
-		else if (!std::strcmp(envVarMap.at("WRITE_UNIT"), "TESLA") && !std::strcmp(envVarMap.at("DISPLAY_UNIT"), "AMPS")) {
-			this->writeToDispConversion = 1.0 / teslaToAmps;
-		}
-		else if (!std::strcmp(envVarMap.at("WRITE_UNIT"), "AMPS") && !std::strcmp(envVarMap.at("DISPLAY_UNIT"), "TESLA")) {
-			this->writeToDispConversion = 1.0 * teslaToAmps;
-		}
-		else if (!std::strcmp(envVarMap.at("WRITE_UNIT"), "TESLA") && !std::strcmp(envVarMap.at("DISPLAY_UNIT"), "GAUSS")) {
-			this->writeToDispConversion = 10000.0; // 1 Tesla = 10^4 Gauss
-		}
-		else {
-			this->writeToDispConversion = 10000.0 * teslaToAmps;
-		}
+		double teslaToAmps = std::stod(envVarMap.at("T_TO_A"));
 		RETURN_IF_ASYNERROR2(putDb, "CONSTANT:_SP", &teslaToAmps);
+
+		this->writeToDispConversion = unitConversion(1.0, envVarMap.at("WRITE_UNIT"), envVarMap.at("DISPLAY_UNIT"));
 	}
 	catch (std::exception &e) {
 		errlogSevPrintf(errlogMajor, "Invalid value of T_TO_A provided");
+		const char *statMsg = "Invalid calibration from Tesla to Amps supplied";
+		this->writeDisabled = TRUE;
+		RETURN_IF_ASYNERROR2(putDb, "STAT", &statMsg);
+		RETURN_IF_ASYNERROR2(putDb, "DISABLE", &trueVal);
 	}
 	return status;
 }
@@ -584,6 +575,28 @@ asynStatus CRYOSMSDriver::readFile(const char *dir)
 
 }
 
+double CRYOSMSDriver::unitConversion(double value, const char* startUnit, const char* endUnit)
+/*   Function to convert any value between tesla, amps and gauss.
+*/
+{
+	double teslaToAmps = 1 / std::stod(envVarMap.at("T_TO_A"));
+	if (std::strcmp(startUnit, endUnit) == 0 && startUnit != NULL) {
+		return value;
+	}
+	else if (std::strcmp(startUnit, "TESLA") == 0 && std::strcmp(endUnit, "AMPS") == 0) {
+		return value / teslaToAmps;
+	}
+	else if (std::strcmp(startUnit, "AMPS") == 0 && std::strcmp(endUnit, "TESLA") == 0) {
+		return value * teslaToAmps;
+	}
+	else if (std::strcmp(startUnit, "TESLA") == 0 && std::strcmp(endUnit, "GAUSS") == 0) {
+		return value * 10000.0; // 1 Tesla = 10^4 Gauss
+	}
+	else {
+		return value * 10000.0 * teslaToAmps;
+	}
+}
+
 static void eventQueueThread(CRYOSMSDriver* drv)
 /*	Function run by the event queue thread. Will continually process whichever is the next event in the queue before removing it. Will be suspended when
 	the queue is paused, and will not process new events while waiting to reach a target (pauses and aborts processed elsewhere)
@@ -651,20 +664,11 @@ asynStatus CRYOSMSDriver::setupRamp()
 
 	//The ramp file stores boundaries in Tesla, and the ramp rates to use up to those boundaries in Amps/second.
 	//To start, we therefore first convert the current device output (startVal) and target output (targetVal) into tesla.
-	if (!std::strcmp(envVarMap.at("DISPLAY_UNIT"), "AMPS"))
-	{
-		double TtoA = std::stod(envVarMap.at("T_TO_A"));
-		targetVal = targetVal * TtoA;
-	}
-	else if (!std::strcmp(envVarMap.at("DISPLAY_UNIT"), "GAUSS"))
-	{
-		targetVal = targetVal / 10000; //10k Gauss = 1 Tesla
-	}
-	if (!std::strcmp(envVarMap.at("WRITE_UNIT"), "AMPS"))
-	{
-		double TtoA = std::stod(envVarMap.at("T_TO_A"));
-		startVal = startVal * TtoA;
-	}
+
+	targetVal = unitConversion(targetVal, envVarMap.at("DISPLAY_UNIT"), "TESLA");
+	
+	startVal = unitConversion(startVal, envVarMap.at("DISPLAY_UNIT"), "TESLA");
+	
 	//Next, find out if the device starts in +ve or -ve mode
 	int sign = (startVal >= 0) ? 1 : -1;
 
@@ -753,6 +757,7 @@ asynStatus CRYOSMSDriver::setupRamp()
 			eventQueue.push_back(targetReachedEvent{ this });
 		}
 	}
+	return status;
 }
 
 void CRYOSMSDriver::startRamping(double rate, double target, int sign)
@@ -765,11 +770,8 @@ void CRYOSMSDriver::startRamping(double rate, double target, int sign)
 	int trueVal = 1; //need a pointer to "1" later
 	int signString = (sign == 1) ? 2 : 1; //sign is handled by mbbo with 0 = 0, 1 = negative, 2 = positive
 	putDb("DIRECTION:_SP", &signString);
-	//convert from tesla to amps if amps is the write unit. Only other value of write unit is tesla, so do nothing if not amps.
-	if (!std::strcmp(envVarMap.at("WRITE_UNIT"), "AMPS"))
-	{
-		target = target / std::stod(envVarMap.at("T_TO_A"));
-	}
+
+	target = unitConversion(target, "TESLA", envVarMap.at("WRITE_UNIT"));
 	//put values in correct PVs, to be sent to device
 	putDb("MID:_SP", &target);
 	putDb("RAMP:RATE:_SP", &rate);
@@ -778,11 +780,27 @@ void CRYOSMSDriver::startRamping(double rate, double target, int sign)
 	//check that the ramp has started before going back to the event queue loop
 	int rampStatus;
 	int ramping = 0; //ramp status is mbbi,  0 = ramping
+	int numAttempts = 0;
 	getDb("RAMP:STAT", rampStatus);
 	while (rampStatus != ramping)
 	{
 		getDb("RAMP:STAT", rampStatus);
 		epicsThreadSleep(0.1);
+		numAttempts++;
+		if (numAttempts > 50) //5 seconds arbitrarily chosen
+		{
+			double output;
+			getDb("OUTPUT:RAW", output);
+			if (unitConversion(output, envVarMap.at("DISPLAY_UNIT"), envVarMap.at("WRITE_UNIT")) != target)
+			{
+				errlogSevPrintf(errlogMajor, "Ramp failing to initialise after 5 seconds, aborting queue");
+				const char *statMsg = "Ramp Failing to initialise";
+				putDb("STAT", &statMsg);
+				eventQueue.push_front(abortRampEvent{ this });
+				atTarget = true;
+			}
+			return;
+		}
 	}
 	atTarget = false;
 }

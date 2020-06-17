@@ -41,6 +41,7 @@ public:
 	asynStatus setupRamp();
 	std::map<std::string,const char*> envVarMap;
 	double writeToDispConversion;
+	double unitConversion(double value, const char* startUnit, const char* endUnit);
 	bool writeDisabled;
 	int testVar; //for use in google tests where functionality can not be tested with PV values
 	bool started;
