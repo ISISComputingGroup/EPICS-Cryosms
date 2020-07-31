@@ -33,7 +33,7 @@ iocBoot_DEPEND_DIRS += $(filter %App,$(DIRS))
 
 include $(TOP)/configure/RULES_TOP
 
-.PHONY: test
+.PHONY: runtests
 
-test:
+runtests:
 	run_tests.bat $(EPICS_HOST_ARCH)
