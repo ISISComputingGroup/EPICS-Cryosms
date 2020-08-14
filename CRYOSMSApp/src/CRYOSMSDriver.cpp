@@ -579,21 +579,27 @@ double CRYOSMSDriver::unitConversion(double value, const char* startUnit, const 
 /*   Function to convert any value between tesla, amps and gauss.
 */
 {
-	double teslaToAmps = 1 / std::stod(envVarMap.at("T_TO_A"));
+	double teslaPerAmp = std::stod(envVarMap.at("T_TO_A"));
 	if (std::strcmp(startUnit, endUnit) == 0 && startUnit != NULL) {
 		return value;
 	}
 	else if (std::strcmp(startUnit, "TESLA") == 0 && std::strcmp(endUnit, "AMPS") == 0) {
-		return value / teslaToAmps;
+		return value / teslaPerAmp;
 	}
 	else if (std::strcmp(startUnit, "AMPS") == 0 && std::strcmp(endUnit, "TESLA") == 0) {
-		return value * teslaToAmps;
+		return value * teslaPerAmp;
 	}
 	else if (std::strcmp(startUnit, "TESLA") == 0 && std::strcmp(endUnit, "GAUSS") == 0) {
 		return value * 10000.0; // 1 Tesla = 10^4 Gauss
 	}
-	else {
-		return value * 10000.0 * teslaToAmps;
+	else if (std::strcmp(startUnit, "AMPS") == 0 && std::strcmp(endUnit, "GAUSS") == 0) {
+		return value * 10000.0 * teslaPerAmp;
+	}
+	else if (std::strcmp(startUnit, "GAUSS") == 0 && std::strcmp(endUnit, "TESLA") == 0) {
+		return value / 10000.0;
+	}
+	else if (std::strcmp(startUnit, "GAUSS") == 0 && std::strcmp(endUnit, "TESLA") == 0) {
+		return value / (10000.0 * teslaPerAmp);
 	}
 }
 
@@ -611,14 +617,19 @@ static void eventQueueThread(CRYOSMSDriver* drv)
 		boost::apply_visitor(processEventVisitor(drv->qsm, drv->eventQueue), drv->eventQueue.front());
 		while (!drv->atTarget) {
 			epicsThreadSleep(0.1);
-			if (drv->queuePaused) {
-				drv->qsm.process_event(pauseRampEvent(drv));
-				if (!drv->queuePaused) continue;
-				epicsThreadSuspendSelf();
-				continue;
-			}
+			drv->checkIfPaused();
 			drv->checkForTarget();
 		}
+	}
+}
+
+void CRYOSMSDriver::checkIfPaused()
+{
+	if (queuePaused)
+	{
+		qsm.process_event(pauseRampEvent{ this });
+		if (!queuePaused) return;
+		epicsThreadSuspendSelf();
 	}
 }
 
@@ -667,7 +678,7 @@ asynStatus CRYOSMSDriver::setupRamp()
 
 	targetVal = unitConversion(targetVal, envVarMap.at("DISPLAY_UNIT"), "TESLA");
 	
-	startVal = unitConversion(startVal, envVarMap.at("DISPLAY_UNIT"), "TESLA");
+	startVal = unitConversion(startVal, envVarMap.at("WRITE_UNIT"), "TESLA");
 	
 	//Next, find out if the device starts in +ve or -ve mode
 	int sign = (startVal >= 0) ? 1 : -1;

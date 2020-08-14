@@ -55,6 +55,7 @@ public:
 	bool atTarget;
 	bool abortQueue;
 	void checkForTarget();
+	void checkIfPaused();
 	boost::msm::back::state_machine<cryosmsStateMachine> qsm;
 	void resumeRamp() override;
 	void pauseRamp() override;
