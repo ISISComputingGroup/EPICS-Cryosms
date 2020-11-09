@@ -110,9 +110,9 @@ record(scalcout, "$(P)OUTPUT")
     field(INPA, "$(P)OUTPUT:CURR")
     field(INPB, "$(P)OUTPUT:FIELD:TESLA")
     field(INPC, "$(P)OUTPUT:FIELD:GAUSS")
-    field(INDD, "$(DISPLAY_UNIT)")
-    field(INAA, "AMPS")
-    field(INBB, "TESLA")
+    field(DD, "$(DISPLAY_UNIT)")
+    field(AA, "AMPS")
+    field(BB, "TESLA")
     field(CALC, "DD==AA?A:DD==BB?B:C")
 }
 
@@ -158,9 +158,9 @@ record(scalcout, "$(P)OUTPUT:PERSIST")
     field(INPA, "$(P)OUTPUT:PERSIST:CURR")
     field(INPB, "$(P)OUTPUT:PERSIST:FIELD:TESLA")
     field(INPC, "$(P)OUTPUT:PERSIST:FIELD:GAUSS")
-    field(INDD, "$(DISPLAY_UNIT)")
-    field(INAA, "AMPS")
-    field(INBB, "TESLA")
+    field(DD, "$(DISPLAY_UNIT)")
+    field(AA, "AMPS")
+    field(BB, "TESLA")
     field(CALC, "DD==AA?A:DD==BB?B:C")
 }
 
@@ -169,7 +169,7 @@ record(scalcout, "$(P)OUTPUT:PERSIST:CURR")
     field(DESC, "OUTPUT:PERSIST:RAW in Amps")
     field(INPA, "$(P)OUTPUT:PERSIST:RAW:UNIT")
     field(INPB, "$(P)OUTPUT:PERSIST:RAW")
-    field(INAA, "AMPS")
+    field(AA, "AMPS")
     field(CALC, "A==AA?B:B/$(T_TO_A)")
 }
 
@@ -178,7 +178,7 @@ record(scalcout, "$(P)OUTPUT:PERSIST:FIELD:GAUSS")
     field(DESC, "OUTPUT:PERSIST:RAW in Gauss")
     field(INPA, "$(P)OUTPUT:PERSIST:RAW:UNIT")
     field(INPB, "$(P)OUTPUT:PERSIST:RAW")
-    field(INAA, "TESLA")
+    field(AA, "TESLA")
     field(CALC, "A==AA?B*10000:B*10000*$(T_TO_A)")
 }
 
@@ -187,7 +187,7 @@ record(scalcout, "$(P)OUTPUT:PERSIST:FIELD:TESLA")
     field(DESC, "OUTPUT:PERSIST:RAW in Tesla")
     field(INPA, "$(P)OUTPUT:PERSIST:RAW:UNIT")
     field(INPB, "$(P)OUTPUT:PERSIST:RAW")
-    field(INAA, "TESLA")
+    field(AA, "TESLA")
     field(CALC, "A==AA?B:B*$(T_TO_A)")
 }
 

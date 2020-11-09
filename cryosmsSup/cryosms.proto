@@ -111,7 +111,7 @@ setMaxTarget {
 }
 
 getMidTarget {
-    InTerminator = CR LF 0x13;
+    InTerminator = CR LF;
 	out "GET MID";
 	wait 50;
 	in "%*8c MID SETTING: %f %*{AMPS|TESLA}";
