@@ -68,7 +68,7 @@ static void eventQueueThread(CRYOSMSDriver* drv);
 CRYOSMSDriver::CRYOSMSDriver(const char *portName, std::string devPrefix)
   : asynPortDriver(portName,
 	0, /* maxAddr */
-	NUM_SMS_PARAMS, /* num parameters */
+	static_cast<int>NUM_SMS_PARAMS, /* num parameters */
 	asynInt32Mask | asynInt32ArrayMask | asynFloat64Mask | asynFloat64ArrayMask | asynOctetMask | asynDrvUserMask, /* Interface mask */
 	asynInt32Mask | asynInt32ArrayMask | asynFloat64Mask | asynFloat64ArrayMask | asynOctetMask,  /* Interrupt mask */
 	ASYN_CANBLOCK, /* asynFlags.  This driver can block but it is not multi-device */
@@ -106,10 +106,7 @@ asynStatus CRYOSMSDriver::writeInt32(asynUser *pasynUser, epicsInt32 value)
 		return onStart();
 	}
 	else if (function == P_startRamp && value == 1) {
-		// start the ramp, next event in the queue is the ramp finishing
-		eventQueue.push_back(startRampEvent(this));
-		eventQueue.push_back(targetReachedEvent(this));
-		// set START:SP back to 0 so that it can be easily set back to 1 whenever the user wants to start a new ramp
+		setupRamp();
 		return putDb("START:SP", &falseVal);
 	}
 	else if (function == P_pauseRamp) {
@@ -124,9 +121,7 @@ asynStatus CRYOSMSDriver::writeInt32(asynUser *pasynUser, epicsInt32 value)
 		return asynSuccess;
 	}
 	else if (function == P_abortRamp && value != 0) {
-		queuePaused = false;
-		epicsThreadResume(queueThreadId);
-		qsm.process_event(abortRampEvent(this));
+		qsm.process_event(abortRampEvent{ this });
 		return asynSuccess;
 	}
 	else {
@@ -153,25 +148,16 @@ asynStatus CRYOSMSDriver::checkTToA()
 	}
 	else try {
 		double teslaToAmps = std::stod(envVarMap.at("T_TO_A"));
-		if (! std::strcmp(envVarMap.at("WRITE_UNIT"), envVarMap.at("DISPLAY_UNIT")) && envVarMap.at("WRITE_UNIT") != NULL) {
-			this->writeToDispConversion = 1.0;
-		}
-		else if (!std::strcmp(envVarMap.at("WRITE_UNIT"), "TESLA") && !std::strcmp(envVarMap.at("DISPLAY_UNIT"), "AMPS")) {
-			this->writeToDispConversion = teslaToAmps;
-		}
-		else if (!std::strcmp(envVarMap.at("WRITE_UNIT"), "AMPS") && !std::strcmp(envVarMap.at("DISPLAY_UNIT"), "TESLA")) {
-			this->writeToDispConversion = 1.0 / teslaToAmps;
-		}
-		else if (!std::strcmp(envVarMap.at("WRITE_UNIT"), "TESLA") && !std::strcmp(envVarMap.at("DISPLAY_UNIT"), "GAUSS")) {
-			this->writeToDispConversion = 10000.0; // 1 Tesla = 10^4 Gauss
-		}
-		else {
-			this->writeToDispConversion = 10000.0 / teslaToAmps;
-		}
 		RETURN_IF_ASYNERROR2(putDb, "CONSTANT:_SP", &teslaToAmps);
+
+		this->writeToDispConversion = unitConversion(1.0, envVarMap.at("WRITE_UNIT"), envVarMap.at("DISPLAY_UNIT"));
 	}
 	catch (std::exception &e) {
 		errlogSevPrintf(errlogMajor, "Invalid value of T_TO_A provided");
+		const char *statMsg = "Invalid calibration from Tesla to Amps supplied";
+		this->writeDisabled = TRUE;
+		RETURN_IF_ASYNERROR2(putDb, "STAT", &statMsg);
+		RETURN_IF_ASYNERROR2(putDb, "DISABLE", &trueVal);
 	}
 	return status;
 }
@@ -383,12 +369,12 @@ asynStatus CRYOSMSDriver::checkRampFile()
 	double initRate;
 	int i;
 	RETURN_IF_ASYNERROR2(getDb, "OUTPUT:FIELD:TESLA", currT);
-	for (i = 0; i <= sizeof(pMaxT_); i++) {
-		if (pMaxT_[i] > currT) {
+	for (i = 0; i <= static_cast<int>(pMaxT_.size()); i++) {
+		if (pMaxT_[i] > abs(currT)) {
 			break;
 		}
 	}
-	if (i == sizeof(pMaxT_)) {
+	if (i == static_cast<int>(pMaxT_.size())) {
 		initRate = 0.0;
 	}
 	else {
@@ -589,6 +575,36 @@ asynStatus CRYOSMSDriver::readFile(const char *dir)
 
 }
 
+double CRYOSMSDriver::unitConversion(double value, const char* startUnit, const char* endUnit)
+/*   Function to convert any value between tesla, amps and gauss.
+*/
+{
+	double teslaPerAmp = std::stod(envVarMap.at("T_TO_A"));
+	if (std::strcmp(startUnit, endUnit) == 0 && startUnit != NULL) {
+		return value;
+	}
+	else if (std::strcmp(startUnit, "TESLA") == 0 && std::strcmp(endUnit, "AMPS") == 0) {
+		return value / teslaPerAmp;
+	}
+	else if (std::strcmp(startUnit, "AMPS") == 0 && std::strcmp(endUnit, "TESLA") == 0) {
+		return value * teslaPerAmp;
+	}
+	else if (std::strcmp(startUnit, "TESLA") == 0 && std::strcmp(endUnit, "GAUSS") == 0) {
+		return value * 10000.0; // 1 Tesla = 10^4 Gauss
+	}
+	else if (std::strcmp(startUnit, "AMPS") == 0 && std::strcmp(endUnit, "GAUSS") == 0) {
+		return value * 10000.0 * teslaPerAmp;
+	}
+	else if (std::strcmp(startUnit, "GAUSS") == 0 && std::strcmp(endUnit, "TESLA") == 0) {
+		return value / 10000.0;
+	}
+	else if (std::strcmp(startUnit, "GAUSS") == 0 && std::strcmp(endUnit, "TESLA") == 0) {
+		return value / (10000.0 * teslaPerAmp);
+	}
+    errlogSevPrintf(errlogMajor, "Error: Units not converted for %f, %s to %s", value, startUnit, endUnit);
+    return 0;
+}
+
 static void eventQueueThread(CRYOSMSDriver* drv)
 /*	Function run by the event queue thread. Will continually process whichever is the next event in the queue before removing it. Will be suspended when
 	the queue is paused, and will not process new events while waiting to reach a target (pauses and aborts processed elsewhere)
@@ -597,22 +613,25 @@ static void eventQueueThread(CRYOSMSDriver* drv)
 	while (true)
 	{
 		if (drv->eventQueue.empty()) {
-			epicsThreadSleep(1);
+			epicsThreadSleep(0.1);
 			continue;
 		}
 		boost::apply_visitor(processEventVisitor(drv->qsm, drv->eventQueue), drv->eventQueue.front());
 		while (!drv->atTarget) {
-			epicsThreadSleep(1);
-			/*  Let the IOC update status from the machine, being over-cautious here as c and the db seem to disagree on the duration of "0.1 seconds". Need to wait otherwise it will think
-				ramp has completed before it has started. This is a temporary solution, in a future ticket more rigorous checks for target will be implemented and waiting here won't be needed.*/
-			if (drv->queuePaused) {
-				drv->qsm.process_event(pauseRampEvent(drv));
-				if (!drv->queuePaused) continue;
-				epicsThreadSuspendSelf();
-				continue;
-			}
+			epicsThreadSleep(0.1);
+			drv->checkIfPaused();
 			drv->checkForTarget();
 		}
+	}
+}
+
+void CRYOSMSDriver::checkIfPaused()
+{
+	if (queuePaused)
+	{
+		qsm.process_event(pauseRampEvent{ this });
+		if (!queuePaused) return;
+		epicsThreadSuspendSelf();
 	}
 }
 
@@ -648,19 +667,155 @@ void CRYOSMSDriver::resumeRamp()
 	putDb("PAUSE:_SP", &falseVal);
 }
 
-void CRYOSMSDriver::startRamping()
-/**
- * Reads the current output, adds a value large enough to see relevant behaviour in the tests,
- * sets the midpoint to this value and tells device to ramp to mid.
- */
+asynStatus CRYOSMSDriver::setupRamp()
 {
-	atTarget = false;
-	int trueVal = 1;
-	double currVal = 0;
-	getDb("OUTPUT:RAW", currVal);
-	currVal += 30;
-	putDb("MID:_SP", &currVal);
+	asynStatus status;
+	double startVal = 0;
+	double targetVal = 0;
+	RETURN_IF_ASYNERROR2(getDb, "OUTPUT:RAW", startVal);
+	RETURN_IF_ASYNERROR2(getDb, "MID:SP", targetVal);
+
+	//The ramp file stores boundaries in Tesla, and the ramp rates to use up to those boundaries in Amps/second.
+	//To start, we therefore first convert the current device output (startVal) and target output (targetVal) into tesla.
+
+	targetVal = unitConversion(targetVal, envVarMap.at("DISPLAY_UNIT"), "TESLA");
+	
+	startVal = unitConversion(startVal, envVarMap.at("WRITE_UNIT"), "TESLA");
+	
+	//Next, find out if the device starts in +ve or -ve mode
+	int sign = (startVal >= 0) ? 1 : -1;
+
+	//Now there are a number of different ways we might need to navigate the ramp table:
+	if ((startVal >= 0 && targetVal >= 0) || (startVal < 0 && targetVal < 0))  //1 start and target value are the same sign...
+	{
+		if (abs(startVal) < abs(targetVal)) //1.1 ...with start being closer to 0:
+		{
+			//step upwards through the table,
+			for (int i = 0; i <= static_cast<int>(pMaxT_.size()) - 1; i++)
+			{
+				//once startVal has been passed, add a "start ramp" and "end ramp" event to the queue, with the current sign and the rate and boundary of each row  of the table,
+				if (pMaxT_[i] > abs(startVal) && pMaxT_[i] < abs(targetVal)) 
+				{
+					eventQueue.push_back(startRampEvent{ this, pRate_[i], pMaxT_[i], sign});
+					eventQueue.push_back(targetReachedEvent{ this });
+				}
+				//until the target would be before the next boundary, so we replace the boundary in the argument for the start event with the target,
+				else if (pMaxT_[i] > abs(startVal) && pMaxT_[i] >= abs(targetVal))
+				{
+					eventQueue.push_back(startRampEvent{ this, pRate_[i], targetVal, sign }); 
+					eventQueue.push_back(targetReachedEvent{ this });
+					//and we stop stepping through the table.
+					break;
+				}
+			}
+		}
+		else //1.2 ...with target being closer to zero than start
+		{
+			//step downwards through the table,
+			for (int i = static_cast<int>(pMaxT_.size()) - 1; i >= 0; i--)
+			{
+				//as we are going down in intensity, the bopundary for each ramp rate is the boundary listed in the previous row in the table, except for the first row where it is 0,
+				double boundary = (i == 0) ? 0 : pMaxT_[i - 1];
+				
+				//once we pass the startVal, add "start ramp" and "end ramp" events to queue with the current sign, rate for current row of table and boundary found in previous step
+				if (boundary < abs(startVal) && boundary > abs(targetVal))
+				{
+					eventQueue.push_back(startRampEvent{ this, pRate_[i], boundary, sign });
+					eventQueue.push_back(targetReachedEvent{ this });
+				}
+				//if target is before the next boundary, go to target instead,
+				else if (boundary < abs(startVal) && boundary <= abs(targetVal))
+				{
+					eventQueue.push_back(startRampEvent{ this, pRate_[i], abs(targetVal), sign });
+					eventQueue.push_back(targetReachedEvent{ this });
+					//then stop.
+					break;
+				}
+			}
+		}
+	}
+	else //2 start and target are opposite signs
+	{
+		//We have already found the initial sign (before this logic block), so start by simply stepping downwards through the table
+		for (int i = static_cast<int>(pMaxT_.size()) - 1; i >= 0; i--)
+		{
+			//when we get to the bottom of the table, schedule a ramp to zero with the ramp rate from the lowest row,
+			if (i == 0)
+			{
+				eventQueue.push_back(startRampEvent{ this, pRate_[i], 0, sign });
+				eventQueue.push_back(targetReachedEvent{ this });
+			}
+			//until then, schedule ramps from highest row to loest, for all rows below the start val
+			else if (pMaxT_[i - 1] < abs(startVal))
+			{
+				eventQueue.push_back(startRampEvent{ this, pRate_[i], pMaxT_[i - 1], sign });
+				eventQueue.push_back(targetReachedEvent{ this });
+			}
+		}
+		//after we reach zero, flip the sign
+		sign = -1 * sign;
+		//now ramp upwards to target val:
+		for (int i = 0; i <= static_cast<int>(pMaxT_.size()) - 1; i++)
+		{
+			//If the target is beffore the next boundary, schedule a ramp to the target with the ramp rate of that boundary,
+			if (pMaxT_[i] >= abs(targetVal))
+			{
+				eventQueue.push_back(startRampEvent{ this, pRate_[i], abs(targetVal), sign });
+				eventQueue.push_back(targetReachedEvent{ this });
+				//and stop steppping through the table
+				break;
+			}
+			//until then, schedule ramps to each boundary from low to high.
+			eventQueue.push_back(startRampEvent{ this, pRate_[i], pMaxT_[i], sign });
+			eventQueue.push_back(targetReachedEvent{ this });
+		}
+	}
+	return status;
+}
+
+void CRYOSMSDriver::startRamping(double rate, double target, int sign)
+/* tells PSU to start its ramp
+	rate: ramp rate in A/s
+	target: ramp target in T. To avoid messy conversions all over the startup logic, conversion is handled here in a single place
+	sign: whether the output should be positive or negative.
+*/
+{
+	int trueVal = 1; //need a pointer to "1" later
+	int signString = (sign == 1) ? 2 : 1; //sign is handled by mbbo with 0 = 0, 1 = negative, 2 = positive
+	putDb("DIRECTION:_SP", &signString);
+
+	target = unitConversion(target, "TESLA", envVarMap.at("WRITE_UNIT"));
+	//put values in correct PVs, to be sent to device
+	putDb("MID:_SP", &target);
+	putDb("RAMP:RATE:_SP", &rate);
 	putDb("START:_SP", &trueVal);
+
+	//check that the ramp has started before going back to the event queue loop
+	int rampStatus;
+	int ramping = 0; //ramp status is mbbi,  0 = ramping
+	int numAttempts = 0;
+	getDb("RAMP:STAT", rampStatus);
+	while (rampStatus != ramping)
+	{
+		getDb("RAMP:STAT", rampStatus);
+		epicsThreadSleep(0.1);
+		numAttempts++;
+		if (numAttempts > 50) //5 seconds arbitrarily chosen
+		{
+			double output;
+			getDb("OUTPUT:RAW", output);
+			if (unitConversion(output, envVarMap.at("DISPLAY_UNIT"), envVarMap.at("WRITE_UNIT")) != target)
+			{
+				errlogSevPrintf(errlogMajor, "Ramp failing to initialise after 5 seconds, aborting queue");
+				const char *statMsg = "Ramp Failing to initialise";
+				putDb("STAT", &statMsg);
+				eventQueue.push_front(abortRampEvent{ this });
+				atTarget = true;
+			}
+			return;
+		}
+	}
+	atTarget = false;
 }
 
 void CRYOSMSDriver::abortRamp()
@@ -671,7 +826,9 @@ void CRYOSMSDriver::abortRamp()
 {
 	std::deque<eventVariant> emptyQueue;
 	std::swap(eventQueue, emptyQueue);
-	eventQueue.push_back(targetReachedEvent(this));
+	eventQueue.push_back(targetReachedEvent{ this });
+	queuePaused = false;
+	epicsThreadResume(queueThreadId);
 	int trueVal = 1;
 	int falseVal = 0;
 	putDb("PAUSE:_SP", &trueVal);

@@ -11,23 +11,30 @@ namespace msm = boost::msm;
 
 ///Events (trigger state transitions when sent to qsm):
 struct driverEvent {
-	driverEvent(SMDriver* dvr) : dvr(dvr) { }
+	driverEvent(SMDriver* _dvr) : dvr(_dvr) {}
 	SMDriver* dvr;
 };
-struct startRampEvent : driverEvent {
-	startRampEvent(SMDriver* dvr) : driverEvent(dvr) { }
+struct startRampEvent {
+	/*	rate: ramp rate for ramp to start
+		target: absolute value to ramp to, direction decided elsewhere
+	*/
+	startRampEvent(SMDriver* _dvr, double _rate, double _target, int _rampDir) : dvr(_dvr), rate(_rate), target(_target), rampDir(_rampDir) {}
+	SMDriver* dvr;
+	double rate;
+	double target;
+	int rampDir;
 };
 struct pauseRampEvent : driverEvent {
-	pauseRampEvent(SMDriver* dvr) : driverEvent(dvr) { }
+	pauseRampEvent(SMDriver* _dvr) : driverEvent(_dvr) { }
 };
 struct abortRampEvent : driverEvent {
-	abortRampEvent(SMDriver* dvr) : driverEvent(dvr) { }
+	abortRampEvent(SMDriver* _dvr) : driverEvent(_dvr) { }
 };
 struct resumeRampEvent : driverEvent {
-	resumeRampEvent(SMDriver* dvr) : driverEvent(dvr) { }
+	resumeRampEvent(SMDriver* _dvr) : driverEvent(_dvr) { }
 };
 struct targetReachedEvent : driverEvent {
-	targetReachedEvent(SMDriver* dvr) : driverEvent(dvr) { }
+	targetReachedEvent(SMDriver* _dvr) : driverEvent(_dvr) { }
 };
 
 ///States (have code that executes on entrance/exit, shown here for proof of concept/debugging):
@@ -81,8 +88,9 @@ struct cryosmsStateMachine : public msm::front::state_machine_def<cryosmsStateMa
 	SMDriver& drv_;
 	
 	///Actions (executed when a state transition occurs, gets passed the event which triggers the transition): 
-	void startNewRamp(startRampEvent const&) {
-		drv_.startRamping(); //Putting as much of the ode as possible in the driver to keep this file as legible as possible
+	//Putting as much of the code as possible in the driver to keep this file as legible as possible
+	void startNewRamp(startRampEvent const& evt) {
+		drv_.startRamping(evt.rate, evt.target, evt.rampDir); 
 	}
 	void pauseInRamp(pauseRampEvent const&) {
 		drv_.pauseRamp();
@@ -112,7 +120,7 @@ struct cryosmsStateMachine : public msm::front::state_machine_def<cryosmsStateMa
 		a_row< ramping,		pauseRampEvent,		paused,		&csm::pauseInRamp			>,
 		a_row< ramping,		targetReachedEvent,	ready,		&csm::reachTarget			>,
 		a_row< ramping,		abortRampEvent,		aborting,	&csm::abortRamp				>,
-		_row<  ramping,		resumeRampEvent,	ramping									>,
+		a_row< ramping,		startRampEvent,		ramping,	&csm::startNewRamp			>,
 		//	 +-------------+-------------------+-----------+-----------------------------+
 		a_row< paused,		resumeRampEvent,	ramping,	&csm::resumeRampFromPause	>,
 		a_row< paused,		abortRampEvent,		aborting,	&csm::abortRamp				>,
@@ -130,4 +138,4 @@ struct cryosmsStateMachine : public msm::front::state_machine_def<cryosmsStateMa
 		errlogSevPrintf(errlogMajor, "no transition from state %s on event %s", stateList[state].c_str(), typeid(e).name());
 	}
 };
-#endif // !QUEUEDSTATEMACHINE_H
+#endif !QUEUEDSTATEMACHINE_H

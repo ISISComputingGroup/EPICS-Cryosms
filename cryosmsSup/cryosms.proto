@@ -10,6 +10,14 @@ getDirection {
 	wait 100;
 }
 
+setDirection {
+    InTerminator = CR LF;
+    out "DIRECTION %{0|-|+}";
+    wait 50;
+    in "%*8c ";
+    wait 100;
+}
+
 getOutputMode {
     InTerminator = CR LF 0x13;
     out "T";
@@ -103,7 +111,7 @@ setMaxTarget {
 }
 
 getMidTarget {
-    InTerminator = CR LF 0x13;
+    InTerminator = CR LF;
 	out "GET MID";
 	wait 50;
 	in "%*8c MID SETTING: %f %*{AMPS|TESLA}";

@@ -38,8 +38,10 @@ public:
 	asynStatus checkUseMagnetTemp();
 	asynStatus checkCompOffAct();
 	asynStatus checkRampFile();
+	asynStatus setupRamp();
 	std::map<std::string,const char*> envVarMap;
 	double writeToDispConversion;
+	double unitConversion(double value, const char* startUnit, const char* endUnit);
 	bool writeDisabled;
 	int testVar; //for use in google tests where functionality can not be tested with PV values
 	bool started;
@@ -53,10 +55,11 @@ public:
 	bool atTarget;
 	bool abortQueue;
 	void checkForTarget();
+	void checkIfPaused();
 	boost::msm::back::state_machine<cryosmsStateMachine> qsm;
 	void resumeRamp() override;
 	void pauseRamp() override;
-	void startRamping() override;
+	void startRamping(double rate, double target, int rampDir) override;
 	void abortRamp() override;
 	void reachTarget() override;
 	void continueAbort() override;
