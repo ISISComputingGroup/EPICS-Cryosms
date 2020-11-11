@@ -601,6 +601,8 @@ double CRYOSMSDriver::unitConversion(double value, const char* startUnit, const 
 	else if (std::strcmp(startUnit, "GAUSS") == 0 && std::strcmp(endUnit, "TESLA") == 0) {
 		return value / (10000.0 * teslaPerAmp);
 	}
+    errlogSevPrintf(errlogMajor, "Error: Units not converted for %f, %s to %s", value, startUnit, endUnit);
+    return 0;
 }
 
 static void eventQueueThread(CRYOSMSDriver* drv)
