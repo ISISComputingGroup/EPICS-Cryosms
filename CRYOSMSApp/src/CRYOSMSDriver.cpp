@@ -148,9 +148,8 @@ asynStatus CRYOSMSDriver::checkTToA()
 	}
 	else try {
 		double teslaToAmps = std::stod(envVarMap.at("T_TO_A"));
-		RETURN_IF_ASYNERROR2(putDb, "CONSTANT:_SP", &teslaToAmps);
-
 		this->writeToDispConversion = unitConversion(1.0, envVarMap.at("WRITE_UNIT"), envVarMap.at("DISPLAY_UNIT"));
+		RETURN_IF_ASYNERROR2(putDb, "CONSTANT:_SP", &teslaToAmps);
 	}
 	catch (std::exception &e) {
 		errlogSevPrintf(errlogMajor, "Invalid value of T_TO_A provided");

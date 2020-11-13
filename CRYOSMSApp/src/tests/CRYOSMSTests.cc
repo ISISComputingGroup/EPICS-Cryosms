@@ -49,11 +49,11 @@ namespace {
 	INSTANTIATE_TEST_CASE_P(
 		TToATests, TToAParametrisedTests,
 		::testing::Values(
-			std::make_tuple("AMPS", "GAUSS", 50000.0), // 10,000/0.2
+			std::make_tuple("AMPS", "GAUSS", 2000.0), // 10,000 * 0.2
 			std::make_tuple("AMPS", "AMPS", 1.0),
-			std::make_tuple("AMPS", "TESLA", 5.0), // 1/0.2
+			std::make_tuple("AMPS", "TESLA", 0.2), // specified conversion, "T_TO_A" is a dividitave conversion factor, named "TO" per convention
 			std::make_tuple("TESLA", "GAUSS", 10000.0), //1T = 10,000G
-			std::make_tuple("TESLA", "AMPS", 0.2), //specified conversion
+			std::make_tuple("TESLA", "AMPS", 5.0), // 1/0.2
 			std::make_tuple("TESLA", "TESLA", 1.0)
 		)
 	);
