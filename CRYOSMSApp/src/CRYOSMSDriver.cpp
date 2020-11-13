@@ -121,7 +121,7 @@ asynStatus CRYOSMSDriver::writeInt32(asynUser *pasynUser, epicsInt32 value)
 		return asynSuccess;
 	}
 	else if (function == P_abortRamp && value != 0) {
-		qsm.process_event(abortRampEvent{ this });
+		qsm.process_event(abortRampEvent(this));
 		return asynSuccess;
 	}
 	else {
@@ -629,7 +629,7 @@ void CRYOSMSDriver::checkIfPaused()
 {
 	if (queuePaused)
 	{
-		qsm.process_event(pauseRampEvent{ this });
+		qsm.process_event(pauseRampEvent(this));
 		if (!queuePaused) return;
 		epicsThreadSuspendSelf();
 	}
@@ -696,14 +696,14 @@ asynStatus CRYOSMSDriver::setupRamp()
 				//once startVal has been passed, add a "start ramp" and "end ramp" event to the queue, with the current sign and the rate and boundary of each row  of the table,
 				if (pMaxT_[i] > abs(startVal) && pMaxT_[i] < abs(targetVal)) 
 				{
-					eventQueue.push_back(startRampEvent{ this, pRate_[i], pMaxT_[i], sign});
-					eventQueue.push_back(targetReachedEvent{ this });
+					eventQueue.push_back(startRampEvent(this, pRate_[i], pMaxT_[i], sign));
+					eventQueue.push_back(targetReachedEvent( this ));
 				}
 				//until the target would be before the next boundary, so we replace the boundary in the argument for the start event with the target,
 				else if (pMaxT_[i] > abs(startVal) && pMaxT_[i] >= abs(targetVal))
 				{
-					eventQueue.push_back(startRampEvent{ this, pRate_[i], targetVal, sign }); 
-					eventQueue.push_back(targetReachedEvent{ this });
+					eventQueue.push_back(startRampEvent( this, pRate_[i], targetVal, sign ));
+					eventQueue.push_back(targetReachedEvent( this ));
 					//and we stop stepping through the table.
 					break;
 				}
@@ -720,14 +720,14 @@ asynStatus CRYOSMSDriver::setupRamp()
 				//once we pass the startVal, add "start ramp" and "end ramp" events to queue with the current sign, rate for current row of table and boundary found in previous step
 				if (boundary < abs(startVal) && boundary > abs(targetVal))
 				{
-					eventQueue.push_back(startRampEvent{ this, pRate_[i], boundary, sign });
-					eventQueue.push_back(targetReachedEvent{ this });
+					eventQueue.push_back(startRampEvent( this, pRate_[i], boundary, sign ));
+					eventQueue.push_back(targetReachedEvent( this ));
 				}
 				//if target is before the next boundary, go to target instead,
 				else if (boundary < abs(startVal) && boundary <= abs(targetVal))
 				{
-					eventQueue.push_back(startRampEvent{ this, pRate_[i], abs(targetVal), sign });
-					eventQueue.push_back(targetReachedEvent{ this });
+					eventQueue.push_back(startRampEvent( this, pRate_[i], abs(targetVal), sign ));
+					eventQueue.push_back(targetReachedEvent( this ));
 					//then stop.
 					break;
 				}
@@ -742,14 +742,14 @@ asynStatus CRYOSMSDriver::setupRamp()
 			//when we get to the bottom of the table, schedule a ramp to zero with the ramp rate from the lowest row,
 			if (i == 0)
 			{
-				eventQueue.push_back(startRampEvent{ this, pRate_[i], 0, sign });
-				eventQueue.push_back(targetReachedEvent{ this });
+				eventQueue.push_back(startRampEvent(this, pRate_[i], 0, sign));
+				eventQueue.push_back(targetReachedEvent(this ));
 			}
 			//until then, schedule ramps from highest row to loest, for all rows below the start val
 			else if (pMaxT_[i - 1] < abs(startVal))
 			{
-				eventQueue.push_back(startRampEvent{ this, pRate_[i], pMaxT_[i - 1], sign });
-				eventQueue.push_back(targetReachedEvent{ this });
+				eventQueue.push_back(startRampEvent( this, pRate_[i], pMaxT_[i - 1], sign ));
+				eventQueue.push_back(targetReachedEvent( this ));
 			}
 		}
 		//after we reach zero, flip the sign
@@ -760,14 +760,14 @@ asynStatus CRYOSMSDriver::setupRamp()
 			//If the target is beffore the next boundary, schedule a ramp to the target with the ramp rate of that boundary,
 			if (pMaxT_[i] >= abs(targetVal))
 			{
-				eventQueue.push_back(startRampEvent{ this, pRate_[i], abs(targetVal), sign });
-				eventQueue.push_back(targetReachedEvent{ this });
+				eventQueue.push_back(startRampEvent(this, pRate_[i], abs(targetVal), sign ));
+				eventQueue.push_back(targetReachedEvent( this ));
 				//and stop steppping through the table
 				break;
 			}
 			//until then, schedule ramps to each boundary from low to high.
-			eventQueue.push_back(startRampEvent{ this, pRate_[i], pMaxT_[i], sign });
-			eventQueue.push_back(targetReachedEvent{ this });
+			eventQueue.push_back(startRampEvent( this, pRate_[i], pMaxT_[i], sign ));
+			eventQueue.push_back(targetReachedEvent( this ));
 		}
 	}
 	return status;
@@ -809,7 +809,7 @@ void CRYOSMSDriver::startRamping(double rate, double target, int sign)
 				errlogSevPrintf(errlogMajor, "Ramp failing to initialise after 5 seconds, aborting queue");
 				const char *statMsg = "Ramp Failing to initialise";
 				putDb("STAT", &statMsg);
-				eventQueue.push_front(abortRampEvent{ this });
+				eventQueue.push_front(abortRampEvent( this ));
 				atTarget = true;
 			}
 			return;
@@ -826,7 +826,7 @@ void CRYOSMSDriver::abortRamp()
 {
 	std::deque<eventVariant> emptyQueue;
 	std::swap(eventQueue, emptyQueue);
-	eventQueue.push_back(targetReachedEvent{ this });
+	eventQueue.push_back(targetReachedEvent( this ));
 	queuePaused = false;
 	epicsThreadResume(queueThreadId);
 	int trueVal = 1;
