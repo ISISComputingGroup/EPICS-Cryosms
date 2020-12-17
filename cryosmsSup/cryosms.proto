@@ -87,6 +87,14 @@ getHeaterStatus {
 	wait 100;
 }
 
+setHeaterStatus {
+    InTerminator = CR LF 0x13;
+	out "HEATER %{OFF|ON}";
+	wait 50;
+	in "%*8c HEATER STATUS: %{OFF|ON}";
+	wait 100;
+}
+
 setHeaterValue {
 	out "S H %f";
 	wait 50;

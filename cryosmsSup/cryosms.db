@@ -390,6 +390,36 @@ record(bo, "$(P)START:SP")
     field(SDIS, "$(P)DISABLE")
 }
 
+record(mbbi, "$(P)SWITCH:STAT")
+{
+    field(DESC, "Temperature status of switch")
+    field(ZRST, "Cold")
+    field(ONST, "Cooling")
+    field(TWST, "Warming")
+    field(THST, "Warm")
+}
+
+record(mbbi, "$(P)SWITCH:STAT:NOW")
+{
+    field(DESC, "Immediate temp status of switch")
+    field(ZRST, "Cold")     field(ZRVL, "0")
+    field(ONST, "Changing") field(ONVL, "1")
+    field(TWST, "Warm")     field(TWVL, "2")
+}
+
+record(calcout, "$(P)SWITCH:STAT:NOW:CALC")
+{
+    field(CALC, "(B=0&&A<$SWITCH_LOW)?0:(B=1&&A>$SWITCH_LOW)?2:1")
+    field(INPA, "$(P)SWITCH:TEMP")
+    field(INPB, "$(P)HEATER:STAT")
+}
+
+record(ai, "$(P)SWITCH:TEMP")
+{
+    field(DESC, "Temperature of switch from external device")
+    field(INP, "$(SWITCH_TEMP_PV=$(P)SIM:SWITCH:TEMP)")
+    field(SCAN, "1 second")
+}
 
 ### TARGET:
 
@@ -427,6 +457,19 @@ record(mbbo, "$(P)DIRECTION:_SP")
     field(ONVL, "1") field(ONST, "-")
     field(TWVL, "2") field(TWST, "+")
 }    
+
+record(bo, "$(P)HEATER:STAT:_SP")
+{
+    field(DTYP, "stream")
+    field(ASG, "READONLY")
+    field(OUT, "@cryosms.proto setHeaterStatus $(PORT)")
+    field(SCAN, "Passive")
+    field(ZNAM, "OFF")
+    field(ONAM, "ON")
+    field(SIML, "$(P)SIM")
+    field(SIOL, "$(P)SIM:HEATER:STAT:_SP")
+    field(SDIS, "$(P)DISABLE")
+}
 
 record(ao, "$(P)HEATER:VOLT:_SP")
 {
@@ -510,7 +553,7 @@ record(mbbo, "$(P)START:_SP")
     field(ONVL, "1") field(ONST, "MID")
     field(TWVL, "2") field(TWST, "MAX")
     field(SIML, "$(P)SIM")
-    field(SIOL, "$(P)SIM::RAMP:RATE:_SP")
+    field(SIOL, "$(P)SIM:RAMP:RATE:_SP")
     field(SDIS, "$(P)DISABLE")
 }
 
@@ -578,10 +621,18 @@ record(mbbi,"$(P)SIM:RAMP:STAT")
     field(DTYP, "Soft Channel")
 }
 
-record(bi,"$(P)SIM:HEATER:STAT")
+record(mbbi,"$(P)SIM:HEATER:STAT")
 {
     field(SCAN, "Passive")
     field(DTYP, "Soft Channel")
+}
+
+record(calc,"$(P)SIM:SWITCH:TEMP")
+{
+    field(SCAN, "Passive")
+    field(DTYP, "Soft Channel")
+    field(CALC, "A=0?$(SWITCH_LOW)-1:$(SWITCH_HIGH)+1")
+    field(INPA, "$(P)HEATER:STAT")
 }
 
 record(ai,"$(P)SIM:RAMP:TARGET")

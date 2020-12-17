@@ -234,7 +234,7 @@ asynStatus CRYOSMSDriver::checkAllowPersist()
 	int falseVal = 0;
 	if (!std::strcmp(envVarMap.at("ALLOW_PERSIST"), "Yes")) {
 		if (envVarMap.at("FAST_FILTER_VALUE") == NULL || envVarMap.at("FILTER_VALUE") == NULL || envVarMap.at("NPP") == NULL || envVarMap.at("FAST_PERSISTENT_SETTLETIME") == NULL ||
-			envVarMap.at("PERSISTENT_SETTLETIME") == NULL || envVarMap.at("FAST_RATE") == NULL) {
+			envVarMap.at("PERSISTENT_SETTLETIME") == NULL || envVarMap.at("FASTRATE") == NULL) {
 
 			errlogSevPrintf(errlogMajor, "ALLOW_PERSIST set to yes but other values required for this mode not provided, check macros are correct");
 			const char *statMsg = "Missing parameters to allow persistent mode to be used";
@@ -621,6 +621,11 @@ static void eventQueueThread(CRYOSMSDriver* drv)
 			drv->checkIfPaused();
 			drv->checkForTarget();
 		}
+		while (drv->cooling || drv->warming)
+		{
+			epicsThreadSleep(0.1);
+			drv->checkHeaterDone();
+		}
 	}
 }
 
@@ -646,6 +651,24 @@ void CRYOSMSDriver::checkForTarget()
 	}
 }
 
+void CRYOSMSDriver::checkHeaterDone()
+/*	Check if the heater has reached sorrect temperature
+*/
+{
+	int switchStat;
+
+	getDb("SWITCH:STAT", switchStat);
+
+	if (cooling && switchStat == 0)
+	{
+		cooling = 0;
+	}
+	if (warming && switchStat == 1)
+	{
+		warming = 0;
+	}
+}
+
 void CRYOSMSDriver::pauseRamp()
 /**
  * Tells PSU to pause
@@ -653,6 +676,8 @@ void CRYOSMSDriver::pauseRamp()
 {
 	int trueVal = 1;
 	putDb("PAUSE:_SP", &trueVal);
+	const char *statMsg = "Paused";
+	putDb("STAT", statMsg);
 }
 
 void CRYOSMSDriver::resumeRamp()
@@ -660,6 +685,20 @@ void CRYOSMSDriver::resumeRamp()
  * Tells PSU to resume and unpauses the queue
  */
 {
+	const char *statMsg;
+	if (fastRamp)
+	{
+		statMsg = "Ramping fast";
+	}
+	else if (fastRampZero)
+	{
+		statMsg = "Ramping fast to zero";
+	}
+	else
+	{
+		statMsg = "Ramping";
+	}
+	putDb("STAT", statMsg);
 	queuePaused = false;
 	epicsThreadResume(queueThreadId);
 	int falseVal = 0;
@@ -667,12 +706,27 @@ void CRYOSMSDriver::resumeRamp()
 }
 
 asynStatus CRYOSMSDriver::setupRamp()
+/*The logic for setting up ramp events in the state machine, based on rates in the ramp table
+*/
 {
 	asynStatus status;
 	double startVal = 0;
 	double targetVal = 0;
+	int magMode = 0;
 	RETURN_IF_ASYNERROR2(getDb, "OUTPUT:RAW", startVal);
 	RETURN_IF_ASYNERROR2(getDb, "MID:SP", targetVal);
+	RETURN_IF_ASYNERROR2(getDb, "MAGNET:MODE", magMode);
+
+	//First, check if magnet is in persistent mode, then execute relevant commands (moved to other functions for tidiness)
+
+	if (magMode == 1)
+	{
+		RETURN_IF_ASYNERROR0(setupPersistOn);
+	}
+
+	//Next, set the state machine up so that heater status is checked before ramping starts but AFTER any persistent mode events have been processed
+
+	eventQueue.push_back(checkHeaterEvent(this));
 
 	//The ramp file stores boundaries in Tesla, and the ramp rates to use up to those boundaries in Amps/second.
 	//To start, we therefore first convert the current device output (startVal) and target output (targetVal) into tesla.
@@ -683,6 +737,8 @@ asynStatus CRYOSMSDriver::setupRamp()
 	
 	//Next, find out if the device starts in +ve or -ve mode
 	int sign = (startVal >= 0) ? 1 : -1;
+	//And set ramp type to standard (for STAT messages)
+	RampType rType = RampType::standardRampType;
 
 	//Now there are a number of different ways we might need to navigate the ramp table:
 	if ((startVal >= 0 && targetVal >= 0) || (startVal < 0 && targetVal < 0))  //1 start and target value are the same sign...
@@ -695,13 +751,13 @@ asynStatus CRYOSMSDriver::setupRamp()
 				//once startVal has been passed, add a "start ramp" and "end ramp" event to the queue, with the current sign and the rate and boundary of each row  of the table,
 				if (pMaxT_[i] > abs(startVal) && pMaxT_[i] < abs(targetVal)) 
 				{
-					eventQueue.push_back(startRampEvent(this, pRate_[i], pMaxT_[i], sign));
+					eventQueue.push_back(startRampEvent(this, pRate_[i], pMaxT_[i], sign, rType));
 					eventQueue.push_back(targetReachedEvent( this ));
 				}
 				//until the target would be before the next boundary, so we replace the boundary in the argument for the start event with the target,
 				else if (pMaxT_[i] > abs(startVal) && pMaxT_[i] >= abs(targetVal))
 				{
-					eventQueue.push_back(startRampEvent( this, pRate_[i], targetVal, sign ));
+					eventQueue.push_back(startRampEvent( this, pRate_[i], targetVal, sign, rType));
 					eventQueue.push_back(targetReachedEvent( this ));
 					//and we stop stepping through the table.
 					break;
@@ -719,13 +775,13 @@ asynStatus CRYOSMSDriver::setupRamp()
 				//once we pass the startVal, add "start ramp" and "end ramp" events to queue with the current sign, rate for current row of table and boundary found in previous step
 				if (boundary < abs(startVal) && boundary > abs(targetVal))
 				{
-					eventQueue.push_back(startRampEvent( this, pRate_[i], boundary, sign ));
+					eventQueue.push_back(startRampEvent( this, pRate_[i], boundary, sign, rType));
 					eventQueue.push_back(targetReachedEvent( this ));
 				}
 				//if target is before the next boundary, go to target instead,
 				else if (boundary < abs(startVal) && boundary <= abs(targetVal))
 				{
-					eventQueue.push_back(startRampEvent( this, pRate_[i], abs(targetVal), sign ));
+					eventQueue.push_back(startRampEvent( this, pRate_[i], abs(targetVal), sign, rType));
 					eventQueue.push_back(targetReachedEvent( this ));
 					//then stop.
 					break;
@@ -741,13 +797,13 @@ asynStatus CRYOSMSDriver::setupRamp()
 			//when we get to the bottom of the table, schedule a ramp to zero with the ramp rate from the lowest row,
 			if (i == 0)
 			{
-				eventQueue.push_back(startRampEvent(this, pRate_[i], 0, sign));
+				eventQueue.push_back(startRampEvent(this, pRate_[i], 0, sign, rType));
 				eventQueue.push_back(targetReachedEvent(this ));
 			}
 			//until then, schedule ramps from highest row to loest, for all rows below the start val
 			else if (pMaxT_[i - 1] < abs(startVal))
 			{
-				eventQueue.push_back(startRampEvent( this, pRate_[i], pMaxT_[i - 1], sign ));
+				eventQueue.push_back(startRampEvent( this, pRate_[i], pMaxT_[i - 1], sign, rType));
 				eventQueue.push_back(targetReachedEvent( this ));
 			}
 		}
@@ -759,27 +815,179 @@ asynStatus CRYOSMSDriver::setupRamp()
 			//If the target is beffore the next boundary, schedule a ramp to the target with the ramp rate of that boundary,
 			if (pMaxT_[i] >= abs(targetVal))
 			{
-				eventQueue.push_back(startRampEvent(this, pRate_[i], abs(targetVal), sign ));
+				eventQueue.push_back(startRampEvent(this, pRate_[i], abs(targetVal), sign, rType ));
 				eventQueue.push_back(targetReachedEvent( this ));
 				//and stop steppping through the table
 				break;
 			}
 			//until then, schedule ramps to each boundary from low to high.
-			eventQueue.push_back(startRampEvent( this, pRate_[i], pMaxT_[i], sign ));
+			eventQueue.push_back(startRampEvent( this, pRate_[i], pMaxT_[i], sign, rType ));
 			eventQueue.push_back(targetReachedEvent( this ));
 		}
 	}
-	return status;
+	return asynSuccess;
 }
 
-void CRYOSMSDriver::startRamping(double rate, double target, int sign)
+asynStatus CRYOSMSDriver::setupPersistOn()
+/* Procedures to follow when starting a ramp in persistent mode
+*/
+{
+	asynStatus status;
+
+	int switchStat;
+	double persistCurr;
+
+	//Switch stat = 0 if device is cold, 1 if device is warm
+	RETURN_IF_ASYNERROR2(getDb, "SWITCH:STAT", switchStat);
+	RETURN_IF_ASYNERROR2(getDb, "OUTPUT:PERSIST:RAW", persistCurr);
+
+	if (switchStat == 0)
+	{
+		eventQueue.push_back(startCoolEvent(this));
+		eventQueue.push_back(tempReachedEvent(this));
+	}
+	
+	RETURN_IF_ASYNERROR1(setupFastRamp, persistCurr);
+
+	return asynSuccess;
+}
+
+asynStatus CRYOSMSDriver::setupFastRamp(double targetVal)
+/*set up a fast ramp. Fast ramps do not use the ramping table, instead they use a ramp rate supplied by the FASTRATE macro. They also have unique status messages
+ */
+{
+	asynStatus status;
+
+	double startVal;
+	double fastRate = std::stod(envVarMap.at("FASTRATE"));
+
+	RETURN_IF_ASYNERROR2(getDb, "OUTPUT:RAW", startVal);
+
+	int sign = (startVal >= 0) ? 1 : -1;
+	RampType rType;
+
+	//If the target is 0, ramp fast to 0
+	if (targetVal == 0)
+	{ 
+		rType = RampType::fastZeroRampType;
+
+		eventQueue.push_back(startRampEvent(this, fastRate, 0.0, sign, rType));
+		eventQueue.push_back(targetReachedEvent(this));
+	}
+	//when 0 is not the target and the start and target values are the same sign, or the start is 0, simply ramp fast to target
+	else if ((startVal <= 0 && targetVal < 0) || (startVal >= 0 && targetVal > 0)) 
+	{
+		if (startVal == 0)
+		{//Make sure we go in the right direction if start is 0. Don't need to worry if target is also 0 as 1- this code won't be reached (handled above) and 2- no ramps will actually happen
+			sign = (targetVal >= 0) ? 1 : -1; 
+		}
+		rType = RampType::fastRampType;
+
+		eventQueue.push_back(startRampEvent(this, fastRate, abs(targetVal), sign, rType));
+		eventQueue.push_back(targetReachedEvent(this));
+	} //otherwise, ramp to 0 first, then to the target
+	else if ((startVal < 0 && targetVal > 0) || (startVal > 0 && targetVal < 0))
+	{
+		rType = RampType::fastZeroRampType;
+
+		eventQueue.push_back(startRampEvent(this, fastRate, 0.0, sign, rType));
+		eventQueue.push_back(targetReachedEvent(this));
+
+		sign = -1 * sign; //going past zero, so flip sign
+		rType = RampType::fastRampType;
+
+		eventQueue.push_back(startRampEvent(this, fastRate, abs(targetVal), sign, rType));
+		eventQueue.push_back(targetReachedEvent(this));		
+	}
+	else
+	{
+		//should never get here, if we have feed back up that something bad happened
+		return asynError;
+	}
+	return asynSuccess;
+}
+
+void CRYOSMSDriver::startCooling()
+{//Tell device to start cooling, called from state machine
+	int falseVal = 0;
+	const char* statMsg = "Cooling";
+
+	putDb("HEATER:STAT:_SP", &falseVal);
+	putDb("STAT", &statMsg);
+
+}
+
+void CRYOSMSDriver::startWarming()
+{//Tell device to start warming, called from state machine
+	int trueVal = 1;
+	const char* statMsg = "Warming";
+	double persistCurr;
+	double outputCurr;
+	double heaterTolerence = std::stod(envVarMap.at("HEATER_TOLERANCE"));
+
+	getDb("OUTPUT:PERSIST:RAW", persistCurr);
+	getDb("OUTPUT:RAW", outputCurr);
+
+	while (abs(persistCurr - outputCurr) > heaterTolerence)
+	{
+		epicsThreadSleep(0.1);
+		getDb("OUTPUT:PERSIST:RAW", persistCurr);
+		getDb("OUTPUT:RAW", outputCurr);
+	}
+
+	putDb("HEATER:STAT:_SP", &trueVal);
+	putDb("STAT", &statMsg);
+
+}
+
+void CRYOSMSDriver::reachTemp()
+{//Called from state machine when correct temperature reached
+	const char* statMsg = "Ready";
+
+	putDb("STAT", &statMsg);
+}
+
+void CRYOSMSDriver::preRampHeaterCheck()
+/* Called from state machine, checks heater is on and warm before continuing with ramps
+*/
+{
+	int heaterStat;
+	getDb("HEATER:STAT", heaterStat);
+	
+	//If heater is off, warm up
+	if (heaterStat == 0)
+	{
+		eventQueue.push_back(startWarmEvent(this));
+	}
+}
+
+void CRYOSMSDriver::startRamping(double rate, double target, int sign, RampType rampType)
 /* tells PSU to start its ramp
 	rate: ramp rate in A/s
 	target: ramp target in T. To avoid messy conversions all over the startup logic, conversion is handled here in a single place
 	sign: whether the output should be positive or negative.
+	rampType: enum of the sifferent ramp types, standard, fast and fastZero. Used for setting STAT msg
 */
 {
-	int trueVal = 1; //need a pointer to "1" later
+	int trueVal = 1; //need a pointer to "1" to set PVs to "true" (can't just send "1")
+
+	const char *statMsg;
+	switch (rampType)
+	{//set whether ramping is fast/fast zero for future ramps. Done here so that correct status messages are preserved if a puase happens. Cleared upon target reached.
+	case standardRampType:
+		statMsg = "Ramping";
+		break;
+	case fastRampType:
+		fastRamp = true;
+		statMsg = "Ramping fast";
+		break;
+	case fastZeroRampType:
+		fastRampZero = true;
+		statMsg = "Ramping fast to zero";
+		putDb("FAST:ZERO", &trueVal);
+		break;
+	}
+
 	int signString = (sign == 1) ? 2 : 1; //sign is handled by mbbo with 0 = 0, 1 = negative, 2 = positive
 	putDb("DIRECTION:_SP", &signString);
 
@@ -806,7 +1014,7 @@ void CRYOSMSDriver::startRamping(double rate, double target, int sign)
 			if (unitConversion(output, envVarMap.at("DISPLAY_UNIT"), envVarMap.at("WRITE_UNIT")) != target)
 			{
 				errlogSevPrintf(errlogMajor, "Ramp failing to initialise after 5 seconds, aborting queue");
-				const char *statMsg = "Ramp Failing to initialise";
+				statMsg = "Ramp Failing to initialise";
 				putDb("STAT", &statMsg);
 				eventQueue.push_front(abortRampEvent( this ));
 				atTarget = true;
@@ -814,11 +1022,12 @@ void CRYOSMSDriver::startRamping(double rate, double target, int sign)
 			return;
 		}
 	}
+	putDb("STAT", &statMsg);
 	atTarget = false;
 }
 
 void CRYOSMSDriver::abortRamp()
-/**
+/*
  * Empties the queue, pauses the device, reads current output, tells the device that this is the new midpoint,
  * unpauses the device and sets the user-facing pause value to unpaused.
  */
@@ -840,8 +1049,23 @@ void CRYOSMSDriver::abortRamp()
 
 }
 
+void CRYOSMSDriver::abortBasic()
+/* Abort event for when device is not ramping, so only empties the queue and ensures any variables not handled by reachTarget() are reset correctly
+*/
+{
+	warming = 0;
+	cooling = 0;
+	std::deque<eventVariant> emptyQueue;
+	std::swap(eventQueue, emptyQueue);
+	eventQueue.push_back(targetReachedEvent(this));
+}
+
 void CRYOSMSDriver::reachTarget()
 {
+	fastRamp = false;
+	fastRampZero = false;
+	const char *statMsg = "Ready";
+	putDb("STAT", &statMsg);
 }
 
 void CRYOSMSDriver::continueAbort()

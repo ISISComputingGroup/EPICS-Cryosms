@@ -7,7 +7,7 @@
 #include <boost/msm/back/state_machine.hpp>
 #include <boost/variant/variant.hpp>
 
-typedef boost::variant<startRampEvent, abortRampEvent, pauseRampEvent, resumeRampEvent, targetReachedEvent> eventVariant;
+typedef boost::variant<startRampEvent, abortRampEvent, pauseRampEvent, resumeRampEvent, targetReachedEvent, startCoolEvent, startWarmEvent, tempReachedEvent, checkHeaterEvent> eventVariant;
 
 struct processEventVisitor : boost::static_visitor<>
 {
@@ -39,12 +39,18 @@ public:
 	asynStatus checkCompOffAct();
 	asynStatus checkRampFile();
 	asynStatus setupRamp();
+	asynStatus setupPersistOn();
+	asynStatus setupFastRamp(double target);
 	std::map<std::string,const char*> envVarMap;
 	double writeToDispConversion;
 	double unitConversion(double value, const char* startUnit, const char* endUnit);
 	bool writeDisabled;
 	int testVar; //for use in google tests where functionality can not be tested with PV values
 	bool started;
+	bool fastRamp = false; //whether or not device is in "fast" mode, used exclusively to update "STAT" PV correctly
+	bool fastRampZero = false; //whether or not device is in "fast zero" mode, used exclusively to update "STAT" PV correctly
+	bool cooling = 0;//whether heater is cooling down
+	bool warming = 0;//whether heater is warming up
 	asynStatus procDb(std::string pvSuffix);
 	asynStatus getDb(std::string pvSuffix, int &pbuffer);
 	asynStatus getDb(std::string pvSuffix, double &pbuffer);
@@ -56,13 +62,19 @@ public:
 	bool abortQueue;
 	void checkForTarget();
 	void checkIfPaused();
+	void checkHeaterDone();
 	boost::msm::back::state_machine<cryosmsStateMachine> qsm;
 	void resumeRamp() override;
 	void pauseRamp() override;
-	void startRamping(double rate, double target, int rampDir) override;
+	void startRamping(double rate, double target, int rampDir, RampType rampType) override;
 	void abortRamp() override;
 	void reachTarget() override;
 	void continueAbort() override;
+	void abortBasic() override;
+	void startCooling() override;
+	void startWarming() override;
+	void reachTemp() override;
+	void preRampHeaterCheck() override;
 private:
 	std::string devicePrefix;
 
