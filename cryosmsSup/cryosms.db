@@ -194,6 +194,7 @@ record(scalcout, "$(P)OUTPUT:PERSIST:FIELD:TESLA")
 record(ai, "$(P)OUTPUT:PERSIST:RAW")
 {
     field(DESC, "Raw persistent field from PSU, A or T")
+    field(VAL, "27")
     #Persistent mode responses unknown, will need to check against real device before these PVs can be completed
 }
 

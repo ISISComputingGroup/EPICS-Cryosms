@@ -234,7 +234,7 @@ asynStatus CRYOSMSDriver::checkAllowPersist()
 	int falseVal = 0;
 	if (!std::strcmp(envVarMap.at("ALLOW_PERSIST"), "Yes")) {
 		if (envVarMap.at("FAST_FILTER_VALUE") == NULL || envVarMap.at("FILTER_VALUE") == NULL || envVarMap.at("NPP") == NULL || envVarMap.at("FAST_PERSISTENT_SETTLETIME") == NULL ||
-			envVarMap.at("PERSISTENT_SETTLETIME") == NULL || envVarMap.at("FASTRATE") == NULL) {
+			envVarMap.at("PERSISTENT_SETTLETIME") == NULL || envVarMap.at("FAST_RATE") == NULL) {
 
 			errlogSevPrintf(errlogMajor, "ALLOW_PERSIST set to yes but other values required for this mode not provided, check macros are correct");
 			const char *statMsg = "Missing parameters to allow persistent mode to be used";
@@ -401,14 +401,14 @@ asynStatus CRYOSMSDriver::onStart()
 	int falseVal = 0;
 	const char* envVarsNames[] = {
 		"T_TO_A", "WRITE_UNIT", "DISPLAY_UNIT", "MAX_CURR", "MAX_VOLT", "ALLOW_PERSIST", "FAST_FILTER_VALUE", "FILTER_VALUE", "NPP", "FAST_PERSISTANT_SETTLETIME", "PERSISTNENT_SETTLETIME",
-		"FASTRATE", "USE_SWITCH", "SWITCH_TEMP_PV", "SWITCH_HIGH", "SWITCH_LOW", "SWITCH_STABLE_NUMBER", "HEATER_TOLERANCE", "SWITCH_TOLERANCE", "SWITCH_TEMP_TOLERANCE", "HEATER_OUT",
+		"FAST_RATE", "USE_SWITCH", "SWITCH_TEMP_PV", "SWITCH_HIGH", "SWITCH_LOW", "SWITCH_STABLE_NUMBER", "HEATER_TOLERANCE", "SWITCH_TOLERANCE", "SWITCH_TEMP_TOLERANCE", "HEATER_OUT",
 		"USE_MAGNET_TEMP", "MAGNET_TEMP_PV", "MAX_MAGNET_TEMP", "MIN_MAGNET_TEMP", "COMP_OFF_ACT", "NO_OF_COMP", "MIN_NO_OF_COMP_ON", "COMP_1_STAT_PV", "COMP_2_STAT_PV", "RAMP_FILE" };
 	
 	for(int i=0; i<sizeof(envVarsNames)/ sizeof(const char*); ++i)
 	{
 		envVarMap.insert(std::pair<std::string, const char* >(envVarsNames[i], std::getenv(envVarsNames[i])));
 	}
-
+	epicsThreadSleep(10);
 	RETURN_IF_ASYNERROR0(checkTToA);
 
 	RETURN_IF_ASYNERROR0(checkMaxCurr);
