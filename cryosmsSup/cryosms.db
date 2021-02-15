@@ -220,7 +220,7 @@ record(ai, "$(P)OUTPUT:RAW")
 
 record(bi, "$(P)OUTPUT:RAW:UNIT")
 {
-    field(DESC, "The unit for OUTPUT:RAW") # returned as part of a “GO” command
+    field(DESC, "The unit for OUTPUT:RAW") # returned as part of a "GO" command
     field(ZNAM, "AMPS")
     field(ONAM, "TESLA")
 }
