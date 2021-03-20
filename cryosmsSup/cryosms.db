@@ -12,6 +12,13 @@ record(bo, "$(P)ABORT:SP")
     field(ONAM, "ON")
 }
 
+record(ao, "$(P)CONSTANT:_SP")
+{
+    field(DESC, "set T to A on device")
+    field(DTYP, "stream")
+    field(OUT, "@cryosms.proto setConstant $(PORT)")
+ }   
+    
 record(mbbi, "$(P)DIRECTION")
 {
     field(DESC, "The direction of the device")
@@ -52,6 +59,16 @@ record(bi, "$(P)HEATER:STAT")
     field(SIML, "$(P)SIM")
     field(SIOL, "$(P)SIM:HEATER:STAT")
     field(SDIS, "$(P)DISABLE")
+}
+
+record(bo, "$(P)HEATER:_SP")
+{
+    field(DESC, "Toggle for magnet heater")
+    field(DTYP, "stream")
+    field(SCAN, "Passive")
+    field(OUT, "@cryosms.proto setHeaterValue $(PORT)")
+    field(ZNAM, "OFF")
+    field(ONAM, "ON")
 }
 
 record(bo, "$(P)INIT")
@@ -618,4 +635,25 @@ record(mbbi,"$(P)SIM:DIRECTION")
 {
     field(SCAN, "Passive")
     field(DTYP, "Soft Channel")
+}
+
+record(ai,"$(P)SIM:TEMP:SWITCH")
+{
+    field(SCAN, "Passive")
+    field(DTYP, "Soft Channel")
+    field(VAL, "3.67")
+}
+
+record(ai,"$(P)SIM:TEMP:HEATER")
+{
+    field(SCAN, "Passive")
+    field(DTYP, "Soft Channel")
+    field(VAL, "3.67")
+}
+
+record(ai,"$(P)SIM:TEMP:MAGNET")
+{
+    field(SCAN, "Passive")
+    field(DTYP, "Soft Channel")
+    field(VAL, "3.67")
 }
