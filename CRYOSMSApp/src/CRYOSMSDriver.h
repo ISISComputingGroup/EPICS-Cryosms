@@ -29,7 +29,7 @@ public:
 	CRYOSMSDriver(const char *portName, std::string devPrefix, const char *TToA, const char *writeUnit, const char *displayUnit, const char *maxCurr, const char *maxVolt,
 		const char *allowPersist, const char *fastFilterValue, const char *filterValue, const char *npp, const char *fastPersistentSettletime, const char *persistentSettletime,
 		const char *fastRate, const char *useSwitch, const char *switchTempPv, const char *switchHigh, const char *switchLow, const char *switchStableNumber, const char *heaterTolerance,
-		const char *switchTimeout, const char *switchTempTolerance, const char *heaterOut, const char *useMagnetTemp, const char *magnetTempPv, const char *maxMagnetTemp,
+		const char *switchTimeout, const char *heaterOut, const char *useMagnetTemp, const char *magnetTempPv, const char *maxMagnetTemp,
 		const char *minMagnetTemp, const char *compOffAct, const char *noOfComp, const char *minNoOfComp, const char *comp1StatPv, const char *comp2StatPv, const char *rampFile);
 	virtual asynStatus writeInt32(asynUser *pasynUser, epicsInt32 value);
 	asynStatus checkTToA();
@@ -45,9 +45,9 @@ public:
 	asynStatus setupRamp();
 	asynStatus setupPersistOn();
 	asynStatus setupFastRamp(double target);
-	std::map<std::string,const char*> envVarMap;
+	std::map<std::string,std::string> envVarMap;
 	double writeToDispConversion;
-	double unitConversion(double value, const char* startUnit, const char* endUnit);
+	double unitConversion(double value, std::string startUnit, std::string endUnit);
 	bool writeDisabled;
 	int testVar; //for use in google tests where functionality can not be tested with PV values
 	bool started;
@@ -100,7 +100,7 @@ private:
 	std::vector<double> pRate_;
 	std::vector<double> pMaxT_;
 	asynStatus onStart();
-	asynStatus readFile(const char *dir);
+	asynStatus readFile(std::string dir);
 	static void pollerTaskC(void* arg)
 	{
 		CRYOSMSDriver* driver = static_cast<CRYOSMSDriver*>(arg);

@@ -68,7 +68,7 @@ static void eventQueueThread(CRYOSMSDriver* drv);
 CRYOSMSDriver::CRYOSMSDriver(const char *portName, std::string devPrefix, const char *TToA, const char *writeUnit, const char *displayUnit, const char *maxCurr, const char *maxVolt,
 	const char *allowPersist, const char *fastFilterValue, const char *filterValue, const char *npp, const char *fastPersistentSettletime, const char *persistentSettletime,
 	const char *fastRate, const char *useSwitch, const char *switchTempPv, const char *switchHigh, const char *switchLow, const char *switchStableNumber, const char *heaterTolerance,
-	const char *switchTimeout, const char *switchTempTolerance, const char *heaterOut, const char *useMagnetTemp, const char *magnetTempPv, const char *maxMagnetTemp,
+	const char *switchTimeout, const char *heaterOut, const char *useMagnetTemp, const char *magnetTempPv, const char *maxMagnetTemp,
 	const char *minMagnetTemp, const char *compOffAct, const char *noOfComp, const char *minNoOfComp, const char *comp1StatPv, const char *comp2StatPv, const char *rampFile)
   : asynPortDriver(portName,
 	0, /* maxAddr */
@@ -94,16 +94,17 @@ CRYOSMSDriver::CRYOSMSDriver(const char *portName, std::string devPrefix, const 
 	std::vector<epicsFloat64*> pMaxT_;
 
 	const char* envVarsNames[] = {
-		"T_TO_A", "WRITE_UNIT", "DISPLAY_UNIT", "MAX_CURR", "MAX_VOLT", "ALLOW_PERSIST", "FAST_FILTER_VALUE", "FILTER_VALUE", "NPP", "FAST_PERSISTANT_SETTLETIME", "PERSISTNENT_SETTLETIME",
-		"FAST_RATE", "USE_SWITCH", "SWITCH_TEMP_PV", "SWITCH_HIGH", "SWITCH_LOW", "SWITCH_STABLE_NUMBER", "HEATER_TOLERANCE", "SWITCH_TIMEOUT", "SWITCH_TEMP_TOLERANCE", "HEATER_OUT",
-		"USE_MAGNET_TEMP", "MAGNET_TEMP_PV", "MAX_MAGNET_TEMP", "MIN_MAGNET_TEMP", "COMP_OFF_ACT", "NO_OF_COMP", "MIN_NO_OF_COMP_ON", "COMP_1_STAT_PV", "COMP_2_STAT_PV", "RAMP_FILE" };
+		"T_TO_A", "WRITE_UNIT", "DISPLAY_UNIT", "MAX_CURR", "MAX_VOLT", "ALLOW_PERSIST", "FAST_FILTER_VALUE", "FILTER_VALUE", "NPP", "FAST_PERSISTENT_SETTLETIME", "PERSISTENT_SETTLETIME",
+		"FAST_RATE", "USE_SWITCH", "SWITCH_TEMP_PV", "SWITCH_HIGH", "SWITCH_LOW", "SWITCH_STABLE_NUMBER", "HEATER_TOLERANCE", "SWITCH_TIMEOUT", "HEATER_OUT",
+		"USE_MAGNET_TEMP", "MAGNET_TEMP_PV", "MAX_MAGNET_TEMP", "MIN_MAGNET_TEMP", "COMP_OFF_ACT", "NO_OF_COMP", "MIN_NO_OF_COMP_ON", "COMP_1_STAT_PV", "COMP_2_STAT_PV", "RAMP_FILE"};
 
 	const char* envVarVals[] = { TToA, writeUnit, displayUnit, maxCurr, maxVolt, allowPersist, fastFilterValue, filterValue, npp, fastPersistentSettletime, persistentSettletime,
-				fastRate, useSwitch, switchTempPv, switchHigh, switchLow, switchStableNumber, heaterTolerance, switchTimeout, switchTempTolerance, heaterOut,
+				fastRate, useSwitch, switchTempPv, switchHigh, switchLow, switchStableNumber, heaterTolerance, switchTimeout, heaterOut,
 				useMagnetTemp, magnetTempPv, maxMagnetTemp, minMagnetTemp, compOffAct, noOfComp, minNoOfComp, comp1StatPv, comp2StatPv, rampFile };
 	for (int i = 0; i < sizeof(envVarsNames) / sizeof(const char*); ++i)
 	{
-		envVarMap.insert(std::pair<std::string, const char* >(envVarsNames[i], envVarVals));
+		std::pair<std::string, std::string > newPair(envVarsNames[i], envVarVals[i]);
+		envVarMap.insert(newPair);
 	}
 }
 void CRYOSMSDriver::pollerTask()
@@ -148,12 +149,13 @@ asynStatus CRYOSMSDriver::writeInt32(asynUser *pasynUser, epicsInt32 value)
 asynStatus CRYOSMSDriver::checkTToA()
 /*  Checks whether the conversion factor from tesla to amps has been provided, and if so, calculates the conversion
     factor from write units to display units. If no conversion factor is provided, disables all writes and posts
-	relevant status message.
+	relevant status message. Also ensure that device is initially communicating in correct units.
 	Possible Write units: Amps, Tesla     Possible display units: Amps, Tesla, Gauss
 */
 {
 	asynStatus status = asynSuccess;
 	int trueVal = 1;
+	int falseVal = 0;
 
 	if (envVarMap.at("T_TO_A") == "NULL") {
 		errlogSevPrintf(errlogMajor, "T_TO_A not provided, check macros are correct");
@@ -166,6 +168,12 @@ asynStatus CRYOSMSDriver::checkTToA()
 		double teslaToAmps = std::stod(envVarMap.at("T_TO_A"));
 		this->writeToDispConversion = unitConversion(1.0, envVarMap.at("WRITE_UNIT"), envVarMap.at("DISPLAY_UNIT"));
 		RETURN_IF_ASYNERROR2(putDb, "CONSTANT:_SP", &teslaToAmps);
+		if (envVarMap.at("DISPLAY_UNIT").compare("TESLA") == 0) {
+			RETURN_IF_ASYNERROR2(putDb, "OUTPUTMODE:_SP", &trueVal);
+		}
+		else {
+			RETURN_IF_ASYNERROR2(putDb, "OUTPUTMODE:_SP", &falseVal);
+		}
 	}
 	catch (std::exception &e) {
 		errlogSevPrintf(errlogMajor, "Invalid value of T_TO_A provided");
@@ -228,7 +236,7 @@ asynStatus CRYOSMSDriver::checkWriteUnit()
 	int trueVal = 1;
 	int falseVal = 0;
 
-	if (!std::strcmp(envVarMap.at("WRITE_UNIT"), "AMPS")) {
+	if (!envVarMap.at("WRITE_UNIT").compare("AMPS")) {
 		testVar = 1;
 		RETURN_IF_ASYNERROR2(putDb, "OUTPUTMODE:_SP", &falseVal);
 	}
@@ -248,7 +256,7 @@ asynStatus CRYOSMSDriver::checkAllowPersist()
 	asynStatus status = asynSuccess;
 	int trueVal = 1;
 	int falseVal = 0;
-	if (!std::strcmp(envVarMap.at("ALLOW_PERSIST"), "Yes")) {
+	if (!envVarMap.at("ALLOW_PERSIST").compare("Yes")) {
 		if (envVarMap.at("FAST_FILTER_VALUE") == "NULL" || envVarMap.at("FILTER_VALUE") == "NULL" || envVarMap.at("NPP") == "NULL" || envVarMap.at("FAST_PERSISTENT_SETTLETIME") == "NULL" ||
 			envVarMap.at("PERSISTENT_SETTLETIME") == "NULL" || envVarMap.at("FAST_RATE") == "NULL") {
 
@@ -284,8 +292,8 @@ asynStatus CRYOSMSDriver::checkUseSwitch()
 	asynStatus status = asynSuccess;
 	int trueVal = 1;
 
-	if (!std::strcmp(envVarMap.at("USE_SWITCH"), "Yes") && (envVarMap.at("SWITCH_TEMP_PV") == "NULL" || envVarMap.at("SWITCH_HIGH") == "NULL" || envVarMap.at("SWITCH_LOW") == "NULL" ||
-		envVarMap.at("SWITCH_STABLE_NUMBER") == "NULL" || envVarMap.at("HEATER_TOLERANCE") == "NULL" || envVarMap.at("SWITCH_TIMEOUT") == "NULL" || envVarMap.at("SWITCH_TEMP_TOLERANCE") == "NULL" ||
+	if (!envVarMap.at("USE_SWITCH").compare("Yes") && (envVarMap.at("SWITCH_TEMP_PV") == "NULL" || envVarMap.at("SWITCH_HIGH") == "NULL" || envVarMap.at("SWITCH_LOW") == "NULL" ||
+		envVarMap.at("SWITCH_STABLE_NUMBER") == "NULL" || envVarMap.at("HEATER_TOLERANCE") == "NULL" || envVarMap.at("SWITCH_TIMEOUT") == "NULL" ||
 		envVarMap.at("HEATER_OUT") == "NULL")) 
 	{
 		errlogSevPrintf(errlogMajor, "USE_SWITCH set to yes but other values required for this mode not provided, check macros are correct");
@@ -308,7 +316,8 @@ asynStatus CRYOSMSDriver::checkHeaterOut()
 	asynStatus status = asynSuccess;
 
 	if (envVarMap.at("HEATER_OUT") != "NULL") {
-		epicsFloat64 heatOut = std::stod(envVarMap.at("HEATER_OUT"));
+		epicsFloat64 heatOut;
+		RETURN_IF_ASYNERROR2(getDb, envVarMap.at("HEATER_OUT"), heatOut);
 		RETURN_IF_ASYNERROR2(putDb, "HEATER:VOLT:_SP", &heatOut);
 	}
 	return status;
@@ -321,7 +330,7 @@ asynStatus CRYOSMSDriver::checkUseMagnetTemp()
 	asynStatus status = asynSuccess;
 	int trueVal = 1;
 
-	if (!std::strcmp(envVarMap.at("USE_MAGNET_TEMP"),  "Yes") && (envVarMap.at("MAGNET_TEMP_PV") == "NULL" || envVarMap.at("MAX_MAGNET_TEMP") == "NULL" || envVarMap.at("MIN_MAGNET_TEMP") == "NULL")) {
+	if (!envVarMap.at("USE_MAGNET_TEMP").compare("Yes") && (envVarMap.at("MAGNET_TEMP_PV") == "NULL" || envVarMap.at("MAX_MAGNET_TEMP") == "NULL" || envVarMap.at("MIN_MAGNET_TEMP") == "NULL")) {
 
 		errlogSevPrintf(errlogMajor, "USE_MAGNET_TEMP set to yes but other values required for this mode not provided, check macros are correct");
 		const char *statMsg = "Missing parameters to allow the magnet temperature to be used";
@@ -341,7 +350,7 @@ asynStatus CRYOSMSDriver::checkCompOffAct()
 {
 	asynStatus status = asynSuccess;
 	int trueVal = 1;
-	if (!std::strcmp(envVarMap.at("COMP_OFF_ACT"), "Yes") && (envVarMap.at("NO_OF_COMP") == "NULL" || envVarMap.at("MIN_NO_OF_COMP_ON") == "NULL" || envVarMap.at("COMP_1_STAT_PV") == "NULL" ||
+	if (!envVarMap.at("COMP_OFF_ACT").compare("Yes") && (envVarMap.at("NO_OF_COMP") == "NULL" || envVarMap.at("MIN_NO_OF_COMP_ON") == "NULL" || envVarMap.at("COMP_1_STAT_PV") == "NULL" ||
 		envVarMap.at("COMP_2_STAT_PV") == "NULL")) {
 
 		errlogSevPrintf(errlogMajor, "COMP_OFF_ACT set to yes but other values required for this mode not provided, check macros are correct");
@@ -415,6 +424,8 @@ asynStatus CRYOSMSDriver::onStart()
 	started = true;
 	int trueVal = 1;
 	int falseVal = 0;
+
+	epicsThreadSleep(10);
 
 	RETURN_IF_ASYNERROR0(checkTToA);
 
@@ -539,13 +550,14 @@ asynStatus CRYOSMSDriver::putDb(std::string pvSuffix, const void *value) {
 	return status;
 }
 
-asynStatus CRYOSMSDriver::readFile(const char *dir)
+asynStatus CRYOSMSDriver::readFile(std::string str_dir)
 {
 	//Reads ramp rates from a file and places them in an array
 	float rate, maxT;
 	int ind = 0;
 	FILE *fp;
 	int rowNum = 0;
+	const char *dir = str_dir.c_str();
 
 	if (NULL != (fp = fopen(dir, "rt"))) {
 
@@ -581,30 +593,30 @@ asynStatus CRYOSMSDriver::readFile(const char *dir)
 
 }
 
-double CRYOSMSDriver::unitConversion(double value, const char* startUnit, const char* endUnit)
+double CRYOSMSDriver::unitConversion(double value, std::string startUnit, std::string endUnit)
 /*   Function to convert any value between tesla, amps and gauss.
 */
 {
 	double teslaPerAmp = std::stod(envVarMap.at("T_TO_A"));
-	if (std::strcmp(startUnit, endUnit) == 0 && startUnit != "NULL") {
+	if (startUnit.compare(endUnit) == 0 && startUnit != "NULL") {
 		return value;
 	}
-	else if (std::strcmp(startUnit, "TESLA") == 0 && std::strcmp(endUnit, "AMPS") == 0) {
+	else if (startUnit.compare("TESLA") == 0 && endUnit.compare("AMPS") == 0) {
 		return value / teslaPerAmp;
 	}
-	else if (std::strcmp(startUnit, "AMPS") == 0 && std::strcmp(endUnit, "TESLA") == 0) {
+	else if (startUnit.compare("AMPS") == 0 && endUnit.compare("TESLA") == 0) {
 		return value * teslaPerAmp;
 	}
-	else if (std::strcmp(startUnit, "TESLA") == 0 && std::strcmp(endUnit, "GAUSS") == 0) {
+	else if (startUnit.compare("TESLA") == 0 && endUnit.compare("GAUSS") == 0) {
 		return value * 10000.0; // 1 Tesla = 10^4 Gauss
 	}
-	else if (std::strcmp(startUnit, "AMPS") == 0 && std::strcmp(endUnit, "GAUSS") == 0) {
+	else if (startUnit.compare("AMPS") == 0 && endUnit.compare("GAUSS") == 0) {
 		return value * 10000.0 * teslaPerAmp;
 	}
-	else if (std::strcmp(startUnit, "GAUSS") == 0 && std::strcmp(endUnit, "TESLA") == 0) {
+	else if (startUnit.compare("GAUSS") == 0 && endUnit.compare("TESLA") == 0) {
 		return value / 10000.0;
 	}
-	else if (std::strcmp(startUnit, "GAUSS") == 0 && std::strcmp(endUnit, "TESLA") == 0) {
+	else if (startUnit.compare("GAUSS") == 0 && endUnit.compare("TESLA") == 0) {
 		return value / (10000.0 * teslaPerAmp);
 	}
     errlogSevPrintf(errlogMajor, "Error: Units not converted for %f, %s to %s", value, startUnit, endUnit);
@@ -776,7 +788,7 @@ asynStatus CRYOSMSDriver::setupRamp()
 			//step downwards through the table,
 			for (int i = static_cast<int>(pMaxT_.size()) - 1; i >= 0; i--)
 			{
-				//as we are going down in intensity, the bopundary for each ramp rate is the boundary listed in the previous row in the table, except for the first row where it is 0,
+				//as we are going down in intensity, the boundary for each ramp rate is the boundary listed in the previous row in the table, except for the first row where it is 0,
 				double boundary = (i == 0) ? 0 : pMaxT_[i - 1];
 				
 				//once we pass the startVal, add "start ramp" and "end ramp" events to queue with the current sign, rate for current row of table and boundary found in previous step
@@ -1086,7 +1098,7 @@ extern "C"
 	int CRYOSMSConfigure(const char *portName, std::string devPrefix, const char *TToA, const char *writeUnit, const char *displayUnit, const char *maxCurr, const char *maxVolt,
 		const char *allowPersist, const char *fastFilterValue, const char *filterValue, const char *npp, const char *fastPersistentSettletime, const char *persistentSettletime,
 		const char *fastRate, const char *useSwitch, const char *switchTempPv, const char *switchHigh, const char *switchLow, const char *switchStableNumber, const char *heaterTolerance,
-		const char *switchTimeout, const char *switchTempTolerance, const char *heaterOut, const char *useMagnetTemp, const char *magnetTempPv, const char *maxMagnetTemp,
+		const char *switchTimeout, const char *heaterOut, const char *useMagnetTemp, const char *magnetTempPv, const char *maxMagnetTemp,
 		const char *minMagnetTemp, const char *compOffAct, const char *noOfComp, const char *minNoOfComp, const char *comp1StatPv, const char *comp2StatPv, const char *rampFile)
 
 	{
@@ -1095,7 +1107,7 @@ extern "C"
 			new CRYOSMSDriver(portName, devPrefix, TToA, writeUnit, displayUnit, maxCurr, maxVolt,
 				allowPersist, fastFilterValue, filterValue, npp, fastPersistentSettletime, persistentSettletime,
 				fastRate, useSwitch, switchTempPv, switchHigh, switchLow, switchStableNumber, heaterTolerance,
-				switchTimeout, switchTempTolerance, heaterOut, useMagnetTemp, magnetTempPv, maxMagnetTemp,
+				switchTimeout, heaterOut, useMagnetTemp, magnetTempPv, maxMagnetTemp,
 				minMagnetTemp, compOffAct, noOfComp, minNoOfComp, comp1StatPv, comp2StatPv, rampFile);
 			return asynSuccess;
 		}
@@ -1128,18 +1140,17 @@ extern "C"
 	static const iocshArg initArg18 = { "switchStableNumber", iocshArgString };		///< PV Prefix for device
 	static const iocshArg initArg19 = { "heaterTolerance", iocshArgString };		///< PV Prefix for device
 	static const iocshArg initArg20 = { "switchTolerance", iocshArgString };		///< PV Prefix for device
-	static const iocshArg initArg21 = { "switchTempTolerance", iocshArgString };		///< PV Prefix for device
-	static const iocshArg initArg22 = { "heaterOut", iocshArgString };		///< PV Prefix for device
-	static const iocshArg initArg23 = { "useMagnetTemp", iocshArgString };		///< PV Prefix for device
-	static const iocshArg initArg24 = { "magnetTempPv", iocshArgString };		///< PV Prefix for device
-	static const iocshArg initArg25 = { "maxMagnetTemp", iocshArgString };		///< PV Prefix for device
-	static const iocshArg initArg26 = { "minMagnetTemp", iocshArgString };		///< PV Prefix for device
-	static const iocshArg initArg27 = { "compOffAct", iocshArgString };		///< PV Prefix for device
-	static const iocshArg initArg28 = { "noOfComp", iocshArgString };		///< PV Prefix for device
-	static const iocshArg initArg29 = { "minNoOfComp", iocshArgString };		///< PV Prefix for device
-	static const iocshArg initArg30 = { "comp1StatPv", iocshArgString };		///< PV Prefix for device
-	static const iocshArg initArg31 = { "comp2StatPv", iocshArgString };		///< PV Prefix for device
-	static const iocshArg initArg32 = { "rampFile", iocshArgString };		///< PV Prefix for device
+	static const iocshArg initArg21 = { "heaterOut", iocshArgString };		///< PV Prefix for device
+	static const iocshArg initArg22 = { "useMagnetTemp", iocshArgString };		///< PV Prefix for device
+	static const iocshArg initArg23 = { "magnetTempPv", iocshArgString };		///< PV Prefix for device
+	static const iocshArg initArg24 = { "maxMagnetTemp", iocshArgString };		///< PV Prefix for device
+	static const iocshArg initArg25 = { "minMagnetTemp", iocshArgString };		///< PV Prefix for device
+	static const iocshArg initArg26 = { "compOffAct", iocshArgString };		///< PV Prefix for device
+	static const iocshArg initArg27 = { "noOfComp", iocshArgString };		///< PV Prefix for device
+	static const iocshArg initArg28 = { "minNoOfComp", iocshArgString };		///< PV Prefix for device
+	static const iocshArg initArg29 = { "comp1StatPv", iocshArgString };		///< PV Prefix for device
+	static const iocshArg initArg30 = { "comp2StatPv", iocshArgString };		///< PV Prefix for device
+	static const iocshArg initArg31 = { "rampFile", iocshArgString };		///< PV Prefix for device
 
 	static const iocshArg * const initArgs[] = { &initArg0, &initArg1, &initArg2, &initArg3, &initArg4, &initArg5, &initArg6, &initArg7, &initArg8, &initArg9, &initArg10, &initArg11, 
 		&initArg12, &initArg13, &initArg14, &initArg15, &initArg16, &initArg17, &initArg18, &initArg19, &initArg20, &initArg21, &initArg22, &initArg23, &initArg24, &initArg25, &initArg26,
@@ -1151,7 +1162,7 @@ extern "C"
 	{
 		CRYOSMSConfigure(args[0].sval, args[1].sval, args[2].sval, args[3].sval, args[4].sval, args[5].sval, args[6].sval, args[7].sval, args[8].sval, args[9].sval, args[10].sval, args[11].sval,
 			args[12].sval, args[13].sval, args[14].sval, args[15].sval, args[16].sval, args[17].sval, args[18].sval, args[19].sval, args[20].sval, args[21].sval, args[22].sval, args[23].sval,
-			args[24].sval, args[25].sval, args[26].sval, args[27].sval, args[28].sval, args[29].sval, args[30].sval, args[31].sval, args[32].sval);
+			args[24].sval, args[25].sval, args[26].sval, args[27].sval, args[28].sval, args[29].sval, args[30].sval, args[31].sval);
 	}
 
 	/// Register new commands with EPICS IOC shell

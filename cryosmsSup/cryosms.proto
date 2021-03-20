@@ -96,7 +96,7 @@ setHeaterStatus {
 }
 
 setHeaterValue {
-	out "S H %f";
+	out "H %f";
 	wait 50;
 	in "%*8c HEATER OUTPUT: %*f VOLTS";
 	wait 100;
