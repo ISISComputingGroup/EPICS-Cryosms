@@ -7,6 +7,7 @@
 #include <iostream>
 #include <cstdlib>
 #include <cstring>
+#include <cmath>
 #include <map>
 #include <string>
 
@@ -89,6 +90,7 @@ CRYOSMSDriver::CRYOSMSDriver(const char *portName, std::string devPrefix, const 
 	createParam(P_pauseRampString, asynParamInt32, &P_pauseRamp);
 	createParam(P_abortRampString, asynParamInt32, &P_abortRamp);
 	createParam(P_outputModeSetString, asynParamInt32, &P_outputModeSet);
+	createParam(P_calcHeaterString, asynParamInt32, &P_calcHeater);
 
 	std::vector<epicsFloat64*> pRate_; //variables which store the data read from the ramp rate file
 	std::vector<epicsFloat64*> pMaxT_;
@@ -126,6 +128,46 @@ asynStatus CRYOSMSDriver::writeInt32(asynUser *pasynUser, epicsInt32 value)
 		setupRamp();
 		return putDb("START:SP", &falseVal);
 	}
+	else if (function == P_calcHeater) {
+		// Deconstructing the "HEATER" command is a little too complicated for streamDevice so we do it here. There are 2 types of readback:
+		// ........ HEATER STATUS: {OFF|ON}
+		// ........ HEATER STATUS: OFF AT {value} {units}
+		// Due to string size constraints we get stream device to cut off everything before the OFF/ON
+		asynStatus status = asynSuccess;
+		std::string heater_resp;
+		// Extract from db
+		RETURN_IF_ASYNERROR2(getDb, "HEATER:STAT:RAW", heater_resp);
+		// Handle simple on/off case
+		if (heater_resp.find("ON") != std::string::npos) {
+			return putDb("HEATER:STAT", &trueVal);
+		}
+		else if (heater_resp.find("OFF") != std::string::npos && heater_resp.find("AT") == std::string::npos)
+		{
+			return putDb("HEATER:STAT", &falseVal);
+		}
+		// If we find "AT"  then we know to expect numbers
+		else if (heater_resp.find("OFF") != std::string::npos && heater_resp.find("AT") != std::string::npos) {
+			RETURN_IF_ASYNERROR2(putDb, "HEATER:STAT", &falseVal);
+			// Check units. Can only be TESLA or AMPS so we just use if / else instead of if / else if / else
+			if (heater_resp.find("TESLA") != std::string::npos) {
+				RETURN_IF_ASYNERROR2(putDb, "OUTPUT:PERSIST:RAW:UNIT", &trueVal);
+			}
+			else {
+				RETURN_IF_ASYNERROR2(putDb, "OUTPUT:PERSIST:RAW:UNIT", &falseVal);
+			}
+			// Find first  and last digits of value
+			int firstNum = heater_resp.find_first_of("1234567890");
+			int lastNum = heater_resp.find_last_of("1234567890");
+			// And snip the middle to another string
+			std::string persistStr(heater_resp, firstNum, lastNum);
+			double persistVal = std::stod(persistStr);
+			// Then put it in the persist record
+			return putDb("OUTPUT:PERSIST:RAW", &persistVal);
+		}
+		else {
+			return status;
+		}
+	}
 	else if (function == P_pauseRamp) {
 		// 0 = paused off (running)
 		// 1 = paused on (paused)
@@ -139,6 +181,8 @@ asynStatus CRYOSMSDriver::writeInt32(asynUser *pasynUser, epicsInt32 value)
 	}
 	else if (function == P_abortRamp && value != 0) {
 		qsm.process_event(abortRampEvent(this));
+		warming = 0;
+		cooling = 0;
 		return asynSuccess;
 	}
 	else {
@@ -161,7 +205,7 @@ asynStatus CRYOSMSDriver::checkTToA()
 		errlogSevPrintf(errlogMajor, "T_TO_A not provided, check macros are correct");
 		const char *statMsg = "No calibration from Tesla to Amps supplied";
 		this->writeDisabled = TRUE;
-		RETURN_IF_ASYNERROR2(putDb, "STAT", &statMsg);
+		RETURN_IF_ASYNERROR2(putDb, "STAT", statMsg);
 		RETURN_IF_ASYNERROR2(putDb, "DISABLE", &trueVal);
 	}
 	else try {
@@ -179,7 +223,7 @@ asynStatus CRYOSMSDriver::checkTToA()
 		errlogSevPrintf(errlogMajor, "Invalid value of T_TO_A provided");
 		const char *statMsg = "Invalid calibration from Tesla to Amps supplied";
 		this->writeDisabled = TRUE;
-		RETURN_IF_ASYNERROR2(putDb, "STAT", &statMsg);
+		RETURN_IF_ASYNERROR2(putDb, "STAT", statMsg);
 		RETURN_IF_ASYNERROR2(putDb, "DISABLE", &trueVal);
 	}
 	return status;
@@ -197,7 +241,7 @@ asynStatus CRYOSMSDriver::checkMaxCurr()
 		errlogSevPrintf(errlogMajor, "MAX_CURR not provided, check macros are correct");
 		const char *statMsg = "No Max Current given, writes not allowed";
 		this->writeDisabled = TRUE;
-		RETURN_IF_ASYNERROR2(putDb, "STAT", &statMsg);
+		RETURN_IF_ASYNERROR2(putDb, "STAT", statMsg);
 		RETURN_IF_ASYNERROR2(putDb, "DISABLE", &trueVal);
 	}
 	else {
@@ -263,7 +307,7 @@ asynStatus CRYOSMSDriver::checkAllowPersist()
 			errlogSevPrintf(errlogMajor, "ALLOW_PERSIST set to yes but other values required for this mode not provided, check macros are correct");
 			const char *statMsg = "Missing parameters to allow persistent mode to be used";
 			this->writeDisabled = TRUE;
-			RETURN_IF_ASYNERROR2(putDb, "STAT", &statMsg);
+			RETURN_IF_ASYNERROR2(putDb, "STAT", statMsg);
 			RETURN_IF_ASYNERROR2(putDb, "DISABLE", &trueVal);
 		}
 		else {
@@ -299,7 +343,7 @@ asynStatus CRYOSMSDriver::checkUseSwitch()
 		errlogSevPrintf(errlogMajor, "USE_SWITCH set to yes but other values required for this mode not provided, check macros are correct");
 		const char *statMsg = "Missing parameters to allow a switch to be used";
 		this->writeDisabled = TRUE;
-		RETURN_IF_ASYNERROR2(putDb, "STAT", &statMsg);
+		RETURN_IF_ASYNERROR2(putDb, "STAT", statMsg);
 		RETURN_IF_ASYNERROR2(putDb, "DISABLE", &trueVal);
 	}
 	else
@@ -335,7 +379,7 @@ asynStatus CRYOSMSDriver::checkUseMagnetTemp()
 		errlogSevPrintf(errlogMajor, "USE_MAGNET_TEMP set to yes but other values required for this mode not provided, check macros are correct");
 		const char *statMsg = "Missing parameters to allow the magnet temperature to be used";
 		this->writeDisabled = TRUE;
-		RETURN_IF_ASYNERROR2(putDb, "STAT", &statMsg);
+		RETURN_IF_ASYNERROR2(putDb, "STAT", statMsg);
 		RETURN_IF_ASYNERROR2(putDb, "DISABLE", &trueVal);
 	}
 	else {
@@ -356,7 +400,7 @@ asynStatus CRYOSMSDriver::checkCompOffAct()
 		errlogSevPrintf(errlogMajor, "COMP_OFF_ACT set to yes but other values required for this mode not provided, check macros are correct");
 		const char *statMsg = "Missing parameters to allow actions on the state of the compressors";
 		this->writeDisabled = TRUE;
-		RETURN_IF_ASYNERROR2(putDb, "STAT", &statMsg);
+		RETURN_IF_ASYNERROR2(putDb, "STAT", statMsg);
 		RETURN_IF_ASYNERROR2(putDb, "DISABLE", &trueVal);
 	}
 	else {
@@ -378,7 +422,7 @@ asynStatus CRYOSMSDriver::checkRampFile()
 		const char *statMsg = "Missing ramp file path";
 		this->writeDisabled = TRUE;
 		testVar = 0;
-		RETURN_IF_ASYNERROR2(putDb, "STAT", &statMsg);
+		RETURN_IF_ASYNERROR2(putDb, "STAT", statMsg);
 		RETURN_IF_ASYNERROR2(putDb, "DISABLE", &trueVal);
 	}
 	else {
@@ -424,8 +468,6 @@ asynStatus CRYOSMSDriver::onStart()
 	started = true;
 	int trueVal = 1;
 	int falseVal = 0;
-
-	epicsThreadSleep(10);
 
 	RETURN_IF_ASYNERROR0(checkTToA);
 
@@ -528,7 +570,8 @@ asynStatus CRYOSMSDriver::getDb(std::string pvSuffix, std::string &pbuffer) {
 		errlogSevPrintf(errlogFatal, "Attempting to read field of incorrect data type: %s is not type string", fullPV.c_str());
 		return asynError;
 	}
-	std::string* val = (std::string*)addr.pfield;
+	void * pf = addr.pfield;
+	const char *val[64] = { (const char*)pf };
 	pbuffer = *val;
 	return asynSuccess;
 }
@@ -682,7 +725,7 @@ void CRYOSMSDriver::checkHeaterDone()
 	{
 		cooling = 0;
 	}
-	if (warming && switchStat == 1)
+	if (warming && switchStat == 3)
 	{
 		warming = 0;
 	}
@@ -705,7 +748,11 @@ void CRYOSMSDriver::resumeRamp()
  */
 {
 	const char *statMsg;
-	if (fastRamp)
+	if (atTarget)
+	{
+		statMsg = "Ready";
+	}
+	else if (fastRamp)
 	{
 		statMsg = "Ramping fast";
 	}
@@ -741,19 +788,25 @@ asynStatus CRYOSMSDriver::setupRamp()
 	if (magMode == 1)
 	{
 		RETURN_IF_ASYNERROR0(setupPersistOn);
+		RETURN_IF_ASYNERROR2(getDb, "OUTPUT:PERSIST:RAW", startVal);  // Also consider that we will be starting where the fast ramp stops
 	}
-
-	//Next, set the state machine up so that heater status is checked before ramping starts but AFTER any persistent mode events have been processed
-
-	eventQueue.push_back(checkHeaterEvent(this));
 
 	//The ramp file stores boundaries in Tesla, and the ramp rates to use up to those boundaries in Amps/second.
 	//To start, we therefore first convert the current device output (startVal) and target output (targetVal) into tesla.
 
 	targetVal = unitConversion(targetVal, envVarMap.at("DISPLAY_UNIT"), "TESLA");
-	
+
 	startVal = unitConversion(startVal, envVarMap.at("WRITE_UNIT"), "TESLA");
-	
+
+	//Also make sure that C++ doesn't try to add ramps from 2.0000000001 to 2, by rounding after unit conversion
+
+	targetVal = (targetVal >= 0 ? floor(1000.0*targetVal + 0.5) : ceil(1000.0*targetVal - 0.5)) / 1000.0;
+	startVal = (startVal >= 0 ? floor(1000.0*startVal + 0.5) : ceil(1000.0*startVal - 0.5)) / 1000.0;
+
+	//Next, set the state machine up so that heater status is checked before ramping starts but AFTER any persistent mode events have been processed
+
+	eventQueue.push_back(checkHeaterEvent(this));
+
 	//Next, find out if the device starts in +ve or -ve mode
 	int sign = (startVal >= 0) ? 1 : -1;
 	//And set ramp type to standard (for STAT messages)
@@ -844,6 +897,14 @@ asynStatus CRYOSMSDriver::setupRamp()
 			eventQueue.push_back(targetReachedEvent( this ));
 		}
 	}
+
+	if (magMode == 1)
+	{
+		//all persistent mode ramps end with cooling back down
+
+		eventQueue.push_back(startCoolEvent(this));
+		eventQueue.push_back(tempReachedEvent(this));
+	}
 	return asynSuccess;
 }
 
@@ -856,9 +917,21 @@ asynStatus CRYOSMSDriver::setupPersistOn()
 	int switchStat;
 	double persistCurr;
 
-	//Switch stat = 0 if device is cold, 1 if device is warm
+	//Switch stat = 0 if device is cold, 3 if device is warm, 1 or 2 if changing
 	RETURN_IF_ASYNERROR2(getDb, "SWITCH:STAT", switchStat);
 	RETURN_IF_ASYNERROR2(getDb, "OUTPUT:PERSIST:RAW", persistCurr);
+
+	cooling = (switchStat == 1 ? 1 : 0);
+	warming = (switchStat == 2 ? 1 : 0);
+
+	while (switchStat == 1 || switchStat == 2)
+	{
+		epicsThreadSleep(1); //1s between reads, pointless to poll quicker here
+		RETURN_IF_ASYNERROR2(getDb, "SWITCH:STAT", switchStat);
+		if (!warming && !cooling) {
+			return status; //allows aborting to break this loop (aborting sets both to 0)
+		}
+	}
 
 	if (switchStat == 0)
 	{
@@ -866,6 +939,8 @@ asynStatus CRYOSMSDriver::setupPersistOn()
 		eventQueue.push_back(tempReachedEvent(this));
 	}
 	
+	persistCurr = unitConversion(persistCurr, envVarMap.at("WRITE_UNIT"), "TESLA"); //ramp targets are all supplied in tesla
+
 	RETURN_IF_ASYNERROR1(setupFastRamp, persistCurr);
 
 	return asynSuccess;
@@ -878,7 +953,7 @@ asynStatus CRYOSMSDriver::setupFastRamp(double targetVal)
 	asynStatus status;
 
 	double startVal;
-	double fastRate = std::stod(envVarMap.at("FASTRATE"));
+	double fastRate = std::stod(envVarMap.at("FAST_RATE"));
 
 	RETURN_IF_ASYNERROR2(getDb, "OUTPUT:RAW", startVal);
 
@@ -930,9 +1005,10 @@ void CRYOSMSDriver::startCooling()
 {//Tell device to start cooling, called from state machine
 	int falseVal = 0;
 	const char* statMsg = "Cooling";
+	cooling = 1;
 
 	putDb("HEATER:STAT:_SP", &falseVal);
-	putDb("STAT", &statMsg);
+	putDb("STAT", statMsg);
 
 }
 
@@ -943,6 +1019,7 @@ void CRYOSMSDriver::startWarming()
 	double persistCurr;
 	double outputCurr;
 	double heaterTolerence = std::stod(envVarMap.at("HEATER_TOLERANCE"));
+	warming = 1;
 
 	getDb("OUTPUT:PERSIST:RAW", persistCurr);
 	getDb("OUTPUT:RAW", outputCurr);
@@ -952,18 +1029,20 @@ void CRYOSMSDriver::startWarming()
 		epicsThreadSleep(0.1);
 		getDb("OUTPUT:PERSIST:RAW", persistCurr);
 		getDb("OUTPUT:RAW", outputCurr);
+		if (!warming) {
+			return;
+		}
 	}
 
 	putDb("HEATER:STAT:_SP", &trueVal);
-	putDb("STAT", &statMsg);
-
+	putDb("STAT", statMsg);
 }
 
 void CRYOSMSDriver::reachTemp()
 {//Called from state machine when correct temperature reached
 	const char* statMsg = "Ready";
 
-	putDb("STAT", &statMsg);
+	putDb("STAT", statMsg);
 }
 
 void CRYOSMSDriver::preRampHeaterCheck()
@@ -976,7 +1055,8 @@ void CRYOSMSDriver::preRampHeaterCheck()
 	//If heater is off, warm up
 	if (heaterStat == 0)
 	{
-		eventQueue.push_back(startWarmEvent(this));
+		eventQueue.push_front(tempReachedEvent(this));
+		eventQueue.push_front(startWarmEvent(this));
 	}
 }
 
@@ -1034,14 +1114,14 @@ void CRYOSMSDriver::startRamping(double rate, double target, int sign, RampType 
 			{
 				errlogSevPrintf(errlogMajor, "Ramp failing to initialise after 5 seconds, aborting queue");
 				statMsg = "Ramp Failing to initialise";
-				putDb("STAT", &statMsg);
+				putDb("STAT", statMsg);
 				eventQueue.push_front(abortRampEvent( this ));
 				atTarget = true;
 			}
 			return;
 		}
 	}
-	putDb("STAT", &statMsg);
+	putDb("STAT", statMsg);
 	atTarget = false;
 }
 
@@ -1072,8 +1152,6 @@ void CRYOSMSDriver::abortBasic()
 /* Abort event for when device is not ramping, so only empties the queue and ensures any variables not handled by reachTarget() are reset correctly
 */
 {
-	warming = 0;
-	cooling = 0;
 	std::deque<eventVariant> emptyQueue;
 	std::swap(eventQueue, emptyQueue);
 	eventQueue.push_back(targetReachedEvent(this));
@@ -1084,7 +1162,7 @@ void CRYOSMSDriver::reachTarget()
 	fastRamp = false;
 	fastRampZero = false;
 	const char *statMsg = "Ready";
-	putDb("STAT", &statMsg);
+	putDb("STAT", statMsg);
 }
 
 void CRYOSMSDriver::continueAbort()

@@ -91,9 +91,10 @@ private:
 	int P_startRamp;
 	int P_pauseRamp;
 	int P_abortRamp;
-	int P_outputModeSet; //int as above
+	int P_outputModeSet;
+	int P_calcHeater; //int as above
 
-#define LAST_SMS_PARAM 	P_outputModeSet
+#define LAST_SMS_PARAM 	P_calcHeater
 #define NUM_SMS_PARAMS	(&LAST_SMS_PARAM - &FIRST_SMS_PARAM + 1)
 
 
@@ -117,5 +118,6 @@ private:
 #define P_pauseRampString "RAMP_PAUSE"
 #define P_abortRampString "RAMP_ABORT"
 #define P_outputModeSetString "OUTPUTMODE_SET"
+#define P_calcHeaterString "CALC_HEATER"
 
 #endif /* CRYOSMSDRIVER_H */

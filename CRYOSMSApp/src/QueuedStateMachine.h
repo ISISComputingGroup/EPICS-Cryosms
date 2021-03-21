@@ -195,7 +195,7 @@ struct cryosmsStateMachine : public msm::front::state_machine_def<cryosmsStateMa
 	template <class QSM, class Event>
 	void no_transition(Event const& e, QSM&, int state)
 	{
-		std::string stateList[4] = { "ready", "ramping", "paused", "aborting" };
+		std::string stateList[6] = { "ready", "ramping", "paused", "aborting", "cooling", "warming" };
 		errlogSevPrintf(errlogMajor, "no transition from state %s on event %s", stateList[state].c_str(), typeid(e).name());
 	}
 };
