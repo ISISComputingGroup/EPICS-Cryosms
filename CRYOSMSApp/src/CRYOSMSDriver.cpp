@@ -1010,6 +1010,13 @@ void CRYOSMSDriver::startCooling()
 	putDb("HEATER:STAT:_SP", &falseVal);
 	putDb("STAT", statMsg);
 
+	//If  RAMP:LEADS set to "Ramp", ramp fast to zero when done
+	int rampLeads;
+	getDb("RAMP:LEADS", rampLeads);
+	if (rampLeads == 1) {
+		setupFastRamp(0.0);
+	}
+
 }
 
 void CRYOSMSDriver::startWarming()

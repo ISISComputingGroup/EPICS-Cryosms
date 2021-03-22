@@ -1,4 +1,4 @@
-ReplyTimeout = 200;
+ReplyTimeout = 1000;
 OutTerminator = CR LF;
 InTerminator = 0x13;
 
