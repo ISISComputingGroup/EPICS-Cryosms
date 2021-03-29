@@ -55,13 +55,18 @@ public:
 	bool fastRampZero = false; //whether or not device is in "fast zero" mode, used exclusively to update "STAT" PV correctly
 	bool cooling = 0;//whether heater is cooling down
 	bool warming = 0;//whether heater is warming up
+	double newCurrVel = 0;//Old rate of change of output current
+	double oldCurrVel = 0;//Old rate of change of output current
+	double oldCurr = 0;//Old valueof output current
+	std::string correctWriteUnit;
 	asynStatus procDb(std::string pvSuffix);
-	asynStatus getDb(std::string pvSuffix, int &pbuffer);
-	asynStatus getDb(std::string pvSuffix, double &pbuffer);
-	asynStatus getDb(std::string pvSuffix, std::string &pbuffer);
+	asynStatus getDb(std::string pvSuffix, int &pbuffer, bool isExternal = false);
+	asynStatus getDb(std::string pvSuffix, double &pbuffer, bool isExternal = false);
+	asynStatus getDb(std::string pvSuffix, std::string &pbuffer, bool isExternal = false);
 	asynStatus putDb(std::string pvSuffix, const void *value);
 	std::deque<eventVariant> eventQueue;
 	epicsThreadId queueThreadId;
+	epicsThreadId checkThreadId;
 	bool atTarget;
 	bool abortQueue;
 	void checkForTarget();

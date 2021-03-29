@@ -1,4 +1,4 @@
-ReplyTimeout = 1000;
+ReplyTimeout = 2000;
 OutTerminator = CR LF;
 InTerminator = 0x13;
 
@@ -22,7 +22,7 @@ getOutputMode {
     InTerminator = CR LF 0x13;
     out "T";
     wait 50;
-    in "%*8c UNITS: %{AMPS|TESLA}";
+    in "%*8C UNITS: %{AMPS|TESLA}";
     wait 100;
 }
 
@@ -38,7 +38,7 @@ getOutput {
     InTerminator = CR LF 0x13;
 	out "GET O";
 	wait 50;
-	in "%*8c OUTPUT: %f %(\$1OUTPUT:RAW:UNIT){AMPS|TESLA} AT %(\$1OUTPUT:VOLT)f VOLTS ";
+	in "OUTPUT: %f %(\$1OUTPUT:RAW:UNIT){AMPS|TESLA} AT %(\$1OUTPUT:VOLT)f VOLTS ";
 	wait 100;
 }
 

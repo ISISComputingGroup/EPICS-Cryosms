@@ -119,6 +119,14 @@ asynStatus CRYOSMSDriver::writeInt32(asynUser *pasynUser, epicsInt32 value)
 	int falseVal = 0;
 	int trueVal = 1;
 	if (function == P_outputModeSet) {
+		if (value == 0)
+		{
+			envVarMap.at("WRITE_UNIT") = "AMPS";
+		}
+		else 
+		{
+			envVarMap.at("WRITE_UNIT") = "TESLA";
+		}
 		return putDb("OUTPUTMODE:_SP", &value);
 	}
 	else if (function == P_initLogic){
@@ -283,10 +291,12 @@ asynStatus CRYOSMSDriver::checkWriteUnit()
 	if (!envVarMap.at("WRITE_UNIT").compare("AMPS")) {
 		testVar = 1;
 		RETURN_IF_ASYNERROR2(putDb, "OUTPUTMODE:_SP", &falseVal);
+		correctWriteUnit = "AMPS";
 	}
 	else {
 		testVar = 2;
 		RETURN_IF_ASYNERROR2(putDb, "OUTPUTMODE:_SP", &trueVal);
+		correctWriteUnit = "TESLA";
 	}
 	return status;
 }
@@ -428,6 +438,7 @@ asynStatus CRYOSMSDriver::checkRampFile()
 	else {
 		status = readFile(envVarMap.at("RAMP_FILE"));
 		if (status != asynSuccess) {
+			errlogSevPrintf(errlogMajor, "Unable to read ramp file");
 			this->writeDisabled = TRUE;
 			testVar = 0;
 			return status;
@@ -512,6 +523,7 @@ asynStatus CRYOSMSDriver::onStart()
 
 	qsm.start();
 	queueThreadId = epicsThreadCreate("Event Queue", epicsThreadPriorityHigh, epicsThreadStackMedium, (EPICSTHREADFUNC)::eventQueueThread, this);
+	checkThreadId = epicsThreadCreate("Checks Queue", epicsThreadPriorityHigh, epicsThreadStackMedium, (EPICSTHREADFUNC)::eventQueueThread, this);
 
 	RETURN_IF_ASYNERROR2(putDb, "INIT", &trueVal);
 	return status;
@@ -527,9 +539,15 @@ asynStatus CRYOSMSDriver::procDb(std::string pvSuffix) {
 	return (asynStatus)dbProcess(precord);
 }
 
-asynStatus CRYOSMSDriver::getDb(std::string pvSuffix, int &pbuffer) {
+asynStatus CRYOSMSDriver::getDb(std::string pvSuffix, int &pbuffer, bool isExternal=false) {
 	DBADDR addr;
-	std::string fullPV = this->devicePrefix + pvSuffix;
+	std::string fullPV;
+	if (isExternal) {
+		fullPV = this->devicePrefix + pvSuffix;
+	}
+	else {
+		fullPV = pvSuffix;
+	}
 	if (dbNameToAddr(fullPV.c_str(), &addr)) {
 		errlogSevPrintf(errlogMajor, "Invalid PV for getDb: %s", pvSuffix.c_str());
 		return asynError;
@@ -543,9 +561,15 @@ asynStatus CRYOSMSDriver::getDb(std::string pvSuffix, int &pbuffer) {
 	return asynSuccess;
 }
 
-asynStatus CRYOSMSDriver::getDb(std::string pvSuffix, double &pbuffer) {
+asynStatus CRYOSMSDriver::getDb(std::string pvSuffix, double &pbuffer, bool isExternal = false) {
 	DBADDR addr;
-	std::string fullPV = this->devicePrefix + pvSuffix;
+	std::string fullPV;
+	if (isExternal) {
+		fullPV = this->devicePrefix + pvSuffix;
+	}
+	else {
+		fullPV = pvSuffix;
+	}
 	if (dbNameToAddr(fullPV.c_str(), &addr)) {
 		errlogSevPrintf(errlogMajor, "Invalid PV for getDb: %s", pvSuffix.c_str());
 		return asynError;
@@ -559,9 +583,15 @@ asynStatus CRYOSMSDriver::getDb(std::string pvSuffix, double &pbuffer) {
 	return asynSuccess;
 }
 
-asynStatus CRYOSMSDriver::getDb(std::string pvSuffix, std::string &pbuffer) {
+asynStatus CRYOSMSDriver::getDb(std::string pvSuffix, std::string &pbuffer, bool isExternal = false) {
 	DBADDR addr;
-	std::string fullPV = this->devicePrefix + pvSuffix;
+	std::string fullPV;
+	if (isExternal) {
+		fullPV = this->devicePrefix + pvSuffix;
+	}
+	else {
+		fullPV = pvSuffix;
+	}
 	if (dbNameToAddr(fullPV.c_str(), &addr)) {
 		errlogSevPrintf(errlogMajor, "Invalid PV for getDb: %s", pvSuffix.c_str());
 		return asynError;
@@ -659,7 +689,7 @@ double CRYOSMSDriver::unitConversion(double value, std::string startUnit, std::s
 	else if (startUnit.compare("GAUSS") == 0 && endUnit.compare("TESLA") == 0) {
 		return value / 10000.0;
 	}
-	else if (startUnit.compare("GAUSS") == 0 && endUnit.compare("TESLA") == 0) {
+	else if (startUnit.compare("GAUSS") == 0 && endUnit.compare("AMPS") == 0) {
 		return value / (10000.0 * teslaPerAmp);
 	}
     errlogSevPrintf(errlogMajor, "Error: Units not converted for %f, %s to %s", value, startUnit, endUnit);
@@ -691,6 +721,146 @@ static void eventQueueThread(CRYOSMSDriver* drv)
 	}
 }
 
+static void checksThread(CRYOSMSDriver* drv)
+/*  Function which performs various periodic checks
+*/
+{
+	int writeUnitInc;
+	std::deque<double> voltReadings;
+	int falseVal = 0;
+	int trueVal = 1;
+
+	while (true)
+	{
+		epicsThreadSleep(0.5);
+		// Check compressor status if applicable
+		if (!drv->envVarMap.at("COMP_OFF_ACT").compare("Yes")) 
+		{
+			int comp1stat;
+			int comp2stat;
+			int compStatMsg;
+
+			drv->getDb(drv->envVarMap.at("COMP_1_STAT_PV"), comp1stat, true);
+			drv->getDb(drv->envVarMap.at("COMP_2_STAT_PV"), comp2stat, true);
+
+			if (comp1stat + comp2stat < std::stod(drv->envVarMap.at("MIN_NO_OF_COMP_ON")))
+			{
+				compStatMsg = 2;
+				const char *statMsg = "Paused: not enough compressors on";
+				drv->putDb("COMP:STAT", &compStatMsg);
+				drv->putDb("STAT", statMsg);
+				drv->queuePaused = true;
+			}
+			else if (comp1stat + comp2stat < std::stod(drv->envVarMap.at("NO_OF_COMP")))
+			{
+				compStatMsg = 1;
+				drv->putDb("COMP:STAT", &compStatMsg);
+			}
+			else
+			{
+				compStatMsg = 0;
+				drv->putDb("COMP:STAT", &compStatMsg);
+			}
+		}
+		// Update values needed to check whether target is reached
+		double newCUrr;
+
+		drv->getDb("OUTPUT:CURR", newCUrr);
+
+		drv->oldCurrVel = drv->newCurrVel;
+		drv->newCurrVel = 2 * (newCUrr - drv->oldCurr);
+		drv->oldCurr = newCUrr;
+
+		// Checks whether the write unit has been changed, if so restores it after a set period
+		if (drv->correctWriteUnit.compare(drv->envVarMap.at("WRITE_UNIT"))) //if write unit stored on init differs from currecnt write unit
+		{
+			if (writeUnitInc >= 2*  std::stod(drv->envVarMap.at("WRITE_UNIT_TIMEOUT"))) // *2 because this thread polls every half second
+			{
+				writeUnitInc = 0;
+				drv->envVarMap.at("WRITE_UNIT") = drv->correctWriteUnit;
+				if (!drv->correctWriteUnit.compare("AMPS"))
+				{
+					drv->putDb("OUTPUTMODE:_SP", &falseVal);
+				}
+				else
+				{
+					drv->putDb("OUTPUTMODE:_SP", &trueVal);
+				}
+			}
+			else
+			{
+				writeUnitInc++;
+			}
+		}
+		else
+		{
+			writeUnitInc = 0;
+		}
+
+		// Check on the magnet temperature
+		if (!drv->envVarMap.at("USE_MAGNET_TEMP").compare("Yes"))
+		{
+			double magTemp;
+			int oldInRange;
+			int magTempPause;
+			bool inRange = true;
+
+			drv->getDb("MAGNET:TEMP:INRANGE", oldInRange);
+			drv->getDb("MAGNET:TEMP:PAUSE", magTempPause);
+			drv->getDb(drv->envVarMap.at("MAGNET_TEMP_PV"), magTemp, true);
+			if (oldInRange)
+			{
+				if (magTemp > std::stod(drv->envVarMap.at("MAX_MAGNET_TEMP")))
+				{
+					drv->putDb("MAGNET:TEMP:INRAGE", &falseVal);
+					drv->putDb("MAGNET:TEMP:TOOHOT", &trueVal);
+					inRange = false;
+				}
+				else if (magTemp < std::stod(drv->envVarMap.at("MIN_MAGNET_TEMP")))
+				{
+					drv->putDb("MAGNET:TEMP:INRANGE", &falseVal);
+					inRange = false;
+				}
+			}
+			else if (magTemp >= std::stod(drv->envVarMap.at("MIN_MAGNET_TEMP")) && magTemp <= std::stod(drv->envVarMap.at("MAX_MAGNET_TEMP")))
+			{
+				drv->putDb("MAGNET:TEMP:INRAGE", &trueVal);
+			}
+			if (oldInRange == 1 && ! inRange)
+			{ 
+				const char *statMsg = "Paused: Magnet temperature out of range";
+				drv->putDb("MAGNET:TEMP:PAUSE", &trueVal);
+				drv->putDb("STAT", statMsg);
+				drv->queuePaused = true;
+			}
+			else if (oldInRange == 0 && inRange)
+			{
+				drv->putDb("MAGNET:TEMP:PAUSE", &falseVal);
+				drv->qsm.process_event(resumeRampEvent(drv));
+			}
+		}
+		// Check Voltage stability
+		
+		double newVoltage;
+		drv->getDb("OUTPUT:VOLT", newVoltage);
+		voltReadings.push_back(newVoltage);
+		if (voltReadings.size() > std::stod(drv->envVarMap.at("VOLT_STABILITY_DURATION")) * 2)
+		{
+			voltReadings.pop_front();
+		}
+		double maxV = std::max_element(voltReadings.front, voltReadings.back);
+		double minV = std::min_element(voltReadings.front, voltReadings.back);
+		if (abs(maxV - minV) < std::stod(drv->envVarMap.at("VOLT_TOLERANCE"))) // Fairly certain volt can only be +ve, but abs here just in case
+		{//within tolerance
+			drv->putDb("VOLT:STAT", &trueVal);
+		}
+		else
+		{//not within tolerance
+			drv->putDb("VOLT:STAT", &falseVal);
+		}
+	}
+}
+
 void CRYOSMSDriver::checkIfPaused()
 {
 	if (queuePaused)
@@ -707,7 +877,14 @@ void CRYOSMSDriver::checkForTarget()
 {
 	int rampStatus;
 	int holdingOnTarget = 1;
+	double outputCurr;
+	double target;
+	int magMode;
+
+	target = unitConversion(target, envVarMap.at("WRITE_UNIT"), "AMPS");
+
 	getDb("RAMP:STAT", rampStatus);
+
 	if (rampStatus == holdingOnTarget) {
 		atTarget = true;
 	}

@@ -17,7 +17,15 @@ record(ao, "$(P)CONSTANT:_SP")
     field(DESC, "set T to A on device")
     field(DTYP, "stream")
     field(OUT, "@cryosms.proto setConstant $(PORT)")
- }   
+ }
+
+record(mbbi, "$(P)COMP:STAT")
+{
+    field(DESC, "Overall compressor status")
+    field(ZRST, "All On")       field(ZRVL, "0")
+    field(ONST, "Partially on") field(ONVL, "1")
+    field(TWST, "All Off")      field(TWVL, "0")
+} 
     
 record(mbbi, "$(P)DIRECTION")
 {
@@ -53,7 +61,7 @@ record(stringin, "$(P)HEATER:STAT:RAW")
     field(DESC, "raw string from H command")
     field(DTYP, "stream")
     field(INP, "@cryosms.proto getHeaterStatus $(PORT)")
-    field(SCAN, "1 second")
+    field(SCAN, "2 second")
     field(FLNK, "$(P)HEATER:STAT:PROC")
 }
 
@@ -98,6 +106,27 @@ record(bo, "$(P)MAGNET:MODE")
     field(ONAM, "Persistent")
 }
 
+record(bi, "$(P)MAGNET:TEMP:INRANGE")
+{
+    field(DESC, "Whether mag temp is in range")
+    field(ZNAM, "No")
+    field(ONAM, "Yes")
+}
+
+record(bi, "$(P)MAGNET:TEMP:PAUSE")
+{
+    field(DESC, "Whether temp pause is active or not")
+    field(ZNAM, "Unpaused")
+    field(ONAM, "Paused")
+}
+
+record(bi, "$(P)MAGNET:TEMP:PAUSE")
+{
+    field(DESC, "Whether magnet is too hot")
+    field(ZNAM, "Good heat")
+    field(ONAM, "Too hot")
+}
+
 record(ao, "$(P)MAX:SP")
 {
     field(DESC, "The maximum value to allow in PSU Units")
@@ -109,7 +138,7 @@ record(ai, "$(P)MID")
     field(DESC, "ramp target read from device")
     field(DTYP, "stream")
     field(INP, "@cryosms.proto getMidTarget $(PORT)")
-    field(SCAN, "1 second")
+    field(SCAN, "2 second")
     field(SIML, "$(P)SIM")
     field(SIOL, "$(P)SIM:MID")
     field(SDIS, "$(P)DISABLE")
@@ -229,7 +258,7 @@ record(ai, "$(P)OUTPUT:RAW")
     field(DTYP, "stream")
     field(INP, "@cryosms.proto getOutput($(P)) $(PORT)")
     field(PREC, "3")
-    field(SCAN, "1 second")
+    field(SCAN, "2 second")
     field(SIML, "$(P)SIM")
     field(SIOL, "$(P)SIM:OUTPUT:RAW")
     field(SDIS, "$(P)DISABLE")
@@ -266,7 +295,7 @@ record(mbbi, "$(P)OUTPUTMODE")
     field(ONVL, "1") field(ONST, "TESLA")
     field(VAL, "0")
     field(SDIS, "$(P)DISABLE")
-    field(SCAN, "1 second")
+    field(SCAN, "2 second")
     info(archive, "VAL")
     field(SIML, "$(P)SIM")
     field(SIOL, "$(P)SIM:OUTPUTMODE")
@@ -329,7 +358,7 @@ record(ai, "$(P)RAMP:RATE")
     field(DESC, "The ramp rate stored by the device")
     field(DTYP, "stream")
     field(INP, "@cryosms.proto getRampRate $(PORT)")
-    field(SCAN, "1 second")
+    field(SCAN, "2 second")
     field(SIML, "$(P)SIM")
     field(SIOL, "$(P)SIM:RAMP:RATE")
     field(SDIS, "$(P)DISABLE")
@@ -347,7 +376,7 @@ record(mbbi, "$(P)RAMP:STAT")
     field(DESC, "The status of the ramp from the PSU")
     field(DTYP, "stream")
     field(INP, "@cryosms.proto getRampStatus $(PORT)")
-    field(SCAN, ".1 second")
+    field(SCAN, "2 second")
     field(ZRVL, "0") field(ZRST, "RAMPING")
     field(ONVL, "1") field(ONST, "HOLDING ON TARGET")
     field(TWVL, "2") field(TWST, "HOLDING ON PAUSE")
@@ -418,7 +447,7 @@ record(ai, "$(P)SWITCH:TEMP")
     field(DESC, "Temperature of switch")
     field(INP, "$(SWITCH_TEMP_PV=$(P)SIM:SWITCH:TEMP)")
     field(FLNK, "$(P)SWITCH:STAT:NOW:OLD.PROC")
-    field(SCAN, "1 second")
+    field(SCAN, "2 second")
 }
 
 record(mbbi, "$(P)SWITCH:STAT:NOW:OLD")
@@ -493,6 +522,14 @@ record(ao, "$(P)TARGET:SP")
     field(DESC, "Value to send PSU in $(WRITE_UNIT)")
     field(EGU, "$(WRITE_UNIT)")
 }
+
+record(bi, "$(P)VOLT:STAT")
+{
+    field(DESC, "Voltage stability status")
+    field(ZNAM, "False")
+    field(ONAM, "True")
+}
+
 ### READONLY:
 
 record(ao, "$(P)CONSTANT:_SP")
@@ -672,7 +709,7 @@ record(mbbi,"$(P)SIM:RAMP:STAT")
 
 record(calc,"$(P)SIM:SWITCH:TEMP")
 {
-    field(SCAN, "1 second")
+    field(SCAN, "2 second")
     field(CALC, "A=0?$(SWITCH_LOW)-1:$(SWITCH_HIGH)+1")
     field(INPA, "$(P)HEATER:STAT")
 }
