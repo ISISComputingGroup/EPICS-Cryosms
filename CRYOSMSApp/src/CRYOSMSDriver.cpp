@@ -574,18 +574,18 @@ static void putDbAndWaitDoneCallback(processNotify *ppn)
 
 /// Set a PV to a value and wait \a timeout seconds for a completion callback
 asynStatus CRYOSMSDriver::putDbAndWait(const std::string& pvSuffix, const void *value, double timeout) {
-	DBADDR addr;
-	std::string fullPV = this->devicePrefix + pvSuffix;
+    DBADDR addr;
+    std::string fullPV = this->devicePrefix + pvSuffix;
     const char* pvname = fullPV.c_str();
 
-	if (dbNameToAddr(pvname, &addr)) {
-		errlogSevPrintf(errlogMajor, "Invalid PV for putDb: %s", pvname);
-		return asynError;
-	}
+    if (dbNameToAddr(pvname, &addr)) {
+        errlogSevPrintf(errlogMajor, "Invalid PV for putDb: %s", pvname);
+        return asynError;
+    }
     struct dbChannel *chan = dbChannelCreate(pvname);
     if (!chan) {
-		errlogSevPrintf(errlogMajor, "Invalid PV for putDb: %s", pvname);
-		return asynError;
+        errlogSevPrintf(errlogMajor, "Invalid PV for putDb: %s", pvname);
+        return asynError;
     }
 
     notifyCallbackInfo notifyInfo;
@@ -593,7 +593,7 @@ asynStatus CRYOSMSDriver::putDbAndWait(const std::string& pvSuffix, const void *
     notifyInfo.callbackDone = epicsEventCreate(epicsEventEmpty);
     notifyInfo.addr = &addr;
     notifyInfo.value = value;
-    
+
     processNotify procNotify;
     memset(&procNotify, 0, sizeof(processNotify));
     procNotify.requestType = putProcessRequest;
@@ -612,13 +612,13 @@ asynStatus CRYOSMSDriver::putDbAndWait(const std::string& pvSuffix, const void *
         return asynSuccess;
     }
     
-	dbCommon *precord = addr.precord;
-	recGblSetSevr(precord, WRITE_ALARM, INVALID_ALARM);
+    dbCommon *precord = addr.precord;
+    recGblSetSevr(precord, WRITE_ALARM, INVALID_ALARM);
     
-	errlogSevPrintf(errlogMajor, "Error returned when attempting to set %s: event_status=%d notify_status=%d wasProcessed=%d",
+    errlogSevPrintf(errlogMajor, "Error returned when attempting to set %s: event_status=%d notify_status=%d wasProcessed=%d",
                     pvname, (int)event_status, (int)procNotify.status, (int)procNotify.wasProcessed);
 
-	return asynError;
+    return asynError;
 }
 
 asynStatus CRYOSMSDriver::readFile(const char *dir)
