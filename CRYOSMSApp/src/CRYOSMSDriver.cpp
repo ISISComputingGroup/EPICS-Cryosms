@@ -22,6 +22,8 @@
 #include <epicsExit.h>
 #include <dbCommon.h>
 #include <dbAccess.h>
+#include <dbChannel.h>
+#include <dbNotify.h>
 #include <boRecord.h>
 #include <recGbl.h>
 #include <alarm.h>
@@ -530,6 +532,93 @@ asynStatus CRYOSMSDriver::putDb(std::string pvSuffix, const void *value) {
 		errlogSevPrintf(errlogMajor, "Error returned when attempting to set %s", pvSuffix.c_str());
 	}
 	return status;
+}
+
+// based on example of dbtpn in EPICSD base dbNotify.c
+
+struct notifyCallbackInfo {
+    epicsEventId callbackDone;
+    DBADDR* addr;
+    const void* value;
+};
+
+static int putDbAndWaitPutCallback(processNotify *ppn, notifyPutType type)
+{
+    notifyCallbackInfo *pInfo = (notifyCallbackInfo *) ppn->usrPvt;
+    int status = 0;
+
+    if (ppn->status == notifyCanceled)
+        return 0;
+    ppn->status = notifyOK;
+    switch (type) {
+    case putDisabledType:
+        ppn->status = notifyError;
+        return 0;
+    case putFieldType:
+        status = dbChannelPutField(ppn->chan, pInfo->addr->dbr_field_type, pInfo->value, 1);
+        break;
+    case putType:
+        status = dbChannelPut(ppn->chan, pInfo->addr->dbr_field_type, pInfo->value, 1);
+        break;
+    }
+    if (status)
+        ppn->status = notifyError;
+    return 1;
+}
+
+static void putDbAndWaitDoneCallback(processNotify *ppn)
+{
+    notifyCallbackInfo *pInfo = (notifyCallbackInfo *) ppn->usrPvt;
+    epicsEventSignal(pInfo->callbackDone);
+}
+
+/// Set a PV to a value and wait \a timeout seconds for a completion callback
+asynStatus CRYOSMSDriver::putDbAndWait(const std::string& pvSuffix, const void *value, double timeout) {
+	DBADDR addr;
+	std::string fullPV = this->devicePrefix + pvSuffix;
+    const char* pvname = fullPV.c_str();
+
+	if (dbNameToAddr(pvname, &addr)) {
+		errlogSevPrintf(errlogMajor, "Invalid PV for putDb: %s", pvname);
+		return asynError;
+	}
+    struct dbChannel *chan = dbChannelCreate(pvname);
+    if (!chan) {
+		errlogSevPrintf(errlogMajor, "Invalid PV for putDb: %s", pvname);
+		return asynError;
+    }
+
+    notifyCallbackInfo notifyInfo;
+    memset(&notifyInfo, 0, sizeof(notifyCallbackInfo));
+    notifyInfo.callbackDone = epicsEventCreate(epicsEventEmpty);
+    notifyInfo.addr = &addr;
+    notifyInfo.value = value;
+    
+    processNotify procNotify;
+    memset(&procNotify, 0, sizeof(processNotify));
+    procNotify.requestType = putProcessRequest;
+    procNotify.chan = chan;
+    procNotify.putCallback = putDbAndWaitPutCallback;
+    procNotify.doneCallback = putDbAndWaitDoneCallback;
+    procNotify.usrPvt = &notifyInfo;
+
+    dbProcessNotify(&procNotify);
+    epicsEventStatus event_status = epicsEventWaitWithTimeout(notifyInfo.callbackDone, timeout);
+    dbNotifyCancel(&procNotify);
+    epicsEventDestroy(notifyInfo.callbackDone);
+    dbChannelDelete(procNotify.chan);
+
+    if (event_status == epicsEventOK && procNotify.status == notifyOK && procNotify.wasProcessed == 1) {
+        return asynSuccess;
+    }
+    
+	dbCommon *precord = addr.precord;
+	recGblSetSevr(precord, WRITE_ALARM, INVALID_ALARM);
+    
+	errlogSevPrintf(errlogMajor, "Error returned when attempting to set %s: event_status=%d notify_status=%d wasProcessed=%d",
+                    pvname, (int)event_status, (int)procNotify.status, (int)procNotify.wasProcessed);
+
+	return asynError;
 }
 
 asynStatus CRYOSMSDriver::readFile(const char *dir)
