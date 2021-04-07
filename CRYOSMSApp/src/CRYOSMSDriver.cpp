@@ -575,18 +575,20 @@ static void putDbAndWaitDoneCallback(processNotify *ppn)
 }
 
 /// Set a PV to a value and wait \a timeout seconds for a completion callback
+/// Currently do not use this to set PVs that call back into this driver as it will just block itself and timeout
+/// releasing/reacquiring the asyn port lock around epicsEventWaitWithTimeout() did not resolve this
 asynStatus CRYOSMSDriver::putDbAndWait(const std::string& pvSuffix, const void *value, double timeout) {
     DBADDR addr;
     std::string fullPV = this->devicePrefix + pvSuffix;
     const char* pvname = fullPV.c_str();
 
     if (dbNameToAddr(pvname, &addr)) {
-        errlogSevPrintf(errlogMajor, "Invalid PV for putDb: %s", pvname);
+        errlogSevPrintf(errlogMajor, "Invalid PV (dbaddr) for putDbAndWait: %s", pvname);
         return asynError;
     }
     struct dbChannel *chan = dbChannelCreate(pvname);
     if (!chan) {
-        errlogSevPrintf(errlogMajor, "Invalid PV for putDb: %s", pvname);
+        errlogSevPrintf(errlogMajor, "Invalid PV (chan) for putDbAndWait: %s", pvname);
         return asynError;
     }
 
@@ -606,20 +608,26 @@ asynStatus CRYOSMSDriver::putDbAndWait(const std::string& pvSuffix, const void *
 
     dbProcessNotify(&procNotify);
     epicsEventStatus event_status = epicsEventWaitWithTimeout(notifyInfo.callbackDone, timeout);
-    dbNotifyCancel(&procNotify);
+    int was_processed = procNotify.wasProcessed; // was record processed as result of write e.g. due to it being a PP field
+    notifyStatus notify_status = procNotify.status;
+    dbNotifyCancel(&procNotify); // this sets status to notifyCancelled hence need copy taken above
     epicsEventDestroy(notifyInfo.callbackDone);
     dbChannelDelete(procNotify.chan);
 
-    if (event_status == epicsEventOK && procNotify.status == notifyOK && procNotify.wasProcessed == 1) {
+    if (event_status == epicsEventOK && notify_status == notifyOK) {
+        //errlogSevPrintf(errlogInfo,"putDbAndWait: successfully wrote to PV \"%s\" was_processed=%d", pvname, was_processed);
         return asynSuccess;
     }
     
     dbCommon *precord = addr.precord;
     recGblSetSevr(precord, WRITE_ALARM, INVALID_ALARM);
     
-    errlogSevPrintf(errlogMajor, "Error returned when attempting to set %s: event_status=%d notify_status=%d wasProcessed=%d",
-                    pvname, (int)event_status, (int)procNotify.status, (int)procNotify.wasProcessed);
-
+    if (event_status != epicsEventOK) {
+        errlogSevPrintf(errlogMajor, "Timeout after %f seconds for putDbAndWait when attempting to set %s", timeout, pvname);
+    }
+    if (notify_status != notifyOK) {
+        errlogSevPrintf(errlogMajor, "Notify error %d for putDbAndWait when attempting to set %s", (int)notify_status, pvname);
+    }
     return asynError;
 }
 

@@ -50,7 +50,7 @@ public:
 	asynStatus getDb(std::string pvSuffix, double &pbuffer);
 	asynStatus getDb(std::string pvSuffix, std::string &pbuffer);
 	asynStatus putDb(std::string pvSuffix, const void *value);
-    asynStatus putDbAndWait(const std::string& pvSuffix, const void *value, double timeout);
+	asynStatus putDbAndWait(const std::string& pvSuffix, const void *value, double timeout);
 	std::deque<eventVariant> eventQueue;
 	epicsThreadId queueThreadId;
 	bool atTarget;
