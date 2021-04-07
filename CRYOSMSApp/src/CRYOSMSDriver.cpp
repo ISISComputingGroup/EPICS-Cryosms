@@ -569,6 +569,8 @@ static int putDbAndWaitPutCallback(processNotify *ppn, notifyPutType type)
 static void putDbAndWaitDoneCallback(processNotify *ppn)
 {
     notifyCallbackInfo *pInfo = (notifyCallbackInfo *) ppn->usrPvt;
+    if (ppn->status == notifyCanceled)
+        return;
     epicsEventSignal(pInfo->callbackDone);
 }
 
