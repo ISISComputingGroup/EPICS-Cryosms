@@ -516,6 +516,10 @@ record(ai, "$(P)TARGET:TIME")
 {
     field(DESC, "Time it will take to get to target")
 }
+record(ai, "$(P)TARGET:RAMP:TIME")
+{
+    field(DESC, "Time it will take to get to target")
+}
 
 record(ao, "$(P)TARGET:SP")
 {

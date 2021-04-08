@@ -54,10 +54,15 @@ public:
 	bool started;
 	bool fastRamp = false; //whether or not device is in "fast" mode, used exclusively to update "STAT" PV correctly
 	bool fastRampZero = false; //whether or not device is in "fast zero" mode, used exclusively to update "STAT" PV correctly
-	bool cooling = 0;//whether heater is cooling down
-	bool warming = 0;//whether heater is warming up
+	bool cooling = false;//whether heater is cooling down
+	bool warming = false;//whether heater is warming up
+	bool holding = false;
+	bool ready = true;
 	double oldCurrVel = 0;//Old rate of change of output current
 	double oldCurr = 0;//Old valueof output current
+	int magModePrev = 0;//for checking if magnet mode changes
+	double thisRampDuration;
+	double totalRampDuration;
 	std::string correctWriteUnit;
 	asynStatus procDb(std::string pvSuffix);
 	asynStatus getDb(std::string pvSuffix, int &pbuffer, bool isExternal = false);
@@ -72,6 +77,7 @@ public:
 	void checkForTarget();
 	void checkIfPaused();
 	void checkHeaterDone();
+	void checkReady();
 	boost::msm::back::state_machine<cryosmsStateMachine> qsm;
 	void resumeRamp() override;
 	void pauseRamp() override;
@@ -97,6 +103,7 @@ private:
 	int P_pauseRamp;
 	int P_abortRamp;
 	int P_outputModeSet;
+	int P_magnetMode;
 	int P_calcHeater; //int as above
 
 #define LAST_SMS_PARAM 	P_calcHeater
@@ -123,6 +130,7 @@ private:
 #define P_pauseRampString "RAMP_PAUSE"
 #define P_abortRampString "RAMP_ABORT"
 #define P_outputModeSetString "OUTPUTMODE_SET"
+#define P_magnetModeString "MAGNET_MODE"
 #define P_calcHeaterString "CALC_HEATER"
 
 #endif /* CRYOSMSDRIVER_H */
