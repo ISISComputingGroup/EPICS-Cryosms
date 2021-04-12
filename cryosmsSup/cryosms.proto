@@ -109,6 +109,13 @@ setMaxTarget {
 	wait 100;
 }
 
+getMaxTarget {
+	out "GET MAX";
+	wait 50;
+	in "%*8c MAX SETTING: %f %*{AMPS|TESLA}";
+	wait 100;
+}
+
 getMidTarget {
 	out "GET MID";
 	wait 50;

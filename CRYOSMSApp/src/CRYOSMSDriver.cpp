@@ -72,13 +72,14 @@ return status; \
 static const char *driverName = "CRYOSMSDriver"; ///< Name of driver for use in message printing 
 
 static void eventQueueThread(CRYOSMSDriver* drv);
+static void checksThread(CRYOSMSDriver* drv);
 
 CRYOSMSDriver::CRYOSMSDriver(const char *portName, std::string devPrefix, const char *TToA, const char *writeUnit, const char *displayUnit, const char *maxCurr, const char *maxVolt,
-	const char *allowPersist, const char *fastFilterValue, const char *filterValue, const char *npp, const char *fastPersistentSettletime, const char *persistentSettletime,
+	const char *allowPersist, const char *fastFilterValue, const char *filterValue, const char *npp, const char *fastPersistentSettletime, const char *persistentSettletime, const char *nonPersistentSettletime,
 	const char *fastRate, const char *useSwitch, const char *switchTempPv, const char *switchHigh, const char *switchLow, const char *switchStableNumber, const char *heaterTolerance,
 	const char *switchTimeout, const char *heaterOut, const char *useMagnetTemp, const char *magnetTempPv, const char *maxMagnetTemp,
 	const char *minMagnetTemp, const char *compOffAct, const char *noOfComp, const char *minNoOfComp, const char *comp1StatPv, const char *comp2StatPv, const char *rampFile,
-	const char *cryomagnet, const char *voltTolerance, const char *voltStabilityDuration, const char *midTolerance)
+	const char *cryomagnet, const char *voltTolerance, const char *voltStabilityDuration, const char *midTolerance, const char *targetTolerance, const char *holdTime, const char *holdTimeZero)
   : asynPortDriver(portName,
 	0, /* maxAddr */
 	static_cast<int>NUM_SMS_PARAMS, /* num parameters */
@@ -99,6 +100,7 @@ CRYOSMSDriver::CRYOSMSDriver(const char *portName, std::string devPrefix, const 
 	createParam(P_abortRampString, asynParamInt32, &P_abortRamp);
 	createParam(P_outputModeSetString, asynParamInt32, &P_outputModeSet);
 	createParam(P_magnetModeString, asynParamInt32, &P_magnetMode);
+	createParam(P_rampLeadsString, asynParamInt32, &P_rampLeads);
 	createParam(P_calcHeaterString, asynParamInt32, &P_calcHeater);
 
 	std::vector<epicsFloat64*> pRate_; //variables which store the data read from the ramp rate file
@@ -106,14 +108,14 @@ CRYOSMSDriver::CRYOSMSDriver(const char *portName, std::string devPrefix, const 
 
 	const char* envVarsNames[] = {
 		"T_TO_A", "WRITE_UNIT", "DISPLAY_UNIT", "MAX_CURR", "MAX_VOLT", "ALLOW_PERSIST", "FAST_FILTER_VALUE", "FILTER_VALUE", "NPP", "FAST_PERSISTENT_SETTLETIME", "PERSISTENT_SETTLETIME",
-		"FAST_RATE", "USE_SWITCH", "SWITCH_TEMP_PV", "SWITCH_HIGH", "SWITCH_LOW", "SWITCH_STABLE_NUMBER", "HEATER_TOLERANCE", "SWITCH_TIMEOUT", "HEATER_OUT",
+		"NON_PERSISTENT_SETTLETIME", "FAST_RATE", "USE_SWITCH", "SWITCH_TEMP_PV", "SWITCH_HIGH", "SWITCH_LOW", "SWITCH_STABLE_NUMBER", "HEATER_TOLERANCE", "SWITCH_TIMEOUT", "HEATER_OUT",
 		"USE_MAGNET_TEMP", "MAGNET_TEMP_PV", "MAX_MAGNET_TEMP", "MIN_MAGNET_TEMP", "COMP_OFF_ACT", "NO_OF_COMP", "MIN_NO_OF_COMP_ON", "COMP_1_STAT_PV", "COMP_2_STAT_PV", "RAMP_FILE",
-		"CRYOMAGNET", "VOLT_TOLERANCE", "VOLT_STABILITY_DURATION", "MID_TOLERANCE"};
+		"CRYOMAGNET", "VOLT_TOLERANCE", "VOLT_STABILITY_DURATION", "MID_TOLERANCE", "TARGET_TOLERANCE", "HOLD_TIME", "HOLD_TIME_ZERO"};
 
 	const char* envVarVals[] = { TToA, writeUnit, displayUnit, maxCurr, maxVolt, allowPersist, fastFilterValue, filterValue, npp, fastPersistentSettletime, persistentSettletime,
-				fastRate, useSwitch, switchTempPv, switchHigh, switchLow, switchStableNumber, heaterTolerance, switchTimeout, heaterOut,
+				nonPersistentSettletime, fastRate, useSwitch, switchTempPv, switchHigh, switchLow, switchStableNumber, heaterTolerance, switchTimeout, heaterOut,
 				useMagnetTemp, magnetTempPv, maxMagnetTemp, minMagnetTemp, compOffAct, noOfComp, minNoOfComp, comp1StatPv, comp2StatPv, rampFile,
-				cryomagnet, voltTolerance, voltStabilityDuration, midTolerance};
+				cryomagnet, voltTolerance, voltStabilityDuration, midTolerance, targetTolerance, holdTime, holdTimeZero};
 	for (int i = 0; i < sizeof(envVarsNames) / sizeof(const char*); ++i)
 	{
 		std::pair<std::string, std::string > newPair(envVarsNames[i], envVarVals[i]);
@@ -134,18 +136,26 @@ asynStatus CRYOSMSDriver::writeInt32(asynUser *pasynUser, epicsInt32 value)
 		{
 			envVarMap.at("WRITE_UNIT") = "AMPS";
 		}
-		else 
+		else
 		{
 			envVarMap.at("WRITE_UNIT") = "TESLA";
 		}
 		return putDb("OUTPUTMODE:_SP", &value);
 	}
-	else if (function == P_initLogic){
+	else if (function == P_initLogic) {
 		return onStart();
 	}
 	else if (function == P_startRamp && value == 1) {
-		setupRamp();
-		return putDb("START:SP", &falseVal);
+		if (ready)
+		{
+			setupRamp();
+			return putDb("START:SP", &falseVal);
+		}
+		else
+		{
+			errlogSevPrintf(errlogInfo, "Cannot start ramp sequence while mid-operation");
+			return asynError;
+		}
 	}
 	else if (function == P_calcHeater) {
 		// Deconstructing the "HEATER" command is a little too complicated for streamDevice so we do it here. There are 2 types of readback:
@@ -191,7 +201,24 @@ asynStatus CRYOSMSDriver::writeInt32(asynUser *pasynUser, epicsInt32 value)
 		// 0 = paused off (running)
 		// 1 = paused on (paused)
 		if (value == 0) {
-			qsm.process_event(resumeRampEvent(this));
+			asynStatus status;
+			int tempPause;
+			int quench;
+			int trip;
+			RETURN_IF_ASYNERROR2(getDb, "MAGNET:TEMP:PAUSE", tempPause);
+			RETURN_IF_ASYNERROR2(getDb, "QUENCH", quench);
+			RETURN_IF_ASYNERROR2(getDb, "TRIP", trip);
+
+			if ((!envVarMap.at("USE_MAGNET_TEMP").compare("Yes") && tempPause == 1) || quench == 1 || trip == 1)
+			{
+				const char *statMsg;
+				statMsg = "Unable to resume";
+				RETURN_IF_ASYNERROR2(putDb, "STAT", statMsg);
+			}
+			else
+			{
+				qsm.process_event(resumeRampEvent(this));
+			}
 		}
 		else {
 			queuePaused = true;
@@ -225,11 +252,11 @@ asynStatus CRYOSMSDriver::writeInt32(asynUser *pasynUser, epicsInt32 value)
 			}
 			else
 			{
+				RETURN_IF_ASYNERROR2(putDb, "PERSIST", &value);
 				eventQueue.push_back(startWarmEvent(this));
 				eventQueue.push_back(tempReachedEvent(this));
 				magModePrev = 0;
 			}
-			return asynSuccess;
 		}
 		else if (value == 1 && value != magModePrev)
 		{
@@ -244,12 +271,55 @@ asynStatus CRYOSMSDriver::writeInt32(asynUser *pasynUser, epicsInt32 value)
 			}
 			else
 			{
+				RETURN_IF_ASYNERROR2(putDb, "PERSIST", &value);
 				eventQueue.push_back(startCoolEvent(this));
 				eventQueue.push_back(tempReachedEvent(this));
 				magModePrev = 1;
 			}
-			return asynSuccess;
 		}
+		return asynSuccess;
+	}
+	else if (function == P_rampLeads)
+	{
+		if (value != rampLeadsPrev && value == 1)
+		{
+			asynStatus status;
+			int persist;
+			int ready;
+			RETURN_IF_ASYNERROR2(getDb, "PERSIST", persist);
+			RETURN_IF_ASYNERROR2(getDb, "READY", persist);
+			if (persist == 1 && ready == 1)
+			{
+				setupFastRamp(0.0);
+				rampLeadsPrev = value;
+				RETURN_IF_ASYNERROR2(putDb, "RAMP:LEADS", &value);
+			}
+			else if (ready != 0)
+			{
+				errlogSevPrintf(errlogMajor, "Cannot change Leads behaviour mid-operation");
+			}
+		}
+		else if (value != rampLeadsPrev && value == 0)
+		{
+			asynStatus status;
+			int persist;
+			int outputPersist;
+			int ready;
+			RETURN_IF_ASYNERROR2(getDb, "PERSIST", persist);
+			RETURN_IF_ASYNERROR2(getDb, "OUTPUT:PERSIST:RAW", outputPersist);
+			RETURN_IF_ASYNERROR2(getDb, "READY", persist);
+			if (persist == 1 && ready == 1)
+			{
+				setupFastRamp(outputPersist);
+				rampLeadsPrev = value;
+				RETURN_IF_ASYNERROR2(putDb, "RAMP:LEADS", &value);
+			}
+			else if (ready != 0)
+			{
+				errlogSevPrintf(errlogMajor, "Cannot change Leads behaviour mid-operation");
+			}
+		}
+		return asynSuccess;
 	}
 	else {
 		return asynSuccess;
@@ -360,8 +430,8 @@ asynStatus CRYOSMSDriver::checkWriteUnit()
 }
 
 asynStatus CRYOSMSDriver::checkAllowPersist()
-/*	Check if the user has specified that persistent mode should be allowed. If so, enable MAGNET:MODE, FAST:ZERO and RAMP:LEADS if all values for persistent mode have been provided.
-	If required values have not been provided, disable writes and post a relevant stat message. If the user does not specify that persistent mode should be on, set MAGNET:MODE,
+/*	Check if the user has specified that persistent mode should be allowed. If so, enable PERSIST:SP, FAST:ZERO and RAMP:LEADS if all values for persistent mode have been provided.
+	If required values have not been provided, disable writes and post a relevant stat message. If the user does not specify that persistent mode should be on, set PERSIST:SP,
 	FAST:ZERO and RAMP:LEADS to 0 and disable them.
 */
 {
@@ -380,17 +450,17 @@ asynStatus CRYOSMSDriver::checkAllowPersist()
 		}
 		else {
 			testVar = 1;
-			RETURN_IF_ASYNERROR2(putDb, "MAGNET:MODE.DISP", &falseVal);
+			RETURN_IF_ASYNERROR2(putDb, "PERSIST:SP.DISP", &falseVal);
 			RETURN_IF_ASYNERROR2(putDb, "FAST:ZERO.DISP", &falseVal);
 			RETURN_IF_ASYNERROR2(putDb, "RAMP:LEADS.DISP", &falseVal);
 		}
 	}
 	else {
 		testVar = 2;
-		RETURN_IF_ASYNERROR2(putDb, "MAGNET:MODE", &falseVal);
+		RETURN_IF_ASYNERROR2(putDb, "PERSIST:SP", &falseVal);
 		RETURN_IF_ASYNERROR2(putDb, "FAST:ZERO", &falseVal);
 		RETURN_IF_ASYNERROR2(putDb, "RAMP:LEADS", &falseVal);
-		RETURN_IF_ASYNERROR2(putDb, "MAGNET:MODE.DISP", &trueVal);
+		RETURN_IF_ASYNERROR2(putDb, "PERSIST:SP.DISP", &trueVal);
 		RETURN_IF_ASYNERROR2(putDb, "FAST:ZERO.DISP", &trueVal);
 		RETURN_IF_ASYNERROR2(putDb, "RAMP:LEADS.DISP", &trueVal);
 	}
@@ -576,14 +646,16 @@ asynStatus CRYOSMSDriver::onStart()
 		double midTarget;
 		RETURN_IF_ASYNERROR2(getDb, "MID", midTarget);
 		midTarget *= this->writeToDispConversion;
-		RETURN_IF_ASYNERROR2(putDb, "MID:SP", &midTarget);
+		RETURN_IF_ASYNERROR2(putDb, "TARGET:SP", &midTarget);
 	}
 
 	qsm.start();
 	queueThreadId = epicsThreadCreate("Event Queue", epicsThreadPriorityHigh, epicsThreadStackMedium, (EPICSTHREADFUNC)::eventQueueThread, this);
-	checkThreadId = epicsThreadCreate("Checks Queue", epicsThreadPriorityHigh, epicsThreadStackMedium, (EPICSTHREADFUNC)::eventQueueThread, this);
+	checkThreadId = epicsThreadCreate("Checks Queue", epicsThreadPriorityHigh, epicsThreadStackMedium, (EPICSTHREADFUNC)::checksThread, this);
 
+	const char *statMsg = "Ready";
 	RETURN_IF_ASYNERROR2(putDb, "INIT", &trueVal);
+	RETURN_IF_ASYNERROR2(putDb, "READY", statMsg);
 	return status;
 }
 
@@ -770,6 +842,7 @@ static void eventQueueThread(CRYOSMSDriver* drv)
 			continue;
 		}
 		boost::apply_visitor(processEventVisitor(drv->qsm, drv->eventQueue), drv->eventQueue.front());
+		epicsThreadSleep(0.1);
 		while (!drv->atTarget) {
 			epicsThreadSleep(0.1);
 			drv->checkIfPaused();
@@ -795,6 +868,20 @@ static void checksThread(CRYOSMSDriver* drv)
 	while (true)
 	{
 		epicsThreadSleep(0.5);
+
+		//Pause if Trip
+		int quenched;
+		int tripped;
+		drv->getDb("QUENCH", quenched);
+		drv->getDb("TRIP", tripped);
+		if (quenched == 1 || tripped == 1)
+		{
+			const char *statMsg = (quenched == 1) ? "Quenched" : "Tripped";
+			drv->putDb("READY", &falseVal);
+			drv->putDb("STAT", statMsg);
+			drv->putDb("PAUSE:SP", &trueVal);
+		}
+
 		//Update time left in ramps (if applicable)
 		if (drv->thisRampDuration != 0.0)
 		{
@@ -950,65 +1037,78 @@ void CRYOSMSDriver::checkForTarget()
 	int holdingOnTarget = 1;
 	double outputCurr;
 	double target;
+	double finalTarget;
+	double targetTolerance;
+	getDb("TARGET", finalTarget);
 
 	getDb("MID:_SP", target);
 	getDb("OUTPUT:CURR", outputCurr);
 
 	target = unitConversion(target, envVarMap.at("WRITE_UNIT"), "AMPS");
+	finalTarget = unitConversion(target, envVarMap.at("WRITE_UNIT"), "AMPS");
+
+	if (floor(target * 1000) == floor(finalTarget * 1000))
+	{
+		targetTolerance = unitConversion(std::stod(envVarMap.at("TARGET_TOLERANCE")), "AMPS", envVarMap.at("WRITE_UNIT"));
+	}
+	else
+	{
+		targetTolerance = unitConversion(std::stod(envVarMap.at("MID_TOLERANCE")), "AMPS", envVarMap.at("WRITE_UNIT"));
+	}
 
 	getDb("RAMP:STAT", rampStatus);
 
-	if (!envVarMap.at("CRYOMAGNET").compare("Yes"))
+	if (!envVarMap.at("CRYOMAGNET").compare("Yes") && outputCurr != oldCurr)
 	{
 		double rampRate;
-		double finalTarget;
+		double target;
 		getDb("RAMP:RATE", rampRate);
-		getDb("MID:SP", finalTarget);
+		getDb("MID:_SP", target);
 
 		double npp = std::stod(envVarMap.at("NPP"));
 		double tolerance = std::max(1e-3, (2e-2)*rampRate);
 		double currVel = outputCurr - oldCurr;
 
-		double cin = (fastRampZero) ? 1 : 0.1;
-		double c = (abs((currVel - oldCurrVel)/ npp) < 1) ? tanh((currVel - oldCurrVel)/ npp) : cin;
+		double cin = (fastRampZero) ? std::stod(envVarMap.at("FAST_FILTER_VALUE")) : std::stod(envVarMap.at("FILTER_VALUE"));
+		double c = (abs((currVel - oldCurrVel) / npp) < 1) ? tanh((currVel - oldCurrVel) / npp) : cin;
 
 		double rateOfChange = currVel * c + oldCurrVel * (1 - c);
 
-		if (target == 0 && finalTarget == 0)
+		if (abs(outputCurr - target) <= targetTolerance)
 		{
-			double volt;
-			getDb("OUTPUT:VOLT", volt);
+			if (target == 0 && finalTarget == 0)
+			{
+				double volt;
+				getDb("OUTPUT:VOLT", volt);
 
-			if (abs(rateOfChange) < tolerance && abs(volt) < std::stod(envVarMap.at("VOLT_TOLERANCE")))
+				if (abs(rateOfChange) < tolerance && abs(volt) < std::stod(envVarMap.at("VOLT_TOLERANCE")))
+				{
+					atTarget = true;
+				}
+			}
+			else if (target == 0)
 			{
-				atTarget = true;
+				if (abs(outputCurr) < tolerance)
+				{
+					atTarget = true;
+				}
+			}
+			else
+			{
+				int voltStable;
+				getDb("VOLT:STAT", voltStable);
+				if (voltStable && abs(rateOfChange) < tolerance)
+				{
+					atTarget = true;
+				}
 			}
 		}
-		else if (target == 0)
-		{
-			if (abs(outputCurr) < tolerance)
-			{
-				atTarget = true;
-			}
-		}
-		else
-		{
-			int voltStable;
-			getDb("VOLT:STAT", voltStable);
-			if (voltStable && abs(rateOfChange) < tolerance)
-			{
-				atTarget = true;
-			}
-		}
-
 		oldCurr = outputCurr;
 		oldCurrVel = currVel;
 	}
-	else
+	else if (rampStatus == holdingOnTarget && abs(outputCurr - target) <= targetTolerance) 
 	{
-		if (rampStatus == holdingOnTarget && abs(outputCurr - target) <= std::stod(envVarMap.at("MID_TOLERANCE"))) {
-			atTarget = true;
-		}
+		atTarget = true;
 	}
 }
 
@@ -1079,8 +1179,9 @@ asynStatus CRYOSMSDriver::setupRamp()
 	double targetVal = 0;
 	int magMode = 0;
 	RETURN_IF_ASYNERROR2(getDb, "OUTPUT:RAW", startVal);
-	RETURN_IF_ASYNERROR2(getDb, "MID:SP", targetVal);
-	RETURN_IF_ASYNERROR2(getDb, "MAGNET:MODE", magMode);
+	RETURN_IF_ASYNERROR2(getDb, "TARGET:SP", targetVal);
+	RETURN_IF_ASYNERROR2(getDb, "PERSIST", magMode);
+	RETURN_IF_ASYNERROR2(putDb, "TARGET", &targetVal);
 	totalRampDuration = 0;
 
 	//First, check if magnet is in persistent mode, then execute relevant commands (moved to other functions for tidiness)
@@ -1130,17 +1231,17 @@ asynStatus CRYOSMSDriver::setupRamp()
 				//once startVal has been passed, add a "start ramp" and "end ramp" event to the queue, with the current sign and the rate and boundary of each row  of the table,
 				if (pMaxT_[i] > abs(startVal) && pMaxT_[i] < abs(targetVal)) 
 				{
-					eventQueue.push_back(startRampEvent(this, pRate_[i], pMaxT_[i], sign, rType));
-					eventQueue.push_back(targetReachedEvent( this ));
 					totalRampDuration += (pMaxT_[i] - rampStartVal) * pRate_[i] * rampRateConversion;
 					rampStartVal = pMaxT_[i];
+					eventQueue.push_back(startRampEvent(this, pRate_[i], pMaxT_[i], sign, rType));
+					eventQueue.push_back(targetReachedEvent( this ));
 				}
 				//until the target would be before the next boundary, so we replace the boundary in the argument for the start event with the target,
 				else if (pMaxT_[i] > abs(startVal) && pMaxT_[i] >= abs(targetVal))
 				{
+					totalRampDuration += (abs(targetVal) - rampStartVal) * pRate_[i] * rampRateConversion;
 					eventQueue.push_back(startRampEvent( this, pRate_[i], targetVal, sign, rType));
 					eventQueue.push_back(targetReachedEvent( this ));
-					totalRampDuration += (abs(targetVal) - rampStartVal) * pRate_[i] * rampRateConversion;
 					//and we stop stepping through the table.
 					break;
 				}
@@ -1157,17 +1258,17 @@ asynStatus CRYOSMSDriver::setupRamp()
 				//once we pass the startVal, add "start ramp" and "end ramp" events to queue with the current sign, rate for current row of table and boundary found in previous step
 				if (boundary < abs(startVal) && boundary > abs(targetVal))
 				{
-					eventQueue.push_back(startRampEvent( this, pRate_[i], boundary, sign, rType));
-					eventQueue.push_back(targetReachedEvent( this ));
 					totalRampDuration += (rampStartVal - boundary) * pRate_[i] * rampRateConversion;
 					rampStartVal = boundary;
+					eventQueue.push_back(startRampEvent( this, pRate_[i], boundary, sign, rType));
+					eventQueue.push_back(targetReachedEvent( this ));
 				}
 				//if target is before the next boundary, go to target instead,
 				else if (boundary < abs(startVal) && boundary <= abs(targetVal))
 				{
+					totalRampDuration += (rampStartVal - abs(targetVal)) * pRate_[i] * rampRateConversion;
 					eventQueue.push_back(startRampEvent( this, pRate_[i], abs(targetVal), sign, rType));
 					eventQueue.push_back(targetReachedEvent( this ));
-					totalRampDuration += (rampStartVal - abs(targetVal)) * pRate_[i] * rampRateConversion;
 					//then stop.
 					break;
 				}
@@ -1182,18 +1283,18 @@ asynStatus CRYOSMSDriver::setupRamp()
 			//when we get to the bottom of the table, schedule a ramp to zero with the ramp rate from the lowest row,
 			if (i == 0)
 			{
+				totalRampDuration += (rampStartVal)* pRate_[i] * rampRateConversion;
+				rampStartVal = 0;
 				eventQueue.push_back(startRampEvent(this, pRate_[i], 0, sign, rType));
 				eventQueue.push_back(targetReachedEvent(this ));
-				totalRampDuration += (rampStartVal) * pRate_[i] * rampRateConversion;
-				rampStartVal = 0;
 			}
 			//until then, schedule ramps from highest row to loest, for all rows below the start val
 			else if (pMaxT_[i - 1] < abs(startVal))
 			{
+				totalRampDuration += (rampStartVal - pMaxT_[i - 1])* pRate_[i] * rampRateConversion;
+				rampStartVal = pMaxT_[i - 1];
 				eventQueue.push_back(startRampEvent( this, pRate_[i], pMaxT_[i - 1], sign, rType));
 				eventQueue.push_back(targetReachedEvent( this ));
-				totalRampDuration += (rampStartVal - pMaxT_[i-1])* pRate_[i] * rampRateConversion;
-				rampStartVal = pMaxT_[i - 1];
 			}
 		}
 		//after we reach zero, flip the sign
@@ -1204,17 +1305,17 @@ asynStatus CRYOSMSDriver::setupRamp()
 			//If the target is beffore the next boundary, schedule a ramp to the target with the ramp rate of that boundary,
 			if (pMaxT_[i] >= abs(targetVal))
 			{
+				totalRampDuration += (pMaxT_[i] - rampStartVal) * pRate_[i] * rampRateConversion;
 				eventQueue.push_back(startRampEvent(this, pRate_[i], abs(targetVal), sign, rType ));
 				eventQueue.push_back(targetReachedEvent( this ));
-				totalRampDuration += (pMaxT_[i] - rampStartVal) * pRate_[i] * rampRateConversion;
 				//and stop steppping through the table
 				break;
 			}
 			//until then, schedule ramps to each boundary from low to high.
-			eventQueue.push_back(startRampEvent( this, pRate_[i], pMaxT_[i], sign, rType ));
-			eventQueue.push_back(targetReachedEvent( this ));
 			totalRampDuration += (pMaxT_[i] - rampStartVal) * pRate_[i] * rampRateConversion;
 			rampStartVal = pMaxT_[i];
+			eventQueue.push_back(startRampEvent( this, pRate_[i], pMaxT_[i], sign, rType ));
+			eventQueue.push_back(targetReachedEvent( this ));
 		}
 	}
 
@@ -1225,12 +1326,6 @@ asynStatus CRYOSMSDriver::setupRamp()
 		eventQueue.push_back(startCoolEvent(this));
 		eventQueue.push_back(tempReachedEvent(this));
 	}
-
-	//Make sure no further ramps are ordered whilst ramping
-	int trueVal = 1;
-	RETURN_IF_ASYNERROR2(putDb, "MID:SP.DISP", &trueVal);
-	RETURN_IF_ASYNERROR2(putDb, "START:SP.DISP", &trueVal);
-
 	return asynSuccess;
 }
 
@@ -1259,7 +1354,7 @@ asynStatus CRYOSMSDriver::setupPersistOn()
 		}
 	}
 
-	if (switchStat == 0)
+	if (switchStat == 3)
 	{
 		eventQueue.push_back(startCoolEvent(this));
 		eventQueue.push_back(tempReachedEvent(this));
@@ -1333,10 +1428,28 @@ asynStatus CRYOSMSDriver::setupFastRamp(double targetVal)
 
 void CRYOSMSDriver::startCooling()
 {//Tell device to start cooling, called from state machine
+	ready = false;
 	int falseVal = 0;
-	const char* statMsg = "Cooling";
+
+	double settleTime = std::stod(envVarMap.at("PERSISTENT_SETTLETIME"));
+	time_t timeNow;
+	time(&timeNow);
+	time_t endTime = timeNow + settleTime;
+
+	const char *statMsg = "Settling";
+	putDb("STAT", statMsg);
+
+	holding = true;
+	while (timeNow < endTime && holding)
+	{
+		epicsThreadSleep(1);
+		time(&timeNow);
+	}
+	holding = false;
+	statMsg = "Cooling";
 	cooling = 1;
 
+	putDb("READY", &falseVal);
 	putDb("HEATER:STAT:_SP", &falseVal);
 	putDb("STAT", statMsg);
 
@@ -1351,13 +1464,16 @@ void CRYOSMSDriver::startCooling()
 
 void CRYOSMSDriver::startWarming()
 {//Tell device to start warming, called from state machine
+	ready = false;
 	int trueVal = 1;
+	int falseVal = 1;
 	const char* statMsg = "Warming";
 	double persistCurr;
 	double outputCurr;
 	double heaterTolerence = std::stod(envVarMap.at("HEATER_TOLERANCE"));
 	warming = 1;
 
+	putDb("READY", &falseVal);
 	getDb("OUTPUT:PERSIST:RAW", persistCurr);
 	getDb("OUTPUT:RAW", outputCurr);
 
@@ -1405,7 +1521,12 @@ void CRYOSMSDriver::startRamping(double rate, double target, int sign, RampType 
 	rampType: enum of the sifferent ramp types, standard, fast and fastZero. Used for setting STAT msg
 */
 {
+	ready = false;
+
 	int trueVal = 1; //need a pointer to "1" to set PVs to "true" (can't just send "1")
+	int falseVal = 1; //need a pointer to "0" to set PVs to "false" (can't just send "0")
+
+	putDb("READY", &falseVal);
 
 	const char *statMsg;
 	switch (rampType)
@@ -1489,28 +1610,30 @@ void CRYOSMSDriver::checkReady()
 */
 {
 	const char *statMsg;
+	int trueVal = 1;
 
 	if (!envVarMap.at("CRYOMAGNET").compare("Yes") && !holding && atTarget)
 	{
 		int isPersist;
 		int switchStat;
-		int rampLeads;
 
-		getDb("MAGNET:MODE", isPersist);
+		getDb("PERSIST", isPersist);
 		getDb("SWITCH:STAT", switchStat);
 
-		//Ready if switch stat is war when non persistant or cold when persistent
+		//Ready if switch stat is warm when non persistant or cold when persistent
 		if (isPersist == 0 && switchStat == 3) 
 		{
 			statMsg = "Ready";
 			putDb("STAT", statMsg);
 			ready = true;
+			putDb("READY", &trueVal);
 		}
 		else if (isPersist == 1 && switchStat == 0)
 		{
 			statMsg = "Ready";
 			putDb("STAT", statMsg);
 			ready = true;
+			putDb("READY", &trueVal);
 		}
 	}
 	else if (!holding && atTarget)
@@ -1518,6 +1641,7 @@ void CRYOSMSDriver::checkReady()
 		statMsg = "Ready";
 		putDb("STAT", statMsg);
 		ready = true;
+		putDb("READY", &trueVal);
 	}
 }
 
@@ -1528,25 +1652,21 @@ void CRYOSMSDriver::reachTarget()
 	int magMode;
 
 	getDb("MID:_SP", target);
-	getDb("MID:SP", finalTarget);
-	getDb("MAGNETE:MODE", magMode);
+	getDb("TARGET", finalTarget);
+	getDb("PERSIST", magMode);
 
-	//Remember that MID:SP is user facing, so in display unit
+	//Remember that TARGET:SP is user facing, so in display unit
 	finalTarget = unitConversion(finalTarget, envVarMap.at("DISPLAY_UNIT"), envVarMap.at("WRITE_UNIT"));
 
 	double settleTime;
 
-	if (magMode == 1 && fastRamp == false)
+	if (magMode == 1 && fastRamp == true)
 	{
-		settleTime = std::stod(envVarMap.at("PERSITANT_SETTLETIME"));
-	}
-	else if (magMode == 1 && fastRamp == true)
-	{
-		settleTime = std::stod(envVarMap.at("FAST_PERSITANT_SETTLETIME"));
+		settleTime = std::stod(envVarMap.at("FAST_PERSISTENT_SETTLETIME"));
 	}
 	else
 	{
-		settleTime = std::stod(envVarMap.at("NON_PERSITANT_SETTLETIME"));
+		settleTime = std::stod(envVarMap.at("NON_PERSISTENT_SETTLETIME"));
 	}
 	time_t timeNow;
 	time(&timeNow);
@@ -1563,13 +1683,13 @@ void CRYOSMSDriver::reachTarget()
 	}
 	holding = false;
 
-	if (target == finalTarget)
+	if (floor(target*1000) == floor(finalTarget*1000))
 	{
 		double holdTime = (finalTarget == 0) ? std::stod(envVarMap.at("HOLD_TIME_ZERO")) : std::stod(envVarMap.at("HOLD_TIME"));
 		time(&timeNow);
 		endTime = timeNow + holdTime;
 
-		const char *statMsg = "Holding";
+		statMsg = "Holding";
 		int falseVal = 0;
 		int trueVal = 1;
 
@@ -1603,21 +1723,21 @@ extern "C"
 {
 
 	int CRYOSMSConfigure(const char *portName, std::string devPrefix, const char *TToA, const char *writeUnit, const char *displayUnit, const char *maxCurr, const char *maxVolt,
-		const char *allowPersist, const char *fastFilterValue, const char *filterValue, const char *npp, const char *fastPersistentSettletime, const char *persistentSettletime,
+		const char *allowPersist, const char *fastFilterValue, const char *filterValue, const char *npp, const char *fastPersistentSettletime, const char *persistentSettletime, const char *nonPersistentSettletime,
 		const char *fastRate, const char *useSwitch, const char *switchTempPv, const char *switchHigh, const char *switchLow, const char *switchStableNumber, const char *heaterTolerance,
 		const char *switchTimeout, const char *heaterOut, const char *useMagnetTemp, const char *magnetTempPv, const char *maxMagnetTemp,
 		const char *minMagnetTemp, const char *compOffAct, const char *noOfComp, const char *minNoOfComp, const char *comp1StatPv, const char *comp2StatPv, const char *rampFile,
-		const char *cryomagnet, const char *voltTolerance, const char *voltStabilityDuration, const char *midTolerance)
+		const char *cryomagnet, const char *voltTolerance, const char *voltStabilityDuration, const char *midTolerance, const char *targetTolerance, const char *holdTime, const char *holdTimeZero)
 
 	{
 		try
 		{
 			new CRYOSMSDriver(portName, devPrefix, TToA, writeUnit, displayUnit, maxCurr, maxVolt,
-				allowPersist, fastFilterValue, filterValue, npp, fastPersistentSettletime, persistentSettletime,
+				allowPersist, fastFilterValue, filterValue, npp, fastPersistentSettletime, persistentSettletime, nonPersistentSettletime,
 				fastRate, useSwitch, switchTempPv, switchHigh, switchLow, switchStableNumber, heaterTolerance,
 				switchTimeout, heaterOut, useMagnetTemp, magnetTempPv, maxMagnetTemp,
 				minMagnetTemp, compOffAct, noOfComp, minNoOfComp, comp1StatPv, comp2StatPv, rampFile,
-				cryomagnet, voltTolerance, voltStabilityDuration, midTolerance);
+				cryomagnet, voltTolerance, voltStabilityDuration, midTolerance, targetTolerance, holdTime, holdTimeZero);
 			return asynSuccess;
 		}
 		catch (const std::exception &ex)
@@ -1641,33 +1761,37 @@ extern "C"
 	static const iocshArg initArg10 = { "npp", iocshArgString };		///< value used in at-target checks
 	static const iocshArg initArg11 = { "fastPersistentSettletime", iocshArgString };		///< time to wait after fast ramp to persist
 	static const iocshArg initArg12 = { "persistentSettletime", iocshArgString };		///< time to wait after ramping to persist
-	static const iocshArg initArg13 = { "fastRate", iocshArgString };		///< ramp rate to use in fast ramps
-	static const iocshArg initArg14 = { "useSwitch", iocshArgString };		///< Whether or not to use switch temperature
-	static const iocshArg initArg15 = { "switchTempPv", iocshArgString };		///< PV for switch temp
-	static const iocshArg initArg16 = { "switchHigh", iocshArgString };		///< high limit of switch temp
-	static const iocshArg initArg17 = { "switchLow", iocshArgString };		///< high limit of switch temp
-	static const iocshArg initArg18 = { "switchStableNumber", iocshArgString };		///< number of measurements before switch temp is said to be stable
-	static const iocshArg initArg19 = { "heaterTolerance", iocshArgString };		///< max deviation of heater temp
-	static const iocshArg initArg20 = { "switchTimeout", iocshArgString };		///< timeout for switch readings
-	static const iocshArg initArg21 = { "heaterOut", iocshArgString };		///< PV for heater temp
-	static const iocshArg initArg22 = { "useMagnetTemp", iocshArgString };		///< whether to use magnet temperatures
-	static const iocshArg initArg23 = { "magnetTempPv", iocshArgString };		///< PV for magnet temp
-	static const iocshArg initArg24 = { "maxMagnetTemp", iocshArgString };		///< Max temp of magnet
-	static const iocshArg initArg25 = { "minMagnetTemp", iocshArgString };		///< Min temp for magnet
-	static const iocshArg initArg26 = { "compOffAct", iocshArgString };		///< Whether to act if compressors turn off
-	static const iocshArg initArg27 = { "noOfComp", iocshArgString };		///< Number of connected compressors
-	static const iocshArg initArg28 = { "minNoOfComp", iocshArgString };		///< Min number of active comps
-	static const iocshArg initArg29 = { "comp1StatPv", iocshArgString };		///< PV for compressor 1 status
-	static const iocshArg initArg30 = { "comp2StatPv", iocshArgString };		///< PV for compressor 2 status
-	static const iocshArg initArg31 = { "rampFile", iocshArgString };		///< file path for ramp table
-	static const iocshArg initArg32 = { "cryomagnet", iocshArgString };		///< whether this is a cryomagnet
-	static const iocshArg initArg33 = { "voltTolerance", iocshArgString };		///< Tolerance for volt stability
-	static const iocshArg initArg34 = { "voltStabilityDuration", iocshArgString };		///< how long to measure volt stability over
-	static const iocshArg initArg35 = { "midTolerance", iocshArgString };		///< Tolerance for checking if midpoing  is reached
+	static const iocshArg initArg13 = { "nonPersistentSettletime", iocshArgString };		///< time to wait after ramping to non-persist
+	static const iocshArg initArg14 = { "fastRate", iocshArgString };		///< ramp rate to use in fast ramps
+	static const iocshArg initArg15 = { "useSwitch", iocshArgString };		///< Whether or not to use switch temperature
+	static const iocshArg initArg16 = { "switchTempPv", iocshArgString };		///< PV for switch temp
+	static const iocshArg initArg17 = { "switchHigh", iocshArgString };		///< high limit of switch temp
+	static const iocshArg initArg18 = { "switchLow", iocshArgString };		///< high limit of switch temp
+	static const iocshArg initArg19 = { "switchStableNumber", iocshArgString };		///< number of measurements before switch temp is said to be stable
+	static const iocshArg initArg20 = { "heaterTolerance", iocshArgString };		///< max deviation of heater temp
+	static const iocshArg initArg21 = { "switchTimeout", iocshArgString };		///< timeout for switch readings
+	static const iocshArg initArg22 = { "heaterOut", iocshArgString };		///< PV for heater temp
+	static const iocshArg initArg23 = { "useMagnetTemp", iocshArgString };		///< whether to use magnet temperatures
+	static const iocshArg initArg24 = { "magnetTempPv", iocshArgString };		///< PV for magnet temp
+	static const iocshArg initArg25 = { "maxMagnetTemp", iocshArgString };		///< Max temp of magnet
+	static const iocshArg initArg26 = { "minMagnetTemp", iocshArgString };		///< Min temp for magnet
+	static const iocshArg initArg27 = { "compOffAct", iocshArgString };		///< Whether to act if compressors turn off
+	static const iocshArg initArg28 = { "noOfComp", iocshArgString };		///< Number of connected compressors
+	static const iocshArg initArg29 = { "minNoOfComp", iocshArgString };		///< Min number of active comps
+	static const iocshArg initArg30 = { "comp1StatPv", iocshArgString };		///< PV for compressor 1 status
+	static const iocshArg initArg31 = { "comp2StatPv", iocshArgString };		///< PV for compressor 2 status
+	static const iocshArg initArg32 = { "rampFile", iocshArgString };		///< file path for ramp table
+	static const iocshArg initArg33 = { "cryomagnet", iocshArgString };		///< whether this is a cryomagnet
+	static const iocshArg initArg34 = { "voltTolerance", iocshArgString };		///< Tolerance for volt stability
+	static const iocshArg initArg35 = { "voltStabilityDuration", iocshArgString };		///< how long to measure volt stability over
+	static const iocshArg initArg36 = { "midTolerance", iocshArgString };		///< Tolerance for checking if midpoint  is reached
+	static const iocshArg initArg37 = { "midTolerance", iocshArgString };		///< Tolerance for checking if target  is reached
+	static const iocshArg initArg38 = { "holdTime", iocshArgString };		///< Hold time for non-zero ramps
+	static const iocshArg initArg39 = { "holdTimeZero", iocshArgString };		///< Hold time for zero ramps
 
 	static const iocshArg * const initArgs[] = { &initArg0, &initArg1, &initArg2, &initArg3, &initArg4, &initArg5, &initArg6, &initArg7, &initArg8, &initArg9, &initArg10, &initArg11, 
 		&initArg12, &initArg13, &initArg14, &initArg15, &initArg16, &initArg17, &initArg18, &initArg19, &initArg20, &initArg21, &initArg22, &initArg23, &initArg24, &initArg25, &initArg26,
-		&initArg27, &initArg28, &initArg29, &initArg30, &initArg31, &initArg32, &initArg33, &initArg34, &initArg35 };
+		&initArg27, &initArg28, &initArg29, &initArg30, &initArg31, &initArg32, &initArg33, &initArg34, &initArg35, &initArg36, &initArg37, &initArg38, &initArg39 };
 
 	static const iocshFuncDef initFuncDef = { "CRYOSMSConfigure", sizeof(initArgs) / sizeof(iocshArg*), initArgs };
 
@@ -1675,7 +1799,8 @@ extern "C"
 	{
 		CRYOSMSConfigure(args[0].sval, args[1].sval, args[2].sval, args[3].sval, args[4].sval, args[5].sval, args[6].sval, args[7].sval, args[8].sval, args[9].sval, args[10].sval, args[11].sval,
 			args[12].sval, args[13].sval, args[14].sval, args[15].sval, args[16].sval, args[17].sval, args[18].sval, args[19].sval, args[20].sval, args[21].sval, args[22].sval, args[23].sval,
-			args[24].sval, args[25].sval, args[26].sval, args[27].sval, args[28].sval, args[29].sval, args[30].sval, args[31].sval, args[32].sval, args[33].sval, args[34].sval, args[35].sval);
+			args[24].sval, args[25].sval, args[26].sval, args[27].sval, args[28].sval, args[29].sval, args[30].sval, args[31].sval, args[32].sval, args[33].sval, args[34].sval, args[35].sval, 
+			args[36].sval, args[37].sval, args[38].sval, args[39].sval);
 	}
 
 	/// Register new commands with EPICS IOC shell

@@ -172,6 +172,7 @@ struct cryosmsStateMachine : public msm::front::state_machine_def<cryosmsStateMa
 		a_row< ready,		startCoolEvent,		cooling,	&csm::startCool				>,
 		a_row< ready,		startWarmEvent,		warming,	&csm::startWarm				>,
 		a_row< ready,		checkHeaterEvent,	ready,		&csm::checkHeater			>,
+		a_row< ready,		abortRampEvent,		ready,		&csm::abortRamp				>,
 		//	 +-------------+-------------------+-----------+-----------------------------+
 		a_row< ramping,		pauseRampEvent,		paused,		&csm::pauseInRamp			>,
 		a_row< ramping,		targetReachedEvent,	ready,		&csm::reachTarget			>,

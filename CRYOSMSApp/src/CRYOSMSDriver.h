@@ -27,11 +27,11 @@ class CRYOSMSDriver : public asynPortDriver, public SMDriver
 {
 public:
 	CRYOSMSDriver(const char *portName, std::string devPrefix, const char *TToA, const char *writeUnit, const char *displayUnit, const char *maxCurr, const char *maxVolt,
-		const char *allowPersist, const char *fastFilterValue, const char *filterValue, const char *npp, const char *fastPersistentSettletime, const char *persistentSettletime,
+		const char *allowPersist, const char *fastFilterValue, const char *filterValue, const char *npp, const char *fastPersistentSettletime, const char *persistentSettletime, const char *nonPersistentSettletime,
 		const char *fastRate, const char *useSwitch, const char *switchTempPv, const char *switchHigh, const char *switchLow, const char *switchStableNumber, const char *heaterTolerance,
 		const char *switchTimeout, const char *heaterOut, const char *useMagnetTemp, const char *magnetTempPv, const char *maxMagnetTemp,
 		const char *minMagnetTemp, const char *compOffAct, const char *noOfComp, const char *minNoOfComp, const char *comp1StatPv, const char *comp2StatPv, const char *rampFile,
-		const char *cryomagnet, const char *voltTolerance, const char *voltStabilityDuration, const char *midTolerance);
+		const char *cryomagnet, const char *voltTolerance, const char *voltStabilityDuration, const char *midTolerance, const char *targetTolerance, const char *holdTime, const char *holdTimeZero);
 	virtual asynStatus writeInt32(asynUser *pasynUser, epicsInt32 value);
 	asynStatus checkTToA();
 	asynStatus checkMaxCurr();
@@ -61,6 +61,7 @@ public:
 	double oldCurrVel = 0;//Old rate of change of output current
 	double oldCurr = 0;//Old valueof output current
 	int magModePrev = 0;//for checking if magnet mode changes
+	int rampLeadsPrev = 0;//for checking if ramp leads changes
 	double thisRampDuration;
 	double totalRampDuration;
 	std::string correctWriteUnit;
@@ -104,6 +105,7 @@ private:
 	int P_abortRamp;
 	int P_outputModeSet;
 	int P_magnetMode;
+	int P_rampLeads;
 	int P_calcHeater; //int as above
 
 #define LAST_SMS_PARAM 	P_calcHeater
@@ -131,6 +133,7 @@ private:
 #define P_abortRampString "RAMP_ABORT"
 #define P_outputModeSetString "OUTPUTMODE_SET"
 #define P_magnetModeString "MAGNET_MODE"
+#define P_rampLeadsString "RAMP_LEADS"
 #define P_calcHeaterString "CALC_HEATER"
 
 #endif /* CRYOSMSDRIVER_H */
