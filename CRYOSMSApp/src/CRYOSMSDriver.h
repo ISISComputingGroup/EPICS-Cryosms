@@ -62,8 +62,6 @@ public:
 	double oldCurr = 0;//Old valueof output current
 	int magModePrev = 0;//for checking if magnet mode changes
 	int rampLeadsPrev = 0;//for checking if ramp leads changes
-	double thisRampDuration;
-	double totalRampDuration;
 	std::string correctWriteUnit;
 	asynStatus procDb(std::string pvSuffix);
 	asynStatus getDb(std::string pvSuffix, int &pbuffer, bool isExternal = false);
@@ -104,8 +102,6 @@ private:
 	int P_pauseRamp;
 	int P_abortRamp;
 	int P_outputModeSet;
-	int P_magnetMode;
-	int P_rampLeads;
 	int P_calcHeater; //int as above
 
 #define LAST_SMS_PARAM 	P_calcHeater
@@ -132,8 +128,6 @@ private:
 #define P_pauseRampString "RAMP_PAUSE"
 #define P_abortRampString "RAMP_ABORT"
 #define P_outputModeSetString "OUTPUTMODE_SET"
-#define P_magnetModeString "MAGNET_MODE"
-#define P_rampLeadsString "RAMP_LEADS"
 #define P_calcHeaterString "CALC_HEATER"
 
 #endif /* CRYOSMSDRIVER_H */
