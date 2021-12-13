@@ -26,11 +26,12 @@ struct processEventVisitor : boost::static_visitor<>
 class CRYOSMSDriver : public asynPortDriver, public SMDriver
 {
 public:
-	CRYOSMSDriver(const char *portName, std::string devPrefix, const char *TToA, const char *writeUnit, const char *displayUnit, const char *maxCurr, const char *maxVolt,
-		const char *allowPersist, const char *fastFilterValue, const char *filterValue, const char *npp, const char *fastPersistentSettletime, const char *persistentSettletime,
+	CRYOSMSDriver(const char *portName, std::string devPrefix, const char *TToA, const char *writeUnit, const char *displayUnit, const char *restoreWriteUnitTimeout, const char *maxCurr, const char *maxVolt,
+		const char *allowPersist, const char *fastFilterValue, const char *filterValue, const char *npp, const char *fastPersistentSettletime, const char *persistentSettletime, const char *nonPersistentSettletime,
 		const char *fastRate, const char *useSwitch, const char *switchTempPv, const char *switchHigh, const char *switchLow, const char *switchStableNumber, const char *heaterTolerance,
 		const char *switchTimeout, const char *heaterOut, const char *useMagnetTemp, const char *magnetTempPv, const char *maxMagnetTemp,
-		const char *minMagnetTemp, const char *compOffAct, const char *noOfComp, const char *minNoOfComp, const char *comp1StatPv, const char *comp2StatPv, const char *rampFile);
+		const char *minMagnetTemp, const char *compOffAct, const char *noOfComp, const char *minNoOfComp, const char *comp1StatPv, const char *comp2StatPv, const char *rampFile,
+		const char *cryomagnet, const char *voltTolerance, const char *voltStabilityDuration, const char *midTolerance, const char *targetTolerance, const char *holdTime, const char *holdTimeZero);
 	virtual asynStatus writeInt32(asynUser *pasynUser, epicsInt32 value);
 	asynStatus checkTToA();
 	asynStatus checkMaxCurr();
