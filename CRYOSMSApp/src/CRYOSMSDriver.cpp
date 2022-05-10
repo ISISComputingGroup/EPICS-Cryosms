@@ -94,20 +94,6 @@ CRYOSMSDriver::CRYOSMSDriver(const char *portName, std::string devPrefix, const 
 
 	std::vector<epicsFloat64*> pRate_; //variables which store the data read from the ramp rate file
 	std::vector<epicsFloat64*> pMaxT_;
-
-	const char* envVarsNames[] = {
-		"T_TO_A", "WRITE_UNIT", "DISPLAY_UNIT", "MAX_CURR", "MAX_VOLT", "ALLOW_PERSIST", "FAST_FILTER_VALUE", "FILTER_VALUE", "NPP", "FAST_PERSISTENT_SETTLETIME", "PERSISTENT_SETTLETIME",
-		"FAST_RATE", "USE_SWITCH", "SWITCH_TEMP_PV", "SWITCH_HIGH", "SWITCH_LOW", "SWITCH_STABLE_NUMBER", "HEATER_TOLERANCE", "SWITCH_TIMEOUT", "HEATER_OUT",
-		"USE_MAGNET_TEMP", "MAGNET_TEMP_PV", "MAX_MAGNET_TEMP", "MIN_MAGNET_TEMP", "COMP_OFF_ACT", "NO_OF_COMP", "MIN_NO_OF_COMP_ON", "COMP_1_STAT_PV", "COMP_2_STAT_PV", "RAMP_FILE"};
-
-	const char* envVarVals[] = { TToA, writeUnit, displayUnit, maxCurr, maxVolt, allowPersist, fastFilterValue, filterValue, npp, fastPersistentSettletime, persistentSettletime,
-				fastRate, useSwitch, switchTempPv, switchHigh, switchLow, switchStableNumber, heaterTolerance, switchTimeout, heaterOut,
-				useMagnetTemp, magnetTempPv, maxMagnetTemp, minMagnetTemp, compOffAct, noOfComp, minNoOfComp, comp1StatPv, comp2StatPv, rampFile };
-	for (int i = 0; i < sizeof(envVarsNames) / sizeof(const char*); ++i)
-	{
-		std::pair<std::string, std::string > newPair(envVarsNames[i], envVarVals[i]);
-		envVarMap.insert(newPair);
-	}
 }
 void CRYOSMSDriver::pollerTask()
 {
@@ -1189,6 +1175,20 @@ extern "C"
 	{
 		try
 		{
+			const char* envVarsNames[] = {
+				"T_TO_A", "WRITE_UNIT", "DISPLAY_UNIT", "MAX_CURR", "MAX_VOLT", "ALLOW_PERSIST", "FAST_FILTER_VALUE", "FILTER_VALUE", "NPP", "FAST_PERSISTENT_SETTLETIME", "PERSISTENT_SETTLETIME",
+				"FAST_RATE", "USE_SWITCH", "SWITCH_TEMP_PV", "SWITCH_HIGH", "SWITCH_LOW", "SWITCH_STABLE_NUMBER", "HEATER_TOLERANCE", "SWITCH_TIMEOUT", "HEATER_OUT",
+				"USE_MAGNET_TEMP", "MAGNET_TEMP_PV", "MAX_MAGNET_TEMP", "MIN_MAGNET_TEMP", "COMP_OFF_ACT", "NO_OF_COMP", "MIN_NO_OF_COMP_ON", "COMP_1_STAT_PV", "COMP_2_STAT_PV", "RAMP_FILE" };
+
+			const char* envVarVals[] = { TToA, writeUnit, displayUnit, maxCurr, maxVolt, allowPersist, fastFilterValue, filterValue, npp, fastPersistentSettletime, persistentSettletime,
+						fastRate, useSwitch, switchTempPv, switchHigh, switchLow, switchStableNumber, heaterTolerance, switchTimeout, heaterOut,
+						useMagnetTemp, magnetTempPv, maxMagnetTemp, minMagnetTemp, compOffAct, noOfComp, minNoOfComp, comp1StatPv, comp2StatPv, rampFile };
+			for (int i = 0; i < sizeof(envVarsNames) / sizeof(const char*); ++i)
+			{
+				std::pair<std::string, std::string > newPair(envVarsNames[i], envVarVals[i]);
+				envVarMap.insert(newPair);
+			}
+
 			new CRYOSMSDriver(portName, devPrefix, TToA, writeUnit, displayUnit, maxCurr, maxVolt,
 				allowPersist, fastFilterValue, filterValue, npp, fastPersistentSettletime, persistentSettletime,
 				fastRate, useSwitch, switchTempPv, switchHigh, switchLow, switchStableNumber, heaterTolerance,
