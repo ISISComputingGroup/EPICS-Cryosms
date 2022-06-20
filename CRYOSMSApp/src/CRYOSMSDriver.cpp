@@ -535,7 +535,7 @@ asynStatus CRYOSMSDriver::onStart()
 
 	qsm.start();
 	queueThreadId = epicsThreadCreate("Event Queue", epicsThreadPriorityHigh, epicsThreadStackMedium, (EPICSTHREADFUNC)::eventQueueThread, this);
-	checkThreadId = epicsThreadCreate("Checks Queue", epicsThreadPriorityHigh, epicsThreadStackMedium, (EPICSTHREADFUNC)::checksThread, this);
+	checkThreadId = epicsThreadCreate("Checks Thread", epicsThreadPriorityHigh, epicsThreadStackMedium, (EPICSTHREADFUNC)::checksThread, this);
 
 	RETURN_IF_ASYNERROR2(putDb, "INIT", &trueVal);
 	return status;
