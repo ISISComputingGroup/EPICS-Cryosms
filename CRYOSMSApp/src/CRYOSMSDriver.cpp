@@ -66,20 +66,16 @@ static const char *driverName = "CRYOSMSDriver"; ///< Name of driver for use in 
 
 static void eventQueueThread(CRYOSMSDriver* drv);
 
-CRYOSMSDriver::CRYOSMSDriver(const char *portName, std::string devPrefix, const char *TToA, const char *writeUnit, const char *displayUnit, const char *maxCurr, const char *maxVolt,
-	const char *allowPersist, const char *fastFilterValue, const char *filterValue, const char *npp, const char *fastPersistentSettletime, const char *persistentSettletime,
-	const char *fastRate, const char *useSwitch, const char *switchTempPv, const char *switchHigh, const char *switchLow, const char *switchStableNumber, const char *heaterTolerance,
-	const char *switchTimeout, const char *heaterOut, const char *useMagnetTemp, const char *magnetTempPv, const char *maxMagnetTemp,
-	const char *minMagnetTemp, const char *compOffAct, const char *noOfComp, const char *minNoOfComp, const char *comp1StatPv, const char *comp2StatPv, const char *rampFile)
-  : asynPortDriver(portName,
-	0, /* maxAddr */
-	static_cast<int>NUM_SMS_PARAMS, /* num parameters */
-	asynInt32Mask | asynInt32ArrayMask | asynFloat64Mask | asynFloat64ArrayMask | asynOctetMask | asynDrvUserMask, /* Interface mask */
-	asynInt32Mask | asynInt32ArrayMask | asynFloat64Mask | asynFloat64ArrayMask | asynOctetMask,  /* Interrupt mask */
-	ASYN_CANBLOCK, /* asynFlags.  This driver can block but it is not multi-device */
-	1, /* Autoconnect */
-	0,
-	0), qsm(this), started(false), devicePrefix(devPrefix), writeDisabled(FALSE), atTarget(true), abortQueue(true)
+CRYOSMSDriver::CRYOSMSDriver(const char *portName, std::string devPrefix, std::map<std::string, std::string> argMap)
+	: asynPortDriver(portName,
+		0, /* maxAddr */
+		static_cast<int>NUM_SMS_PARAMS, /* num parameters */
+		asynInt32Mask | asynInt32ArrayMask | asynFloat64Mask | asynFloat64ArrayMask | asynOctetMask | asynDrvUserMask, /* Interface mask */
+		asynInt32Mask | asynInt32ArrayMask | asynFloat64Mask | asynFloat64ArrayMask | asynOctetMask,  /* Interrupt mask */
+		ASYN_CANBLOCK, /* asynFlags.  This driver can block but it is not multi-device */
+		1, /* Autoconnect */
+		0,
+		0), qsm(this), started(false), devicePrefix(devPrefix), writeDisabled(FALSE), atTarget(true), abortQueue(true), envVarMap(argMap)
 
 {
 	createParam(P_deviceNameString, asynParamOctet, &P_deviceName);
@@ -94,6 +90,7 @@ CRYOSMSDriver::CRYOSMSDriver(const char *portName, std::string devPrefix, const 
 
 	std::vector<epicsFloat64*> pRate_; //variables which store the data read from the ramp rate file
 	std::vector<epicsFloat64*> pMaxT_;
+
 }
 void CRYOSMSDriver::pollerTask()
 {
@@ -454,7 +451,7 @@ asynStatus CRYOSMSDriver::onStart()
 	started = true;
 	int trueVal = 1;
 	int falseVal = 0;
-
+	epicsThreadSleep(5);
 	RETURN_IF_ASYNERROR0(checkTToA);
 
 	RETURN_IF_ASYNERROR0(checkMaxCurr);
@@ -1173,27 +1170,25 @@ extern "C"
 		const char *minMagnetTemp, const char *compOffAct, const char *noOfComp, const char *minNoOfComp, const char *comp1StatPv, const char *comp2StatPv, const char *rampFile)
 
 	{
+		const char* envVarsNames[] = {
+		   "T_TO_A", "WRITE_UNIT", "DISPLAY_UNIT", "MAX_CURR", "MAX_VOLT", "ALLOW_PERSIST", "FAST_FILTER_VALUE", "FILTER_VALUE", "NPP", "FAST_PERSISTENT_SETTLETIME", "PERSISTENT_SETTLETIME",
+		   "FAST_RATE", "USE_SWITCH", "SWITCH_TEMP_PV", "SWITCH_HIGH", "SWITCH_LOW", "SWITCH_STABLE_NUMBER", "HEATER_TOLERANCE", "SWITCH_TIMEOUT", "HEATER_OUT",
+		   "USE_MAGNET_TEMP", "MAGNET_TEMP_PV", "MAX_MAGNET_TEMP", "MIN_MAGNET_TEMP", "COMP_OFF_ACT", "NO_OF_COMP", "MIN_NO_OF_COMP_ON", "COMP_1_STAT_PV", "COMP_2_STAT_PV", "RAMP_FILE" };
+
+		const char* envVarVals[] = { TToA, writeUnit, displayUnit, maxCurr, maxVolt, allowPersist, fastFilterValue, filterValue, npp, fastPersistentSettletime, persistentSettletime,
+					fastRate, useSwitch, switchTempPv, switchHigh, switchLow, switchStableNumber, heaterTolerance, switchTimeout, heaterOut,
+					useMagnetTemp, magnetTempPv, maxMagnetTemp, minMagnetTemp, compOffAct, noOfComp, minNoOfComp, comp1StatPv, comp2StatPv, rampFile };
+
+		std::map<std::string, std::string> argMap;
+
+		for (int i = 0; i < sizeof(envVarsNames) / sizeof(const char*); ++i)
+		{
+			std::pair<std::string, std::string > newPair(envVarsNames[i], envVarVals[i]);
+			argMap.insert(newPair);
+		}
 		try
 		{
-			const char* envVarsNames[] = {
-				"T_TO_A", "WRITE_UNIT", "DISPLAY_UNIT", "MAX_CURR", "MAX_VOLT", "ALLOW_PERSIST", "FAST_FILTER_VALUE", "FILTER_VALUE", "NPP", "FAST_PERSISTENT_SETTLETIME", "PERSISTENT_SETTLETIME",
-				"FAST_RATE", "USE_SWITCH", "SWITCH_TEMP_PV", "SWITCH_HIGH", "SWITCH_LOW", "SWITCH_STABLE_NUMBER", "HEATER_TOLERANCE", "SWITCH_TIMEOUT", "HEATER_OUT",
-				"USE_MAGNET_TEMP", "MAGNET_TEMP_PV", "MAX_MAGNET_TEMP", "MIN_MAGNET_TEMP", "COMP_OFF_ACT", "NO_OF_COMP", "MIN_NO_OF_COMP_ON", "COMP_1_STAT_PV", "COMP_2_STAT_PV", "RAMP_FILE" };
-
-			const char* envVarVals[] = { TToA, writeUnit, displayUnit, maxCurr, maxVolt, allowPersist, fastFilterValue, filterValue, npp, fastPersistentSettletime, persistentSettletime,
-						fastRate, useSwitch, switchTempPv, switchHigh, switchLow, switchStableNumber, heaterTolerance, switchTimeout, heaterOut,
-						useMagnetTemp, magnetTempPv, maxMagnetTemp, minMagnetTemp, compOffAct, noOfComp, minNoOfComp, comp1StatPv, comp2StatPv, rampFile };
-			for (int i = 0; i < sizeof(envVarsNames) / sizeof(const char*); ++i)
-			{
-				std::pair<std::string, std::string > newPair(envVarsNames[i], envVarVals[i]);
-				envVarMap.insert(newPair);
-			}
-
-			new CRYOSMSDriver(portName, devPrefix, TToA, writeUnit, displayUnit, maxCurr, maxVolt,
-				allowPersist, fastFilterValue, filterValue, npp, fastPersistentSettletime, persistentSettletime,
-				fastRate, useSwitch, switchTempPv, switchHigh, switchLow, switchStableNumber, heaterTolerance,
-				switchTimeout, heaterOut, useMagnetTemp, magnetTempPv, maxMagnetTemp,
-				minMagnetTemp, compOffAct, noOfComp, minNoOfComp, comp1StatPv, comp2StatPv, rampFile);
+			new CRYOSMSDriver(portName, devPrefix, argMap);
 			return asynSuccess;
 		}
 		catch (const std::exception &ex)
@@ -1202,7 +1197,7 @@ extern "C"
 			return asynError;
 		}
 	}
-	// EPICS iocsh shell commands 
+	// EPICS ioc shell commands 
 
 	static const iocshArg initArg0 = { "portName", iocshArgString };			///< Port to connect to
 	static const iocshArg initArg1 = { "devicePrefix", iocshArgString };		///< PV Prefix for device
