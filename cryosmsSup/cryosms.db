@@ -879,6 +879,20 @@ record(bo, "$(P)SIM")
     field(VAL, "$(RECSIM=0)")
 }
 
+record(bo, "$(P)SIM:COMP1STAT")
+{
+    field(SCAN, "Passive")
+    field(DTYP, "Soft Channel")
+    field(VAL, "1")
+}
+
+record(bo, "$(P)SIM:COMP2STAT")
+{
+    field(SCAN, "Passive")
+    field(DTYP, "Soft Channel")
+    field(VAL, "1")
+}
+
 record(mbbi,"$(P)SIM:OUTPUTMODE")
 {
     field(SCAN, "Passive")

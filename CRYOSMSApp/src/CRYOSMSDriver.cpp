@@ -74,7 +74,7 @@ static const char *driverName = "CRYOSMSDriver"; ///< Name of driver for use in 
 static void eventQueueThread(CRYOSMSDriver* drv);
 static void checksThread(CRYOSMSDriver* drv);
 
-CRYOSMSDriver::CRYOSMSDriver(const char *portName, std::string devPrefix, const char *TToA, const char *writeUnit, const char *displayUnit, const char *maxCurr, const char *maxVolt,
+CRYOSMSDriver::CRYOSMSDriver(const char *portName, std::string devPrefix, const char *TToA, const char *writeUnit, const char *displayUnit, const char* restoreWUTimeout, const char *maxCurr, const char *maxVolt,
 	const char *allowPersist, const char *fastFilterValue, const char *filterValue, const char *npp, const char *fastPersistentSettletime, const char *persistentSettletime, const char *nonPersistentSettletime,
 	const char *fastRate, const char *useSwitch, const char *switchTempPv, const char *switchHigh, const char *switchLow, const char *switchStableNumber, const char *heaterTolerance,
 	const char *switchTimeout, const char *heaterOut, const char *useMagnetTemp, const char *magnetTempPv, const char *maxMagnetTemp,
@@ -105,12 +105,12 @@ CRYOSMSDriver::CRYOSMSDriver(const char *portName, std::string devPrefix, const 
 	std::vector<epicsFloat64*> pMaxT_;
 
 	const char* envVarsNames[] = {
-		"T_TO_A", "WRITE_UNIT", "DISPLAY_UNIT", "MAX_CURR", "MAX_VOLT", "ALLOW_PERSIST", "FAST_FILTER_VALUE", "FILTER_VALUE", "NPP", "FAST_PERSISTENT_SETTLETIME", "PERSISTENT_SETTLETIME",
+		"T_TO_A", "WRITE_UNIT", "DISPLAY_UNIT", "RESTORE_WRITE_UNIT_TIMEOUT", "MAX_CURR", "MAX_VOLT", "ALLOW_PERSIST", "FAST_FILTER_VALUE", "FILTER_VALUE", "NPP", "FAST_PERSISTENT_SETTLETIME", "PERSISTENT_SETTLETIME",
 		"NON_PERSISTENT_SETTLETIME", "FAST_RATE", "USE_SWITCH", "SWITCH_TEMP_PV", "SWITCH_HIGH", "SWITCH_LOW", "SWITCH_STABLE_NUMBER", "HEATER_TOLERANCE", "SWITCH_TIMEOUT", "HEATER_OUT",
 		"USE_MAGNET_TEMP", "MAGNET_TEMP_PV", "MAX_MAGNET_TEMP", "MIN_MAGNET_TEMP", "COMP_OFF_ACT", "NO_OF_COMP", "MIN_NO_OF_COMP_ON", "COMP_1_STAT_PV", "COMP_2_STAT_PV", "RAMP_FILE",
 		"CRYOMAGNET", "VOLT_TOLERANCE", "VOLT_STABILITY_DURATION", "MID_TOLERANCE", "TARGET_TOLERANCE", "HOLD_TIME", "HOLD_TIME_ZERO"};
 
-	const char* envVarVals[] = { TToA, writeUnit, displayUnit, maxCurr, maxVolt, allowPersist, fastFilterValue, filterValue, npp, fastPersistentSettletime, persistentSettletime,
+	const char* envVarVals[] = { TToA, writeUnit, displayUnit, restoreWUTimeout, maxCurr, maxVolt, allowPersist, fastFilterValue, filterValue, npp, fastPersistentSettletime, persistentSettletime,
 				nonPersistentSettletime, fastRate, useSwitch, switchTempPv, switchHigh, switchLow, switchStableNumber, heaterTolerance, switchTimeout, heaterOut,
 				useMagnetTemp, magnetTempPv, maxMagnetTemp, minMagnetTemp, compOffAct, noOfComp, minNoOfComp, comp1StatPv, comp2StatPv, rampFile,
 				cryomagnet, voltTolerance, voltStabilityDuration, midTolerance, targetTolerance, holdTime, holdTimeZero};
@@ -1622,7 +1622,7 @@ void CRYOSMSDriver::continueAbort()
 extern "C"
 {
 
-	int CRYOSMSConfigure(const char *portName, std::string devPrefix, const char *TToA, const char *writeUnit, const char *displayUnit, const char *maxCurr, const char *maxVolt,
+	int CRYOSMSConfigure(const char *portName, std::string devPrefix, const char *TToA, const char *writeUnit, const char *displayUnit, const char *restoreWUTimeout, const char *maxCurr, const char *maxVolt,
 		const char *allowPersist, const char *fastFilterValue, const char *filterValue, const char *npp, const char *fastPersistentSettletime, const char *persistentSettletime, const char *nonPersistentSettletime,
 		const char *fastRate, const char *useSwitch, const char *switchTempPv, const char *switchHigh, const char *switchLow, const char *switchStableNumber, const char *heaterTolerance,
 		const char *switchTimeout, const char *heaterOut, const char *useMagnetTemp, const char *magnetTempPv, const char *maxMagnetTemp,
@@ -1632,7 +1632,7 @@ extern "C"
 	{
 		try
 		{
-			new CRYOSMSDriver(portName, devPrefix, TToA, writeUnit, displayUnit, maxCurr, maxVolt,
+			new CRYOSMSDriver(portName, devPrefix, TToA, writeUnit, displayUnit, restoreWUTimeout, maxCurr, maxVolt,
 				allowPersist, fastFilterValue, filterValue, npp, fastPersistentSettletime, persistentSettletime, nonPersistentSettletime,
 				fastRate, useSwitch, switchTempPv, switchHigh, switchLow, switchStableNumber, heaterTolerance,
 				switchTimeout, heaterOut, useMagnetTemp, magnetTempPv, maxMagnetTemp,
@@ -1653,45 +1653,46 @@ extern "C"
 	static const iocshArg initArg2 = { "TToA", iocshArgString };		///< Tesla/ Amps conversion rate
 	static const iocshArg initArg3 = { "writeUnit", iocshArgString };		///< unit to write to device in
 	static const iocshArg initArg4 = { "displayUnit", iocshArgString };		///< unit to display values to user in
-	static const iocshArg initArg5 = { "maxCurr", iocshArgString };		///< max current for ramping
-	static const iocshArg initArg6 = { "maxVolt", iocshArgString };		///< max voltage for device
-	static const iocshArg initArg7 = { "allowPersist", iocshArgString };		///< Whether or not to allow persistent mode
-	static const iocshArg initArg8 = { "fastFilterValue", iocshArgString };		///< Filter value, fast ramps
-	static const iocshArg initArg9 = { "filterValue", iocshArgString };		///< Filter value
-	static const iocshArg initArg10 = { "npp", iocshArgString };		///< value used in at-target checks
-	static const iocshArg initArg11 = { "fastPersistentSettletime", iocshArgString };		///< time to wait after fast ramp to persist
-	static const iocshArg initArg12 = { "persistentSettletime", iocshArgString };		///< time to wait after ramping to persist
-	static const iocshArg initArg13 = { "nonPersistentSettletime", iocshArgString };		///< time to wait after ramping to non-persist
-	static const iocshArg initArg14 = { "fastRate", iocshArgString };		///< ramp rate to use in fast ramps
-	static const iocshArg initArg15 = { "useSwitch", iocshArgString };		///< Whether or not to use switch temperature
-	static const iocshArg initArg16 = { "switchTempPv", iocshArgString };		///< PV for switch temp
-	static const iocshArg initArg17 = { "switchHigh", iocshArgString };		///< high limit of switch temp
-	static const iocshArg initArg18 = { "switchLow", iocshArgString };		///< high limit of switch temp
-	static const iocshArg initArg19 = { "switchStableNumber", iocshArgString };		///< number of measurements before switch temp is said to be stable
-	static const iocshArg initArg20 = { "heaterTolerance", iocshArgString };		///< max deviation of heater temp
-	static const iocshArg initArg21 = { "switchTimeout", iocshArgString };		///< timeout for switch readings
-	static const iocshArg initArg22 = { "heaterOut", iocshArgString };		///< PV for heater temp
-	static const iocshArg initArg23 = { "useMagnetTemp", iocshArgString };		///< whether to use magnet temperatures
-	static const iocshArg initArg24 = { "magnetTempPv", iocshArgString };		///< PV for magnet temp
-	static const iocshArg initArg25 = { "maxMagnetTemp", iocshArgString };		///< Max temp of magnet
-	static const iocshArg initArg26 = { "minMagnetTemp", iocshArgString };		///< Min temp for magnet
-	static const iocshArg initArg27 = { "compOffAct", iocshArgString };		///< Whether to act if compressors turn off
-	static const iocshArg initArg28 = { "noOfComp", iocshArgString };		///< Number of connected compressors
-	static const iocshArg initArg29 = { "minNoOfComp", iocshArgString };		///< Min number of active comps
-	static const iocshArg initArg30 = { "comp1StatPv", iocshArgString };		///< PV for compressor 1 status
-	static const iocshArg initArg31 = { "comp2StatPv", iocshArgString };		///< PV for compressor 2 status
-	static const iocshArg initArg32 = { "rampFile", iocshArgString };		///< file path for ramp table
-	static const iocshArg initArg33 = { "cryomagnet", iocshArgString };		///< whether this is a cryomagnet
-	static const iocshArg initArg34 = { "voltTolerance", iocshArgString };		///< Tolerance for volt stability
-	static const iocshArg initArg35 = { "voltStabilityDuration", iocshArgString };		///< how long to measure volt stability over
-	static const iocshArg initArg36 = { "midTolerance", iocshArgString };		///< Tolerance for checking if midpoint  is reached
-	static const iocshArg initArg37 = { "midTolerance", iocshArgString };		///< Tolerance for checking if target  is reached
-	static const iocshArg initArg38 = { "holdTime", iocshArgString };		///< Hold time for non-zero ramps
-	static const iocshArg initArg39 = { "holdTimeZero", iocshArgString };		///< Hold time for zero ramps
+	static const iocshArg initArg5 = { "restoreWriteUnitTimeout", iocshArgString };		///< How long to wait before reverting to default write unit after a change
+	static const iocshArg initArg6 = { "maxCurr", iocshArgString };		///< max current for ramping
+	static const iocshArg initArg7 = { "maxVolt", iocshArgString };		///< max voltage for device
+	static const iocshArg initArg8 = { "allowPersist", iocshArgString };		///< Whether or not to allow persistent mode
+	static const iocshArg initArg9 = { "fastFilterValue", iocshArgString };		///< Filter value, fast ramps
+	static const iocshArg initArg10 = { "filterValue", iocshArgString };		///< Filter value
+	static const iocshArg initArg11 = { "npp", iocshArgString };		///< value used in at-target checks
+	static const iocshArg initArg12 = { "fastPersistentSettletime", iocshArgString };		///< time to wait after fast ramp to persist
+	static const iocshArg initArg13 = { "persistentSettletime", iocshArgString };		///< time to wait after ramping to persist
+	static const iocshArg initArg14 = { "nonPersistentSettletime", iocshArgString };		///< time to wait after ramping to non-persist
+	static const iocshArg initArg15 = { "fastRate", iocshArgString };		///< ramp rate to use in fast ramps
+	static const iocshArg initArg16 = { "useSwitch", iocshArgString };		///< Whether or not to use switch temperature
+	static const iocshArg initArg17 = { "switchTempPv", iocshArgString };		///< PV for switch temp
+	static const iocshArg initArg18 = { "switchHigh", iocshArgString };		///< high limit of switch temp
+	static const iocshArg initArg19 = { "switchLow", iocshArgString };		///< high limit of switch temp
+	static const iocshArg initArg20 = { "switchStableNumber", iocshArgString };		///< number of measurements before switch temp is said to be stable
+	static const iocshArg initArg21 = { "heaterTolerance", iocshArgString };		///< max deviation of heater temp
+	static const iocshArg initArg22 = { "switchTimeout", iocshArgString };		///< timeout for switch readings
+	static const iocshArg initArg23 = { "heaterOut", iocshArgString };		///< PV for heater temp
+	static const iocshArg initArg24 = { "useMagnetTemp", iocshArgString };		///< whether to use magnet temperatures
+	static const iocshArg initArg25 = { "magnetTempPv", iocshArgString };		///< PV for magnet temp
+	static const iocshArg initArg26 = { "maxMagnetTemp", iocshArgString };		///< Max temp of magnet
+	static const iocshArg initArg27 = { "minMagnetTemp", iocshArgString };		///< Min temp for magnet
+	static const iocshArg initArg28 = { "compOffAct", iocshArgString };		///< Whether to act if compressors turn off
+	static const iocshArg initArg29 = { "noOfComp", iocshArgString };		///< Number of connected compressors
+	static const iocshArg initArg30 = { "minNoOfComp", iocshArgString };		///< Min number of active comps
+	static const iocshArg initArg31 = { "comp1StatPv", iocshArgString };		///< PV for compressor 1 status
+	static const iocshArg initArg32 = { "comp2StatPv", iocshArgString };		///< PV for compressor 2 status
+	static const iocshArg initArg33 = { "rampFile", iocshArgString };		///< file path for ramp table
+	static const iocshArg initArg34 = { "cryomagnet", iocshArgString };		///< whether this is a cryomagnet
+	static const iocshArg initArg35 = { "voltTolerance", iocshArgString };		///< Tolerance for volt stability
+	static const iocshArg initArg36 = { "voltStabilityDuration", iocshArgString };		///< how long to measure volt stability over
+	static const iocshArg initArg37 = { "midTolerance", iocshArgString };		///< Tolerance for checking if midpoint  is reached
+	static const iocshArg initArg38 = { "midTolerance", iocshArgString };		///< Tolerance for checking if target  is reached
+	static const iocshArg initArg39 = { "holdTime", iocshArgString };		///< Hold time for non-zero ramps
+	static const iocshArg initArg40 = { "holdTimeZero", iocshArgString };		///< Hold time for zero ramps
 
 	static const iocshArg * const initArgs[] = { &initArg0, &initArg1, &initArg2, &initArg3, &initArg4, &initArg5, &initArg6, &initArg7, &initArg8, &initArg9, &initArg10, &initArg11, 
 		&initArg12, &initArg13, &initArg14, &initArg15, &initArg16, &initArg17, &initArg18, &initArg19, &initArg20, &initArg21, &initArg22, &initArg23, &initArg24, &initArg25, &initArg26,
-		&initArg27, &initArg28, &initArg29, &initArg30, &initArg31, &initArg32, &initArg33, &initArg34, &initArg35, &initArg36, &initArg37, &initArg38, &initArg39 };
+		&initArg27, &initArg28, &initArg29, &initArg30, &initArg31, &initArg32, &initArg33, &initArg34, &initArg35, &initArg36, &initArg37, &initArg38, &initArg39, &initArg40 };
 
 	static const iocshFuncDef initFuncDef = { "CRYOSMSConfigure", sizeof(initArgs) / sizeof(iocshArg*), initArgs };
 
@@ -1700,7 +1701,7 @@ extern "C"
 		CRYOSMSConfigure(args[0].sval, args[1].sval, args[2].sval, args[3].sval, args[4].sval, args[5].sval, args[6].sval, args[7].sval, args[8].sval, args[9].sval, args[10].sval, args[11].sval,
 			args[12].sval, args[13].sval, args[14].sval, args[15].sval, args[16].sval, args[17].sval, args[18].sval, args[19].sval, args[20].sval, args[21].sval, args[22].sval, args[23].sval,
 			args[24].sval, args[25].sval, args[26].sval, args[27].sval, args[28].sval, args[29].sval, args[30].sval, args[31].sval, args[32].sval, args[33].sval, args[34].sval, args[35].sval, 
-			args[36].sval, args[37].sval, args[38].sval, args[39].sval);
+			args[36].sval, args[37].sval, args[38].sval, args[39].sval, args[40].sval);
 	}
 
 	/// Register new commands with EPICS IOC shell
