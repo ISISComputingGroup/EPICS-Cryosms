@@ -32,6 +32,7 @@ record(mbbi, "$(P)DIRECTION")
 {
     field(DESC, "The direction of the device")
     field(DTYP, "stream")
+    field(SCAN, "1 second")
     field(INP, "@cryosms.proto getDirection $(PORT)")
     field(ZRST, "0") field(ZRVL, "0")
     field(ONST, "-") field(ONVL, "1")
@@ -236,6 +237,7 @@ record(scalcout, "$(P)OUTPUT")
     field(AA, "AMPS")
     field(BB, "TESLA")
     field(CALC, "DD==AA?A:DD==BB?B:C")
+    field(PREC, "3")
     info(INTEREST, "HIGH")
     info(archive, "VAL")
 }
@@ -243,11 +245,12 @@ record(scalcout, "$(P)OUTPUT")
 record(calc, "$(P)OUTPUT:COIL")
 {
     field(DESC, "Current through the coil")# OUTPUT:PERSIST if in persistent mode, otherwise OUTPUT
-    field(CALC, "A=1?B:C")
-    field(INPA, "$(P)PERSIST")
-    field(INPB, "(P)OUTPUT:PERSIST")
+    field(CALC, "A=0?B:C")
+    field(INPA, "$(P)SWITCH:STAT")
+    field(INPB, "$(P)OUTPUT:PERSIST")
     field(INPC, "$(P)OUTPUT")
     field(EGU, "$(DISPLAY_UNIT)")
+    field(PREC, "3")
     info(INTEREST, "HIGH")
     info(archive, "VAL")
 }
@@ -315,12 +318,13 @@ record(scalcout, "$(P)OUTPUT:PERSIST:FIELD:TESLA")
     field(INPA, "$(P)OUTPUT:PERSIST:RAW:UNIT")
     field(INPB, "$(P)OUTPUT:PERSIST:RAW")
     field(AA, "TESLA")
-    field(CALC, "A==AA?B:B*$(T_TO_A)")
+    field(CALC, "A==1?B:B*$(T_TO_A)")
 }
 
 record(ai, "$(P)OUTPUT:PERSIST:RAW")# returned in "get heater"
 {
     field(DESC, "Raw persistent field from PSU, A or T")
+    field(SCAN, ".1 second")
     field(FLNK, "$(P)FAN:OUTPUT:PERSIST")
     info(INTEREST, "HIGH")
     info(archive, "VAL")
@@ -371,6 +375,7 @@ record(ai, "$(P)OUTPUT:VOLT")
     field(DESC, "The Output Voltage")
     field(EGU, "V")
     field(SDIS, "$(P)DISABLE")
+    field(PREC, "1")
     info(INTEREST, "HIGH")
     info(archive, "VAL")
 }
@@ -409,7 +414,7 @@ record(bi, "$(P)PAUSE")
     field(INP, "@cryosms.proto getPause $(PORT)")
     field(ZNAM, "OFF")
     field(ONAM, "ON")    
-    field(SCAN, "Passive")
+    field(SCAN, "1 second")
     field(SIML, "$(P)SIM")
     field(SIOL, "$(P)SIM:PAUSE")
     field(SDIS, "$(P)DISABLE")
@@ -424,8 +429,8 @@ record(bo, "$(P)PAUSE:SP")
     field(DTYP, "asynInt32")
     field(OUT, "@asyn($(ASYN_PORT),0,0)RAMP_PAUSE")
     field(SDIS, "$(P)DISABLE")
-    field(ZNAM, "OFF")
-    field(ONAM, "ON")
+    field(ZNAM, "UNPAUSED")
+    field(ONAM, "PAUSED")
 }
 
 record(bo, "$(P)PAUSE:QUEUE")
@@ -455,15 +460,21 @@ alias("$(P)PERSIST","$(P)PERSIST:SP")
 record(calcout, "$(P)QUENCH:CALC")
 {
     field(DESC, "Check if a quench was detected")
+    field(SCAN, "1 second")
     field(CALC, "A=3?1:0")
+    field(OUT, "$(P)QUENCH")
     field(INPA, "$(P)RAMP:STAT")
+    field(FLNK, "$(P)QUENCH")
 }
 
 record(calcout, "$(P)TRIP:CALC")
 {
     field(DESC, "Check if a trip was detected")
+    field(SCAN, "1 second")
     field(CALC, "A=4?1:0")
+    field(OUT, "$(P)TRIP")
     field(INPA, "$(P)RAMP:STAT")
+    field(FLNK, "$(P)TRIP")
 }
 
 record(bi, "$(P)QUENCH")
@@ -513,11 +524,21 @@ record(ai, "$(P)RAMP:RATE")
 
 alias("$(P)RAMP:RATE","$(P)RAMP:RATE:SP:RBV")
 
-record(scalcout, "$(P)RAMP:RAMPING")
+record(calcout, "$(P)RAMP:RAMPING:CALC")
 {
     field(DESC, "Whether or not PSU is ramping")
+    field(SCAN, "Passive")
     field(INPA, "$(P)RAMP:STAT")
-    field(CALC, "A==0?1:0")
+    field(CALC, "A=0?1:0")
+    field(OUT, "$(P)RAMP:RAMPING PP")
+}
+
+record(bi, "$(P)RAMP:RAMPING")
+{
+    field(DESC, "Whether or not PSU is ramping")
+    field(SCAN, "Passive")
+    field(ZNAM, "Not Ramping")
+    field(ONAM, "Ramping")
 }
 
 record(mbbi, "$(P)RAMP:STAT")
@@ -525,7 +546,7 @@ record(mbbi, "$(P)RAMP:STAT")
     field(DESC, "The status of the ramp from the PSU")
     field(DTYP, "stream")
     field(INP, "@cryosms.proto getRampStatus $(PORT)")
-    field(SCAN, ".5 second")
+    field(SCAN, "1 second")
     field(ZRVL, "0") field(ZRST, "RAMPING")
     field(ONVL, "1") field(ONST, "HOLDING ON TARGET")
     field(TWVL, "2") field(TWST, "HOLDING ON PAUSE")
@@ -596,6 +617,8 @@ record(bo, "$(P)START:SP")
     field(DTYP, "asynInt32")
     field(OUT, "@asyn($(ASYN_PORT),0,0)RAMP_START")
     field(SDIS, "$(P)DISABLE")
+    field(ZNAM, "NOT BEING PROCESSED")
+    field(ONAM, "BEING PROCESSED")
 }
 
 ### SWITCH STATUS in order of processing
@@ -649,7 +672,7 @@ record(calc, "$(P)SWITCH:STAT:INC")
 
 record(calcout, "$(P)SWITCH:STAT:CALC")
 {#last (stable num) readings cold -> cold, all warm -> warm, else, warming if heater on, cooling if off. 
-    field(CALC, "A=$(SWITCH_STABLE_NUMBER)?(B=0?0:(B=2?3:(C=0?1:2))):(C=0?1:2)")
+    field(CALC, "A>=$(SWITCH_STABLE_NUMBER_WARM)?(B=2?3:(B=0&&A=$(SWITCH_STABLE_NUMBER)?0:(C=0?1:2))):(C=0?1:2)")
     field(SCAN, "Passive")
     field(INPA, "$(P)SWITCH:STAT:INC")
     field(INPB, "$(P)SWITCH:STAT:NOW")
@@ -689,6 +712,7 @@ record(ai, "$(P)TARGET")
 {
     field(DESC, "Target being ramped to")
     field(EGU, "$(WRITE_UNIT)")
+    field(PREC, "3")
 }
 
 record(ao, "$(P)TARGET:SP")
@@ -696,6 +720,7 @@ record(ao, "$(P)TARGET:SP")
     field(DESC, "Ramp target to be sent to PSU")
     field(SCAN, "Passive")
     field(EGU, "$(WRITE_UNIT)")
+    field(PREC, "3")
 }
 
 record(bi, "$(P)VOLT:STAT")
@@ -845,7 +870,7 @@ record(fanout, "$(P)FAN:INIT")
 record(fanout, "$(P)FAN:STATUS")
 {
     field(DESC, "Updates all ramp status bool PVs")
-    field(LNK1, "$(P)RAMP:RAMPING")
+    field(LNK1, "$(P)RAMP:RAMPING:CALC")
 }
 
 record(fanout, "$(P)FAN:OUTPUT")

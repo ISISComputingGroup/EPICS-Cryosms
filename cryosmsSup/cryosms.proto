@@ -6,7 +6,7 @@ InTerminator = CR LF 0x13;
 getDirection {
 	out "GET SIGN";
 	wait 50;
-	in "CURRENT DIRECTION: %{ZERO|NEGATIVE|POSITIVE}";
+	in "%*8c CURRENT DIRECTION: %{ZERO|NEGATIVE|POSITIVE}";
 	wait 100;
 }
 
@@ -35,7 +35,7 @@ setOutputMode {
 getOutput {
 	out "GET O";
 	wait 50;
-	in "OUTPUT: %f %(\$1OUTPUT:RAW:UNIT){AMPS|TESLA} AT %(\$1OUTPUT:VOLT)f VOLTS ";
+	in "%*8c OUTPUT: %f %(\$1OUTPUT:RAW:UNIT){AMPS|TESLA} AT %(\$1OUTPUT:VOLT)f VOLTS ";
 	wait 100;
 }
 
@@ -84,7 +84,7 @@ getHeaterStatus {
 setHeaterStatus {
 	out "HEATER %{OFF|ON}";
 	wait 50;
-	in "%*8c HEATER STATUS: %{OFF|ON}";
+	in "%*8c HEATER STATUS: %*[^\r]";
 	wait 100;
 }
 

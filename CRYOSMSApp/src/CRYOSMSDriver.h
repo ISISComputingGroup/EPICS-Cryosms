@@ -68,6 +68,8 @@ public:
 	asynStatus getDb(std::string pvSuffix, double &pbuffer, bool isExternal = false);
 	asynStatus getDb(std::string pvSuffix, std::string &pbuffer, bool isExternal = false);
 	asynStatus putDb(std::string pvSuffix, const void *value);
+	bool retryUntilSet(std::string setPoint, std::string readBack, int retries, int setVal);
+	bool retryUntilSet(std::string setPoint, std::string readBack, int retries, double setVal);
 	std::deque<eventVariant> eventQueue;
 	epicsThreadId queueThreadId;
 	epicsThreadId checkThreadId;
