@@ -496,6 +496,15 @@ asynStatus CRYOSMSDriver::onStart()
 	qsm.start();
 	queueThreadId = epicsThreadCreate("Event Queue", epicsThreadPriorityHigh, epicsThreadStackMedium, (EPICSTHREADFUNC)::eventQueueThread, this);
 
+	int isHolding;
+	RETURN_IF_ASYNERROR2(getDb, "RAMP:STAT", isHolding);
+	if (isHolding == 1)
+	{
+		const char *statMsg = "Ready";
+		RETURN_IF_ASYNERROR2(putDb, "STAT", statMsg);
+		RETURN_IF_ASYNERROR2(putDb, "READY", &trueVal);
+	}
+
 	RETURN_IF_ASYNERROR2(putDb, "INIT", &trueVal);
 	return status;
 }
@@ -1163,11 +1172,7 @@ void CRYOSMSDriver::continueAbort()
 extern "C"
 {
 
-	int CRYOSMSConfigure(const char *portName, std::string devPrefix, const char *TToA, const char *writeUnit, const char *displayUnit, const char *maxCurr, const char *maxVolt,
-		const char *allowPersist, const char *fastFilterValue, const char *filterValue, const char *npp, const char *fastPersistentSettletime, const char *persistentSettletime,
-		const char *fastRate, const char *useSwitch, const char *switchTempPv, const char *switchHigh, const char *switchLow, const char *switchStableNumber, const char *heaterTolerance,
-		const char *switchTimeout, const char *heaterOut, const char *useMagnetTemp, const char *magnetTempPv, const char *maxMagnetTemp,
-		const char *minMagnetTemp, const char *compOffAct, const char *noOfComp, const char *minNoOfComp, const char *comp1StatPv, const char *comp2StatPv, const char *rampFile)
+	int CRYOSMSConfigure(const iocshArgBuf * args)
 
 	{
 		const char* envVarsNames[] = {
@@ -1175,15 +1180,16 @@ extern "C"
 		   "FAST_RATE", "USE_SWITCH", "SWITCH_TEMP_PV", "SWITCH_HIGH", "SWITCH_LOW", "SWITCH_STABLE_NUMBER", "HEATER_TOLERANCE", "SWITCH_TIMEOUT", "HEATER_OUT",
 		   "USE_MAGNET_TEMP", "MAGNET_TEMP_PV", "MAX_MAGNET_TEMP", "MIN_MAGNET_TEMP", "COMP_OFF_ACT", "NO_OF_COMP", "MIN_NO_OF_COMP_ON", "COMP_1_STAT_PV", "COMP_2_STAT_PV", "RAMP_FILE" };
 
-		const char* envVarVals[] = { TToA, writeUnit, displayUnit, maxCurr, maxVolt, allowPersist, fastFilterValue, filterValue, npp, fastPersistentSettletime, persistentSettletime,
-					fastRate, useSwitch, switchTempPv, switchHigh, switchLow, switchStableNumber, heaterTolerance, switchTimeout, heaterOut,
-					useMagnetTemp, magnetTempPv, maxMagnetTemp, minMagnetTemp, compOffAct, noOfComp, minNoOfComp, comp1StatPv, comp2StatPv, rampFile };
-
 		std::map<std::string, std::string> argMap;
+		char *portName = args[0].aval.av[1];
+		std::string devPrefix = args[0].aval.av[2];
 
+		errlogSevPrintf(errlogInfo, "Loading macros into asyn driver:");
 		for (int i = 0; i < sizeof(envVarsNames) / sizeof(const char*); ++i)
 		{
-			std::pair<std::string, std::string > newPair(envVarsNames[i], envVarVals[i]);
+			char * argval = args[0].aval.av[i + 3];
+			errlogSevPrintf(errlogInfo, "%s: %s\n", envVarsNames[i], argval);
+			std::pair<std::string, std::string > newPair(envVarsNames[i], argval); // args starts with CRYOSMSConfigure, portName and devPrefix
 			argMap.insert(newPair);
 		}
 		try
@@ -1199,50 +1205,14 @@ extern "C"
 	}
 	// EPICS ioc shell commands 
 
-	static const iocshArg initArg0 = { "portName", iocshArgString };			///< Port to connect to
-	static const iocshArg initArg1 = { "devicePrefix", iocshArgString };		///< PV Prefix for device
-	static const iocshArg initArg2 = { "TToA", iocshArgString };		///< PV Prefix for device
-	static const iocshArg initArg3 = { "writeUnit", iocshArgString };		///< PV Prefix for device
-	static const iocshArg initArg4 = { "displayUnit", iocshArgString };		///< PV Prefix for device
-	static const iocshArg initArg5 = { "maxCurr", iocshArgString };		///< PV Prefix for device
-	static const iocshArg initArg6 = { "maxVolt", iocshArgString };		///< PV Prefix for device
-	static const iocshArg initArg7 = { "allowPersist", iocshArgString };		///< PV Prefix for device
-	static const iocshArg initArg8 = { "fastFilterValue", iocshArgString };		///< PV Prefix for device
-	static const iocshArg initArg9 = { "filterValue", iocshArgString };		///< PV Prefix for device
-	static const iocshArg initArg10 = { "npp", iocshArgString };		///< PV Prefix for device
-	static const iocshArg initArg11 = { "fastPersistentSettletime", iocshArgString };		///< PV Prefix for device
-	static const iocshArg initArg12 = { "persistentSettletime", iocshArgString };		///< PV Prefix for device
-	static const iocshArg initArg13 = { "fastRate", iocshArgString };		///< PV Prefix for device
-	static const iocshArg initArg14 = { "useSwitch", iocshArgString };		///< PV Prefix for device
-	static const iocshArg initArg15 = { "switchTempPv", iocshArgString };		///< PV Prefix for device
-	static const iocshArg initArg16 = { "switchHigh", iocshArgString };		///< PV Prefix for device
-	static const iocshArg initArg17 = { "switchLow", iocshArgString };		///< PV Prefix for device
-	static const iocshArg initArg18 = { "switchStableNumber", iocshArgString };		///< PV Prefix for device
-	static const iocshArg initArg19 = { "heaterTolerance", iocshArgString };		///< PV Prefix for device
-	static const iocshArg initArg20 = { "switchTolerance", iocshArgString };		///< PV Prefix for device
-	static const iocshArg initArg21 = { "heaterOut", iocshArgString };		///< PV Prefix for device
-	static const iocshArg initArg22 = { "useMagnetTemp", iocshArgString };		///< PV Prefix for device
-	static const iocshArg initArg23 = { "magnetTempPv", iocshArgString };		///< PV Prefix for device
-	static const iocshArg initArg24 = { "maxMagnetTemp", iocshArgString };		///< PV Prefix for device
-	static const iocshArg initArg25 = { "minMagnetTemp", iocshArgString };		///< PV Prefix for device
-	static const iocshArg initArg26 = { "compOffAct", iocshArgString };		///< PV Prefix for device
-	static const iocshArg initArg27 = { "noOfComp", iocshArgString };		///< PV Prefix for device
-	static const iocshArg initArg28 = { "minNoOfComp", iocshArgString };		///< PV Prefix for device
-	static const iocshArg initArg29 = { "comp1StatPv", iocshArgString };		///< PV Prefix for device
-	static const iocshArg initArg30 = { "comp2StatPv", iocshArgString };		///< PV Prefix for device
-	static const iocshArg initArg31 = { "rampFile", iocshArgString };		///< PV Prefix for device
+	static const iocshArg initArg0 = { "Macros", iocshArgArgv };
+	static const iocshArg * const initArgs[1] = { &initArg0 };
 
-	static const iocshArg * const initArgs[] = { &initArg0, &initArg1, &initArg2, &initArg3, &initArg4, &initArg5, &initArg6, &initArg7, &initArg8, &initArg9, &initArg10, &initArg11, 
-		&initArg12, &initArg13, &initArg14, &initArg15, &initArg16, &initArg17, &initArg18, &initArg19, &initArg20, &initArg21, &initArg22, &initArg23, &initArg24, &initArg25, &initArg26,
-		&initArg27, &initArg28, &initArg29, &initArg30, &initArg31 };
-
-	static const iocshFuncDef initFuncDef = { "CRYOSMSConfigure", sizeof(initArgs) / sizeof(iocshArg*), initArgs };
+	static const iocshFuncDef initFuncDef = { "CRYOSMSConfigure", 1, initArgs };
 
 	static void initCallFunc(const iocshArgBuf *args)
 	{
-		CRYOSMSConfigure(args[0].sval, args[1].sval, args[2].sval, args[3].sval, args[4].sval, args[5].sval, args[6].sval, args[7].sval, args[8].sval, args[9].sval, args[10].sval, args[11].sval,
-			args[12].sval, args[13].sval, args[14].sval, args[15].sval, args[16].sval, args[17].sval, args[18].sval, args[19].sval, args[20].sval, args[21].sval, args[22].sval, args[23].sval,
-			args[24].sval, args[25].sval, args[26].sval, args[27].sval, args[28].sval, args[29].sval, args[30].sval, args[31].sval);
+		CRYOSMSConfigure(args);
 	}
 
 	/// Register new commands with EPICS IOC shell

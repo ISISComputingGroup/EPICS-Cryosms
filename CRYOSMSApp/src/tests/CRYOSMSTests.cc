@@ -151,7 +151,6 @@ namespace {
 			"SWITCH_STABLE_NUMBER",
 			"HEATER_TOLERANCE",
 			"SWITCH_TIMEOUT",
-			"SWITCH_TEMP_TOLERANCE",
 			"HEATER_OUT"));
 
 	TEST_P(UseSwitchParametrisedTests, test_GIVEN_use_switch_yes_WHEN_a_required_value_null_THEN_write_disabled)
@@ -163,7 +162,6 @@ namespace {
 		testDriver->envVarMap.at("SWITCH_STABLE_NUMBER") = "";
 		testDriver->envVarMap.at("HEATER_TOLERANCE") = "";
 		testDriver->envVarMap.at("SWITCH_TIMEOUT") = "";
-		testDriver->envVarMap.at("SWITCH_TEMP_TOLERANCE") = "";
 		testDriver->envVarMap.at("HEATER_OUT") = "";
 		testDriver->envVarMap.at(GetParam()) = "NULL";
 		testDriver->checkUseSwitch();
@@ -179,7 +177,6 @@ namespace {
 		testDriver->envVarMap.at("SWITCH_STABLE_NUMBER") = "";
 		testDriver->envVarMap.at("HEATER_TOLERANCE") = "";
 		testDriver->envVarMap.at("SWITCH_TIMEOUT") = "";
-		testDriver->envVarMap.at("SWITCH_TEMP_TOLERANCE") = "";
 		testDriver->envVarMap.at("HEATER_OUT") = "";
 		testDriver->checkUseSwitch();
 		ASSERT_EQ(testDriver->testVar, 1);
