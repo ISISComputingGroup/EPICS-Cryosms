@@ -1184,7 +1184,7 @@ extern "C"
 		char *portName = args[0].aval.av[1];
 		std::string devPrefix = args[0].aval.av[2];
 
-		errlogSevPrintf(errlogInfo, "Loading macros into asyn driver:");
+		errlogSevPrintf(errlogInfo, "Loading macros into asyn driver:\n");
 		for (int i = 0; i < sizeof(envVarsNames) / sizeof(const char*); ++i)
 		{
 			char * argval = args[0].aval.av[i + 3];

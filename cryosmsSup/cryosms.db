@@ -437,7 +437,7 @@ record(calcout, "$(P)SWITCH:STAT:NOW:CALC")
     field(CALC, "(B=0&&A<$(SWITCH_LOW))?0:(B=1&&A>$(SWITCH_LOW))?2:1")
     field(INPA, "$(P)SWITCH:TEMP")
     field(INPB, "$(P)HEATER:STAT")
-    field(OUT, "$(P)SWITCH:STAT:NOW.PROC")
+    field(OUT, "$(P)SWITCH:STAT:NOW PP")
 }
 
 record(mbbi, "$(P)SWITCH:STAT:NOW")
@@ -467,7 +467,7 @@ record(calcout, "$(P)SWITCH:STAT:CALC")
     field(INPA, "$(P)SWITCH:STAT:INC")
     field(INPB, "$(P)SWITCH:STAT:NOW")
     field(INPC, "$(P)HEATER:STAT")
-    field(OUT, "$(P)SWITCH:STAT.PROC")
+    field(OUT, "$(P)SWITCH:STAT PP")
 }
 
 record(mbbi, "$(P)SWITCH:STAT")
