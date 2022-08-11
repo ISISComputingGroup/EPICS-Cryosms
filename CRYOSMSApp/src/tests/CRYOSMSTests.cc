@@ -294,7 +294,7 @@ namespace {
 	}
 	TEST_F(StartupTests, test_GIVEN_IOC_WHEN_ramp_file_valid_THEN_writes_enabled)
 	{
-		testDriver->envVarMap.at("RAMP_FILE") = "C:\\Instrument\\Apps\\EPICS\\support\\cryosms\\master\\ramps\\test.txt";
+		testDriver->envVarMap.at("RAMP_FILE") = "C:\\Instrument\\Apps\\EPICS\\support\\cryosms\\master\\ramps\\default.txt";
 		testDriver->checkRampFile();
 		ASSERT_EQ(testDriver->testVar, 1);
 	}
