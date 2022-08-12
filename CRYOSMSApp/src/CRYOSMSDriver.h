@@ -7,7 +7,7 @@
 #include <boost/msm/back/state_machine.hpp>
 #include <boost/variant/variant.hpp>
 
-typedef boost::variant<startRampEvent, abortRampEvent, pauseRampEvent, resumeRampEvent, targetReachedEvent> eventVariant;
+typedef boost::variant<startRampEvent, abortRampEvent, pauseRampEvent, resumeRampEvent, targetReachedEvent, startCoolEvent, startWarmEvent, tempReachedEvent, checkHeaterEvent> eventVariant;
 
 struct processEventVisitor : boost::static_visitor<>
 {
@@ -26,7 +26,7 @@ struct processEventVisitor : boost::static_visitor<>
 class CRYOSMSDriver : public asynPortDriver, public SMDriver
 {
 public:
-	CRYOSMSDriver(const char *portName, std::string devPrefix);
+	CRYOSMSDriver(const char *portName, std::string devPrefix, std::map<std::string, std::string> argMap);
 	virtual asynStatus writeInt32(asynUser *pasynUser, epicsInt32 value);
 	asynStatus checkTToA();
 	asynStatus checkMaxCurr();
@@ -39,12 +39,20 @@ public:
 	asynStatus checkCompOffAct();
 	asynStatus checkRampFile();
 	asynStatus setupRamp();
-	std::map<std::string,const char*> envVarMap;
+	asynStatus setupPersistOn();
+	asynStatus setupFastRamp(double target);
+	std::map<std::string,std::string> envVarMap;
 	double writeToDispConversion;
-	double unitConversion(double value, const char* startUnit, const char* endUnit);
+	double unitConversion(double value, std::string startUnit, std::string endUnit);
 	bool writeDisabled;
 	int testVar; //for use in google tests where functionality can not be tested with PV values
 	bool started;
+	bool fastRamp = false; //whether or not device is in "fast" mode, used exclusively to update "STAT" PV correctly
+	bool fastRampZero = false; //whether or not device is in "fast zero" mode, used exclusively to update "STAT" PV correctly
+	bool cooling = 0;//whether heater is cooling down
+	bool warming = 0;//whether heater is warming up
+	int trueVal = 1; //Used in dbputs, as it needs to be passed ref to int
+	int falseVal = 0;//Used in dbputs, as it needs to be passed ref to int
 	asynStatus procDb(std::string pvSuffix);
 	asynStatus getDb(std::string pvSuffix, int &pbuffer);
 	asynStatus getDb(std::string pvSuffix, double &pbuffer);
@@ -57,13 +65,19 @@ public:
 	bool abortQueue;
 	void checkForTarget();
 	void checkIfPaused();
+	void checkHeaterDone();
 	boost::msm::back::state_machine<cryosmsStateMachine> qsm;
 	void resumeRamp() override;
 	void pauseRamp() override;
-	void startRamping(double rate, double target, int rampDir) override;
+	void startRamping(double rate, double target, int rampDir, RampType rampType) override;
 	void abortRamp() override;
 	void reachTarget() override;
 	void continueAbort() override;
+	void abortBasic() override;
+	void startCooling() override;
+	void startWarming() override;
+	void reachTemp() override;
+	void preRampHeaterCheck() override;
 private:
 	std::string devicePrefix;
 
@@ -76,16 +90,17 @@ private:
 	int P_startRamp;
 	int P_pauseRamp;
 	int P_abortRamp;
-	int P_outputModeSet; //int as above
+	int P_outputModeSet;
+	int P_calcHeater; //int as above
 
-#define LAST_SMS_PARAM 	P_outputModeSet
+#define LAST_SMS_PARAM 	P_calcHeater
 #define NUM_SMS_PARAMS	(&LAST_SMS_PARAM - &FIRST_SMS_PARAM + 1)
 
 
 	std::vector<double> pRate_;
 	std::vector<double> pMaxT_;
 	asynStatus onStart();
-	asynStatus readFile(const char *dir);
+	asynStatus readFile(std::string dir);
 	static void pollerTaskC(void* arg)
 	{
 		CRYOSMSDriver* driver = static_cast<CRYOSMSDriver*>(arg);
@@ -102,5 +117,6 @@ private:
 #define P_pauseRampString "RAMP_PAUSE"
 #define P_abortRampString "RAMP_ABORT"
 #define P_outputModeSetString "OUTPUTMODE_SET"
+#define P_calcHeaterString "CALC_HEATER"
 
 #endif /* CRYOSMSDRIVER_H */

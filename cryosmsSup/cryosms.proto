@@ -1,4 +1,4 @@
-ReplyTimeout = 200;
+ReplyTimeout = 1000;
 OutTerminator = CR LF;
 InTerminator = 0x13;
 
@@ -82,6 +82,14 @@ setRampRate {
 getHeaterStatus {
     InTerminator = CR LF 0x13;
 	out "HEATER";
+	wait 50;
+	in "%*8c HEATER STATUS: %[^\r]";
+	wait 100;
+}
+
+setHeaterStatus {
+    InTerminator = CR LF 0x13;
+	out "HEATER %{OFF|ON}";
 	wait 50;
 	in "%*8c HEATER STATUS: %{OFF|ON}";
 	wait 100;

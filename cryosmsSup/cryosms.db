@@ -11,7 +11,7 @@ record(bo, "$(P)ABORT:SP")
     field(ZNAM, "OFF")
     field(ONAM, "ON")
 }
-
+    
 record(mbbi, "$(P)DIRECTION")
 {
     field(DESC, "The direction of the device")
@@ -41,12 +41,25 @@ record(bi, "$(P)FAST:ZERO")
     field(ZNAM, "False")
 }
 
+record(stringin, "$(P)HEATER:STAT:RAW")
+{
+    field(DESC, "raw string from H command")
+    field(DTYP, "stream")
+    field(INP, "@cryosms.proto getHeaterStatus $(PORT)")
+    field(SCAN, "1 second")
+    field(FLNK, "$(P)HEATER:STAT:PROC")
+}
+
+record(ao, "$(P)HEATER:STAT:PROC")
+{
+    field(DESC, "Tell driver to process H command")
+    field(DTYP, "asynInt32")
+    field(OUT, "@asyn($(ASYN_PORT),0,0)CALC_HEATER")
+}
+
 record(bi, "$(P)HEATER:STAT")
 {
     field(DESC, "The status of the heater from the device")
-    field(DTYP, "stream")
-    field(INP, "@cryosms.proto getHeaterStatus $(PORT)")
-    field(SCAN, "Passive")
     field(ZNAM, "OFF")
     field(ONAM, "ON")
     field(SIML, "$(P)SIM")
@@ -191,13 +204,12 @@ record(scalcout, "$(P)OUTPUT:PERSIST:FIELD:TESLA")
     field(CALC, "A==AA?B:B*$(T_TO_A)")
 }
 
-record(ai, "$(P)OUTPUT:PERSIST:RAW")
+record(ai, "$(P)OUTPUT:PERSIST:RAW")# returned in "get heater"
 {
     field(DESC, "Raw persistent field from PSU, A or T")
-    #Persistent mode responses unknown, will need to check against real device before these PVs can be completed
 }
 
-record(bi, "$(P)OUTPUT:PERSIST:RAW:UNIT")
+record(bi, "$(P)OUTPUT:PERSIST:RAW:UNIT")# returned in "get heater"
 {
     field(DESC, "The unit for OUTPUT:PERSIST:RAW")
     field(ZNAM, "AMPS")
@@ -300,6 +312,8 @@ record(bo, "$(P)PAUSE:QUEUE")
 record(bo, "$(P)RAMP:LEADS")
 {
     field(DESC, "Whether or not to ramp the leads")
+    field(ZNAM, "Off")
+    field(ONAM, "Ramp")
     field(SDIS, "$(P)DISABLE")
 }
 
@@ -390,6 +404,75 @@ record(bo, "$(P)START:SP")
     field(SDIS, "$(P)DISABLE")
 }
 
+### SWITCH STATUS in order of processing
+
+record(ai, "$(P)SWITCH:TEMP")
+{#first, read from the sim record/temp val on thermostat
+    field(DESC, "Temperature of switch")
+    field(INP, "$(SWITCH_TEMP_PV=$(P)SIM:SWITCH:TEMP)")
+    field(FLNK, "$(P)SWITCH:STAT:NOW:OLD.PROC")
+    field(SCAN, "1 second")
+}
+
+record(mbbi, "$(P)SWITCH:STAT:NOW:OLD")
+{#store the old value of stat:now
+    field(SCAN, "Passive")
+    field(INP, "$(P)SWITCH:STAT:NOW")
+    field(ZRST, "Cold")     field(ZRVL, "0")
+    field(ONST, "Changing") field(ONVL, "1")
+    field(TWST, "Warm")     field(TWVL, "2")
+    field(FLNK, "$(P)SWITCH:STAT:NOW:CALC.PROC")
+}
+
+record(calcout, "$(P)SWITCH:STAT:NOW:CALC")
+{#find the new value of stat now...
+    field(SCAN, "Passive")
+    field(CALC, "(B=0&&A<$(SWITCH_LOW))?0:(B=1&&A>$(SWITCH_LOW))?2:1")
+    field(INPA, "$(P)SWITCH:TEMP")
+    field(INPB, "$(P)HEATER:STAT")
+    field(OUT, "$(P)SWITCH:STAT:NOW PP")
+}
+
+record(mbbi, "$(P)SWITCH:STAT:NOW")
+{#...and set it
+    field(DESC, "Immediate temp status of switch")
+    field(SCAN, "Passive")
+    field(ZRST, "Cold")     field(ZRVL, "0")
+    field(ONST, "Changing") field(ONVL, "1")
+    field(TWST, "Warm")     field(TWVL, "2")
+    field(FLNK, "$(P)SWITCH:STAT:INC.PROC")
+}
+
+record(calc, "$(P)SWITCH:STAT:INC")
+{#if stat:now is unchanged, increment until we think it's stable, else reset
+    field(CALC, "A=B?(C=$(SWITCH_STABLE_NUMBER)?C:C+1):0")
+    field(SCAN, "Passive")
+    field(INPA, "$(P)SWITCH:STAT:NOW")
+    field(INPB, "$(P)SWITCH:STAT:NOW:OLD")
+    field(INPC, "$(P)SWITCH:STAT:INC")
+    field(FLNK, "$(P)SWITCH:STAT:CALC.PROC")
+}
+
+record(calcout, "$(P)SWITCH:STAT:CALC")
+{#last (stable num) readings cold -> cold, all warm -> warm, else, warming if heater on, cooling if off. 
+    field(CALC, "A=$(SWITCH_STABLE_NUMBER)?(B=0?0:(B=2?3:(C=0?1:2))):(C=0?1:2)")
+    field(SCAN, "Passive")
+    field(INPA, "$(P)SWITCH:STAT:INC")
+    field(INPB, "$(P)SWITCH:STAT:NOW")
+    field(INPC, "$(P)HEATER:STAT")
+    field(OUT, "$(P)SWITCH:STAT PP")
+}
+
+record(mbbi, "$(P)SWITCH:STAT")
+{#finally we have temperature status of switch
+    field(DESC, "Temperature status of switch")
+    field(SCAN, "Passive")
+    field(ZRST, "Cold")
+    field(ONST, "Cooling")
+    field(TWST, "Warming")
+    field(THST, "Warm")
+}
+
 
 ### TARGET:
 
@@ -408,7 +491,6 @@ record(ao, "$(P)TARGET:SP")
 record(ao, "$(P)CONSTANT:_SP")
 {
     field(DTYP, "stream")
-    field(ASG, "READONLY")
     field(OUT, "@cryosms.proto setConstant $(PORT)")
     field(SCAN, "Passive")
     field(EGU, "T/A")
@@ -420,7 +502,6 @@ record(ao, "$(P)CONSTANT:_SP")
 record(mbbo, "$(P)DIRECTION:_SP")
 {
     field(DTYP, "stream")
-    field(ASG, "READONLY")
     field(OUT, "@cryosms.proto setDirection $(PORT)")
     field(SCAN, "Passive")
     field(ZRVL, "0") field(ZRST, "0")
@@ -428,10 +509,21 @@ record(mbbo, "$(P)DIRECTION:_SP")
     field(TWVL, "2") field(TWST, "+")
 }    
 
+record(bo, "$(P)HEATER:STAT:_SP")
+{
+    field(DTYP, "stream")
+    field(OUT, "@cryosms.proto setHeaterStatus $(PORT)")
+    field(SCAN, "Passive")
+    field(ZNAM, "OFF")
+    field(ONAM, "ON")
+    field(SIML, "$(P)SIM")
+    field(SIOL, "$(P)SIM:HEATER:STAT:_SP")
+    field(SDIS, "$(P)DISABLE")
+}
+
 record(ao, "$(P)HEATER:VOLT:_SP")
 {
     field(DTYP, "stream")
-    field(ASG, "READONLY")
     field(OUT, "@cryosms.proto setHeaterValue $(PORT)")
     field(SCAN, "Passive")
     field(EGU, "V")
@@ -444,7 +536,6 @@ record(ao, "$(P)HEATER:VOLT:_SP")
 record(ao, "$(P)MAX:_SP")
 {
     field(DTYP, "stream")
-    field(ASG, "READONLY")
     field(OUT, "@cryosms.proto setMaxTarget $(PORT)")
     field(SCAN, "Passive")
     field(EGU, "$(WRITE_UNIT)")
@@ -456,7 +547,6 @@ record(ao, "$(P)MAX:_SP")
 record(ao, "$(P)MID:_SP")
 {
     field(DTYP, "stream")
-    field(ASG, "READONLY")
     field(OUT, "@cryosms.proto setMidTarget $(PORT)")
     field(SCAN, "Passive")
     field(EGU, "$(WRITE_UNIT)")
@@ -468,7 +558,6 @@ record(ao, "$(P)MID:_SP")
 record(ao, "$(P)MAXVOLT:_SP")
 {
     field(DTYP, "stream")
-    field(ASG, "READONLY")
     field(OUT, "@cryosms.proto setMaxVolt $(PORT)")
     field(SCAN, "Passive")
     field(EGU, "V")
@@ -478,7 +567,6 @@ record(ao, "$(P)MAXVOLT:_SP")
 record(bo, "$(P)OUTPUTMODE:_SP")
 {
     field(DTYP, "stream")
-    field(ASG, "READONLY")
     field(OUT, "@cryosms.proto setOutputMode $(PORT)")
     field(SCAN, "Passive")
     field(ZNAM, "AMPS")
@@ -492,7 +580,6 @@ record(bo, "$(P)OUTPUTMODE:_SP")
 record(ao, "$(P)RAMP:RATE:_SP")
 {
     field(DTYP, "stream")
-    field(ASG, "READONLY")
     field(OUT, "@cryosms.proto setRampRate $(PORT)")
     field(SCAN, "Passive")
     field(EGU, "A/s")
@@ -504,20 +591,18 @@ record(ao, "$(P)RAMP:RATE:_SP")
 record(mbbo, "$(P)START:_SP")
 {
     field(DTYP, "stream")
-    field(ASG, "READONLY")
     field(OUT, "@cryosms.proto setRampTarget $(PORT)")
     field(ZRVL, "0") field(ZRST, "ZERO")
     field(ONVL, "1") field(ONST, "MID")
     field(TWVL, "2") field(TWST, "MAX")
     field(SIML, "$(P)SIM")
-    field(SIOL, "$(P)SIM::RAMP:RATE:_SP")
+    field(SIOL, "$(P)SIM:RAMP:RATE:_SP")
     field(SDIS, "$(P)DISABLE")
 }
 
 record(bo, "$(P)PAUSE:_SP")
 {
     field(DTYP, "stream")
-    field(ASG, "READONLY")
     field(OUT, "@cryosms.proto setPause $(PORT)")
     field(ZNAM, "OFF")
     field(ONAM, "ON")
@@ -578,10 +663,11 @@ record(mbbi,"$(P)SIM:RAMP:STAT")
     field(DTYP, "Soft Channel")
 }
 
-record(bi,"$(P)SIM:HEATER:STAT")
+record(calc,"$(P)SIM:SWITCH:TEMP")
 {
-    field(SCAN, "Passive")
-    field(DTYP, "Soft Channel")
+    field(SCAN, "1 second")
+    field(CALC, "A=0?$(SWITCH_LOW)-1:$(SWITCH_HIGH)+1")
+    field(INPA, "$(P)HEATER:STAT")
 }
 
 record(ai,"$(P)SIM:RAMP:TARGET")
@@ -618,4 +704,25 @@ record(mbbi,"$(P)SIM:DIRECTION")
 {
     field(SCAN, "Passive")
     field(DTYP, "Soft Channel")
+}
+
+record(ai,"$(P)SIM:TEMP:SWITCH")
+{
+    field(SCAN, "Passive")
+    field(DTYP, "Soft Channel")
+    field(VAL, "3.67")
+}
+
+record(ai,"$(P)SIM:TEMP:HEATER")
+{
+    field(SCAN, "Passive")
+    field(DTYP, "Soft Channel")
+    field(VAL, "3.67")
+}
+
+record(ai,"$(P)SIM:TEMP:MAGNET")
+{
+    field(SCAN, "Passive")
+    field(DTYP, "Soft Channel")
+    field(VAL, "3.67")
 }
