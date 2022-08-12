@@ -51,6 +51,8 @@ public:
 	bool fastRampZero = false; //whether or not device is in "fast zero" mode, used exclusively to update "STAT" PV correctly
 	bool cooling = 0;//whether heater is cooling down
 	bool warming = 0;//whether heater is warming up
+	int trueVal = 1; //Used in dbputs, as it needs to be passed ref to int
+	int falseVal = 0;//Used in dbputs, as it needs to be passed ref to int
 	asynStatus procDb(std::string pvSuffix);
 	asynStatus getDb(std::string pvSuffix, int &pbuffer);
 	asynStatus getDb(std::string pvSuffix, double &pbuffer);

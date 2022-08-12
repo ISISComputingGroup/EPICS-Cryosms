@@ -11,13 +11,6 @@ record(bo, "$(P)ABORT:SP")
     field(ZNAM, "OFF")
     field(ONAM, "ON")
 }
-
-record(ao, "$(P)CONSTANT:_SP")
-{
-    field(DESC, "set T to A on device")
-    field(DTYP, "stream")
-    field(OUT, "@cryosms.proto setConstant $(PORT)")
- }   
     
 record(mbbi, "$(P)DIRECTION")
 {
