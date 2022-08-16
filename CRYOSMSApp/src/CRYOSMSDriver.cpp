@@ -69,14 +69,13 @@ static void eventQueueThread(CRYOSMSDriver* drv);
 CRYOSMSDriver::CRYOSMSDriver(const char *portName, std::string devPrefix, std::map<std::string, std::string> argMap)
 	: asynPortDriver(portName,
 		0, /* maxAddr */
-		static_cast<int>NUM_SMS_PARAMS, /* num parameters */
 		asynInt32Mask | asynInt32ArrayMask | asynFloat64Mask | asynFloat64ArrayMask | asynOctetMask | asynDrvUserMask, /* Interface mask */
 		asynInt32Mask | asynInt32ArrayMask | asynFloat64Mask | asynFloat64ArrayMask | asynOctetMask,  /* Interrupt mask */
 		ASYN_CANBLOCK, /* asynFlags.  This driver can block but it is not multi-device */
 		1, /* Autoconnect */
 		0,
-		0), devicePrefix(devPrefix), envVarMap(argMap), writeDisabled(false), started(false), fastRamp(false), fastRampZero(false),
-		cooling(false), warming(false), atTarget(true), abortQueue(true), qsm(this)
+		0), envVarMap(argMap), writeDisabled(false), started(false), fastRamp(false), fastRampZero(false),
+		cooling(false), warming(false), atTarget(true), abortQueue(true), qsm(this), devicePrefix(devPrefix)
 {
 	createParam(P_deviceNameString, asynParamOctet, &P_deviceName);
 	createParam(P_initLogicString, asynParamInt32, &P_initLogic);
@@ -129,8 +128,8 @@ asynStatus CRYOSMSDriver::writeInt32(asynUser *pasynUser, epicsInt32 value)
 				RETURN_IF_ASYNERROR2(putDb, "OUTPUT:PERSIST:RAW:UNIT", &falseVal);
 			}
 			// Find first  and last digits of value
-			int firstNum = heater_resp.find_first_of("1234567890");
-			int lastNum = heater_resp.find_last_of("1234567890");
+			std::size_t firstNum = heater_resp.find_first_of("1234567890");
+			std::size_t lastNum = heater_resp.find_last_of("1234567890");
 			// And snip the middle to another string
 			std::string persistStr = heater_resp.substr(firstNum, lastNum);
 			double persistVal = std::stod(persistStr);
@@ -198,7 +197,7 @@ asynStatus CRYOSMSDriver::checkTToA()
 			RETURN_IF_ASYNERROR2(putDb, "OUTPUTMODE:_SP", &falseVal);
 		}
 	}
-	catch (std::exception &e) {
+	catch (std::exception) {
 		errlogSevPrintf(errlogMajor, "Invalid value of T_TO_A provided");
 		const char *statMsg = "Invalid calibration from Tesla to Amps supplied";
 		this->writeDisabled = TRUE;
@@ -242,7 +241,7 @@ asynStatus CRYOSMSDriver::checkMaxVolt()
 			testVar = 2;
 			RETURN_IF_ASYNERROR2(putDb, "MAXVOLT:_SP", &maxVolt);
 		}
-		catch (std::exception &e) {
+		catch (std::exception) {
 			errlogSevPrintf(errlogMajor, "Invalid value of MAX_VOLT provided");
 		}
 	}

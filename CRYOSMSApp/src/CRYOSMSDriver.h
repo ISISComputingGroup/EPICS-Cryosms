@@ -80,9 +80,6 @@ public:
 	boost::msm::back::state_machine<cryosmsStateMachine> qsm;
 private:
 	std::string devicePrefix;
-
-#define FIRST_SMS_PARAM P_deviceName
-
 	int P_deviceName; // string
 	int P_initLogic;
 	int P_Rate; //float
@@ -92,9 +89,6 @@ private:
 	int P_abortRamp;
 	int P_outputModeSet;
 	int P_calcHeater; //int as above
-
-#define LAST_SMS_PARAM 	P_calcHeater
-#define NUM_SMS_PARAMS	(&LAST_SMS_PARAM - &FIRST_SMS_PARAM + 1)
 
 
 	std::vector<double> pRate_;
