@@ -52,14 +52,14 @@ return status; \
 #define RETURN_IF_ASYNERROR1(func, arg) status = (func)(arg); \
 if (status != asynSuccess)\
 {\
-errlogSevPrintf(errlogMajor, "Error returned when calling %s with arguments %s", #func, arg);\
+errlogSevPrintf(errlogMajor, "Error returned when calling %s", #func);\
 return status; \
 }
 
 #define RETURN_IF_ASYNERROR2(func, arg1, arg2) status = (func)(arg1, arg2); \
 if (status != asynSuccess)\
 {\
-errlogSevPrintf(errlogMajor, "Error returned when calling %s with arguments %s", #func, arg1);\
+errlogSevPrintf(errlogMajor, "Error returned when calling %s", #func);\
 return status; \
 }
 
