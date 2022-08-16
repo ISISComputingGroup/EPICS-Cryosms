@@ -55,7 +55,7 @@ namespace {
 		ASSERT_EQ(testDriver->writeToDispConversion, std::get<2>(GetParam()));
 	}
 
-	INSTANTIATE_TEST_CASE_P(
+	INSTANTIATE_TEST_SUITE_P(
 		TToATests, TToAParametrisedTests,
 		::testing::Values(
 			std::make_tuple("AMPS", "GAUSS", 2000.0), // 10,000 * 0.2
@@ -90,7 +90,7 @@ namespace {
 		static void TearDownTestCase() {}
 	};
 
-	INSTANTIATE_TEST_CASE_P(
+	INSTANTIATE_TEST_SUITE_P(
 		AllowPersistTests, AllowPersistParametrisedTests,
 		::testing::Values(
 			"FAST_FILTER_VALUE",
@@ -142,7 +142,7 @@ namespace {
 		static void TearDownTestCase() {}
 	};
 
-	INSTANTIATE_TEST_CASE_P(
+	INSTANTIATE_TEST_SUITE_P(
 		UseSwitchTests, UseSwitchParametrisedTests,
 		::testing::Values(
 			"SWITCH_TEMP_PV",
@@ -197,7 +197,7 @@ namespace {
 		static void TearDownTestCase() {}
 	};
 
-	INSTANTIATE_TEST_CASE_P(
+	INSTANTIATE_TEST_SUITE_P(
 		UseMagnetTempTests, UseMagnetTempParametrisedTests,
 		::testing::Values(
 			"MAGNET_TEMP_PV",
@@ -240,7 +240,7 @@ namespace {
 		static void TearDownTestCase() {}
 	};
 
-	INSTANTIATE_TEST_CASE_P(
+	INSTANTIATE_TEST_SUITE_P(
 		CompOffActTests, CompOffActParametrisedTests,
 		::testing::Values(
 			"NO_OF_COMP",

@@ -77,8 +77,8 @@ CRYOSMSDriver::CRYOSMSDriver(const char *portName, std::string devPrefix, std::m
 		ASYN_CANBLOCK, /* asynFlags.  This driver can block but it is not multi-device */
 		1, /* Autoconnect */
 		0,
-		0), qsm(this), started(false), devicePrefix(devPrefix), writeDisabled(FALSE), atTarget(true), abortQueue(true), envVarMap(argMap)
-
+		0), devicePrefix(devPrefix), envVarMap(argMap), writeDisabled(false), started(false), fastRamp(false), fastRampZero(false),
+		cooling(false), warming(false), atTarget(true), abortQueue(true), qsm(this)
 {
 	createParam(P_deviceNameString, asynParamOctet, &P_deviceName);
 	createParam(P_initLogicString, asynParamInt32, &P_initLogic);
@@ -674,7 +674,6 @@ asynStatus CRYOSMSDriver::readFile(std::string str_dir)
 	float rate, maxT;
 	int ind = 0;
 	FILE *fp;
-	int rowNum = 0;
 	const char *dir = str_dir.c_str();
 
 	if (NULL != (fp = fopen(dir, "rt"))) {
@@ -737,7 +736,7 @@ double CRYOSMSDriver::unitConversion(double value, std::string startUnit, std::s
 	else if (startUnit.compare("GAUSS") == 0 && endUnit.compare("TESLA") == 0) {
 		return value / (10000.0 * teslaPerAmp);
 	}
-    errlogSevPrintf(errlogMajor, "Error: Units not converted for %f, %s to %s", value, startUnit, endUnit);
+    errlogSevPrintf(errlogMajor, "Error: Units not converted for %f, %s to %s", value, startUnit.c_str(), endUnit.c_str());
     return 0;
 }
 
@@ -1277,9 +1276,11 @@ extern "C"
 		errlogSevPrintf(errlogInfo, "Loading macros into asyn driver:\n");
 		for (int i = 0; i < sizeof(envVarsNames) / sizeof(const char*); ++i)
 		{
-			char * argval = args[0].aval.av[i + 3];
-			errlogSevPrintf(errlogInfo, "%s: %s\n", envVarsNames[i], argval);
-			std::pair<std::string, std::string > newPair(envVarsNames[i], argval); // args starts with CRYOSMSConfigure, portName and devPrefix
+			char * argValC = args[0].aval.av[i + 3];
+			std::string argVal = argValC;
+			std::string argName = envVarsNames[i];
+			errlogSevPrintf(errlogInfo, "%s: %s\n", envVarsNames[i], argVal);
+			std::pair<std::string, std::string > newPair(argName, argVal); // args starts with CRYOSMSConfigure, portName and devPrefix
 			argMap.insert(newPair);
 		}
 		try
