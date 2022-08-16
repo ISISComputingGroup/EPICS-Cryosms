@@ -1172,6 +1172,13 @@ void CRYOSMSDriver::startRamping(double rate, double target, int sign, RampType 
 		statMsg = "Ramping fast to zero";
 		putDb("FAST:ZERO", &trueVal);
 		break;
+	default:
+		errlogSevPrintf(errlogMajor, "Invalid ramp type requested, aborting queue");
+		statMsg = "Ramp Failing to initialise";
+		putDb("STAT", statMsg);
+		eventQueue.push_front(abortRampEvent(this));
+		atTarget = true;
+		return;
 	}
 
 	int signString = (sign == 1) ? 2 : 1; //sign is handled by mbbo with 0 = 0, 1 = negative, 2 = positive
