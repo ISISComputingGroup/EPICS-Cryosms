@@ -1272,12 +1272,12 @@ extern "C"
 		std::string devPrefix = args[0].aval.av[2];
 
 		errlogSevPrintf(errlogInfo, "Loading macros into asyn driver:\n");
-		for (int i = 0; i < sizeof(envVarsNames) / sizeof(const char*); ++i)
+		for (std::size_t i = 0; i < sizeof(envVarsNames) / sizeof(const char*); ++i)
 		{
 			char * argValC = args[0].aval.av[i + 3];
 			std::string argVal = argValC;
 			std::string argName = envVarsNames[i];
-			errlogSevPrintf(errlogInfo, "%s: %s\n", envVarsNames[i], argVal);
+			errlogSevPrintf(errlogInfo, "%s: %s\n", envVarsNames[i], argValC);
 			std::pair<std::string, std::string > newPair(argName, argVal); // args starts with CRYOSMSConfigure, portName and devPrefix
 			argMap.insert(newPair);
 		}
