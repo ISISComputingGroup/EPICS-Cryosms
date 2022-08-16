@@ -64,8 +64,6 @@ return status; \
 }
 
 
-static const char *driverName = "CRYOSMSDriver"; ///< Name of driver for use in message printing 
-
 static void eventQueueThread(CRYOSMSDriver* drv);
 
 CRYOSMSDriver::CRYOSMSDriver(const char *portName, std::string devPrefix, std::map<std::string, std::string> argMap)
