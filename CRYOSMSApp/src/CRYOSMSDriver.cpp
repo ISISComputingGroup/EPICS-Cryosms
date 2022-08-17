@@ -56,6 +56,7 @@ if (status != asynSuccess)\
 std::ostringstream errString; \
 errString << "Error returned when calling " << #func << " with argument " << arg; \
 errlogSevPrintf(errlogMajor, errString.str().c_str()); \
+return status; \
 }
 
 #define RETURN_IF_ASYNERROR2(func, arg1, arg2) status = (func)(arg1, arg2); \
