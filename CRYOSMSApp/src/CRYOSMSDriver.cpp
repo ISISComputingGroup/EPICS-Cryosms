@@ -10,6 +10,7 @@
 #include <cmath>
 #include <map>
 #include <string>
+#include <sstream>
 
 #include <epicsTypes.h>
 #include <epicsTime.h>
@@ -52,14 +53,17 @@ return status; \
 #define RETURN_IF_ASYNERROR1(func, arg) status = (func)(arg); \
 if (status != asynSuccess)\
 {\
-errlogSevPrintf(errlogMajor, "Error returned when calling %s", #func);\
-return status; \
+std::ostringstream errString; \
+errString << "Error returned when calling " << #func << " with argument " << arg; \
+errlogSevPrintf(errlogMajor, errString.str().c_str()); \
 }
 
 #define RETURN_IF_ASYNERROR2(func, arg1, arg2) status = (func)(arg1, arg2); \
 if (status != asynSuccess)\
 {\
-errlogSevPrintf(errlogMajor, "Error returned when calling %s", #func);\
+std::ostringstream errString;\
+errString << "Error returned when calling " << #func << " with arguments " << arg1 << " and " << arg2;\
+errlogSevPrintf(errlogMajor, errString.str().c_str());\
 return status; \
 }
 
@@ -197,7 +201,9 @@ asynStatus CRYOSMSDriver::checkTToA()
 			RETURN_IF_ASYNERROR2(putDb, "OUTPUTMODE:_SP", &falseVal);
 		}
 	}
-	catch (std::exception) {
+	catch (const std::exception& ex)
+	{
+		errlogSevPrintf(errlogFatal, ex.what());
 		errlogSevPrintf(errlogMajor, "Invalid value of T_TO_A provided");
 		const char *statMsg = "Invalid calibration from Tesla to Amps supplied";
 		this->writeDisabled = TRUE;
@@ -241,7 +247,9 @@ asynStatus CRYOSMSDriver::checkMaxVolt()
 			testVar = 2;
 			RETURN_IF_ASYNERROR2(putDb, "MAXVOLT:_SP", &maxVolt);
 		}
-		catch (std::exception) {
+		catch (const std::exception& ex)
+		{
+			errlogSevPrintf(errlogFatal, ex.what());
 			errlogSevPrintf(errlogMajor, "Invalid value of MAX_VOLT provided");
 		}
 	}
@@ -1280,10 +1288,9 @@ extern "C"
 		errlogSevPrintf(errlogInfo, "Loading macros into asyn driver:\n");
 		for (std::size_t i = 0; i < sizeof(envVarsNames) / sizeof(const char*); ++i)
 		{
-			char * argValC = args[0].aval.av[i + 3];
-			std::string argVal = argValC;
+			std::string argVal(args[0].aval.av[i + 3]);
 			std::string argName = envVarsNames[i];
-			errlogSevPrintf(errlogInfo, "%s: %s\n", envVarsNames[i], argValC);
+			errlogSevPrintf(errlogInfo, "%s: %s\n", envVarsNames[i], argVal.c_str());
 			std::pair<std::string, std::string > newPair(argName, argVal); // args starts with CRYOSMSConfigure, portName and devPrefix
 			argMap.insert(newPair);
 		}
