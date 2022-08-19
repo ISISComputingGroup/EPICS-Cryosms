@@ -204,8 +204,7 @@ asynStatus CRYOSMSDriver::checkTToA()
 	}
 	catch (const std::exception& ex)
 	{
-		errlogSevPrintf(errlogFatal, ex.what());
-		errlogSevPrintf(errlogMajor, "Invalid value of T_TO_A provided");
+		errlogSevPrintf(errlogMajor, "Invalid value of T_TO_A provided: %s", ex.what());
 		const char *statMsg = "Invalid calibration from Tesla to Amps supplied";
 		this->writeDisabled = TRUE;
 		RETURN_IF_ASYNERROR2(putDb, "STAT", statMsg);
@@ -250,8 +249,7 @@ asynStatus CRYOSMSDriver::checkMaxVolt()
 		}
 		catch (const std::exception& ex)
 		{
-			errlogSevPrintf(errlogFatal, ex.what());
-			errlogSevPrintf(errlogMajor, "Invalid value of MAX_VOLT provided");
+			errlogSevPrintf(errlogMajor, "Invalid value of MAX_VOLT provided: %s", ex.what());
 		}
 	}
 	return status;
