@@ -47,10 +47,10 @@ public:
 	bool writeDisabled;
 	int testVar; //for use in google tests where functionality can not be tested with PV values
 	bool started;
-	bool fastRamp = false; //whether or not device is in "fast" mode, used exclusively to update "STAT" PV correctly
-	bool fastRampZero = false; //whether or not device is in "fast zero" mode, used exclusively to update "STAT" PV correctly
-	bool cooling = 0;//whether heater is cooling down
-	bool warming = 0;//whether heater is warming up
+	bool fastRamp; //whether or not device is in "fast" mode, used exclusively to update "STAT" PV correctly
+	bool fastRampZero; //whether or not device is in "fast zero" mode, used exclusively to update "STAT" PV correctly
+	bool cooling;//whether heater is cooling down
+	bool warming;//whether heater is warming up
 	int trueVal = 1; //Used in dbputs, as it needs to be passed ref to int
 	int falseVal = 0;//Used in dbputs, as it needs to be passed ref to int
 	asynStatus procDb(std::string pvSuffix);
@@ -66,7 +66,6 @@ public:
 	void checkForTarget();
 	void checkIfPaused();
 	void checkHeaterDone();
-	boost::msm::back::state_machine<cryosmsStateMachine> qsm;
 	void resumeRamp() override;
 	void pauseRamp() override;
 	void startRamping(double rate, double target, int rampDir, RampType rampType) override;
@@ -78,11 +77,9 @@ public:
 	void startWarming() override;
 	void reachTemp() override;
 	void preRampHeaterCheck() override;
+	boost::msm::back::state_machine<cryosmsStateMachine> qsm;
 private:
 	std::string devicePrefix;
-
-#define FIRST_SMS_PARAM P_deviceName
-
 	int P_deviceName; // string
 	int P_initLogic;
 	int P_Rate; //float
@@ -92,9 +89,6 @@ private:
 	int P_abortRamp;
 	int P_outputModeSet;
 	int P_calcHeater; //int as above
-
-#define LAST_SMS_PARAM 	P_calcHeater
-#define NUM_SMS_PARAMS	(&LAST_SMS_PARAM - &FIRST_SMS_PARAM + 1)
 
 
 	std::vector<double> pRate_;

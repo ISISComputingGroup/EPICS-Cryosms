@@ -10,6 +10,7 @@
 #include <cmath>
 #include <map>
 #include <string>
+#include <sstream>
 
 #include <epicsTypes.h>
 #include <epicsTime.h>
@@ -52,33 +53,34 @@ return status; \
 #define RETURN_IF_ASYNERROR1(func, arg) status = (func)(arg); \
 if (status != asynSuccess)\
 {\
-errlogSevPrintf(errlogMajor, "Error returned when calling %s with arguments %s", #func, arg);\
+std::ostringstream errString; \
+errString << "Error returned when calling " << #func << " with argument " << arg; \
+errlogSevPrintf(errlogMajor, errString.str().c_str()); \
 return status; \
 }
 
 #define RETURN_IF_ASYNERROR2(func, arg1, arg2) status = (func)(arg1, arg2); \
 if (status != asynSuccess)\
 {\
-errlogSevPrintf(errlogMajor, "Error returned when calling %s with arguments %s", #func, arg1);\
+std::ostringstream errString;\
+errString << "Error returned when calling " << #func << " with arguments " << arg1 << " and " << arg2;\
+errlogSevPrintf(errlogMajor, errString.str().c_str());\
 return status; \
 }
 
-
-static const char *driverName = "CRYOSMSDriver"; ///< Name of driver for use in message printing 
 
 static void eventQueueThread(CRYOSMSDriver* drv);
 
 CRYOSMSDriver::CRYOSMSDriver(const char *portName, std::string devPrefix, std::map<std::string, std::string> argMap)
 	: asynPortDriver(portName,
 		0, /* maxAddr */
-		static_cast<int>NUM_SMS_PARAMS, /* num parameters */
 		asynInt32Mask | asynInt32ArrayMask | asynFloat64Mask | asynFloat64ArrayMask | asynOctetMask | asynDrvUserMask, /* Interface mask */
 		asynInt32Mask | asynInt32ArrayMask | asynFloat64Mask | asynFloat64ArrayMask | asynOctetMask,  /* Interrupt mask */
 		ASYN_CANBLOCK, /* asynFlags.  This driver can block but it is not multi-device */
 		1, /* Autoconnect */
 		0,
-		0), qsm(this), started(false), devicePrefix(devPrefix), writeDisabled(FALSE), atTarget(true), abortQueue(true), envVarMap(argMap)
-
+		0), envVarMap(argMap), writeDisabled(false), started(false), fastRamp(false), fastRampZero(false),
+		cooling(false), warming(false), atTarget(true), abortQueue(true), qsm(this), devicePrefix(devPrefix)
 {
 	createParam(P_deviceNameString, asynParamOctet, &P_deviceName);
 	createParam(P_initLogicString, asynParamInt32, &P_initLogic);
@@ -131,8 +133,8 @@ asynStatus CRYOSMSDriver::writeInt32(asynUser *pasynUser, epicsInt32 value)
 				RETURN_IF_ASYNERROR2(putDb, "OUTPUT:PERSIST:RAW:UNIT", &falseVal);
 			}
 			// Find first  and last digits of value
-			int firstNum = heater_resp.find_first_of("1234567890");
-			int lastNum = heater_resp.find_last_of("1234567890");
+			std::size_t firstNum = heater_resp.find_first_of("1234567890");
+			std::size_t lastNum = heater_resp.find_last_of("1234567890");
 			// And snip the middle to another string
 			std::string persistStr = heater_resp.substr(firstNum, lastNum);
 			double persistVal = std::stod(persistStr);
@@ -200,8 +202,9 @@ asynStatus CRYOSMSDriver::checkTToA()
 			RETURN_IF_ASYNERROR2(putDb, "OUTPUTMODE:_SP", &falseVal);
 		}
 	}
-	catch (std::exception &e) {
-		errlogSevPrintf(errlogMajor, "Invalid value of T_TO_A provided");
+	catch (const std::exception& ex)
+	{
+		errlogSevPrintf(errlogMajor, "Invalid value of T_TO_A provided: %s", ex.what());
 		const char *statMsg = "Invalid calibration from Tesla to Amps supplied";
 		this->writeDisabled = TRUE;
 		RETURN_IF_ASYNERROR2(putDb, "STAT", statMsg);
@@ -244,8 +247,9 @@ asynStatus CRYOSMSDriver::checkMaxVolt()
 			testVar = 2;
 			RETURN_IF_ASYNERROR2(putDb, "MAXVOLT:_SP", &maxVolt);
 		}
-		catch (std::exception &e) {
-			errlogSevPrintf(errlogMajor, "Invalid value of MAX_VOLT provided");
+		catch (const std::exception& ex)
+		{
+			errlogSevPrintf(errlogMajor, "Invalid value of MAX_VOLT provided: %s", ex.what());
 		}
 	}
 	return status;
@@ -674,7 +678,6 @@ asynStatus CRYOSMSDriver::readFile(std::string str_dir)
 	float rate, maxT;
 	int ind = 0;
 	FILE *fp;
-	int rowNum = 0;
 	const char *dir = str_dir.c_str();
 
 	if (NULL != (fp = fopen(dir, "rt"))) {
@@ -737,7 +740,7 @@ double CRYOSMSDriver::unitConversion(double value, std::string startUnit, std::s
 	else if (startUnit.compare("GAUSS") == 0 && endUnit.compare("TESLA") == 0) {
 		return value / (10000.0 * teslaPerAmp);
 	}
-    errlogSevPrintf(errlogMajor, "Error: Units not converted for %f, %s to %s", value, startUnit, endUnit);
+    errlogSevPrintf(errlogMajor, "Error: Units not converted for %f, %s to %s", value, startUnit.c_str(), endUnit.c_str());
     return 0;
 }
 
@@ -1176,6 +1179,13 @@ void CRYOSMSDriver::startRamping(double rate, double target, int sign, RampType 
 		statMsg = "Ramping fast to zero";
 		putDb("FAST:ZERO", &trueVal);
 		break;
+	default:
+		errlogSevPrintf(errlogMajor, "Invalid ramp type requested, aborting queue");
+		statMsg = "Ramp Failing to initialise";
+		putDb("STAT", statMsg);
+		eventQueue.push_front(abortRampEvent(this));
+		atTarget = true;
+		return;
 	}
 
 	int signString = (sign == 1) ? 2 : 1; //sign is handled by mbbo with 0 = 0, 1 = negative, 2 = positive
@@ -1275,11 +1285,12 @@ extern "C"
 		std::string devPrefix = args[0].aval.av[2];
 
 		errlogSevPrintf(errlogInfo, "Loading macros into asyn driver:\n");
-		for (int i = 0; i < sizeof(envVarsNames) / sizeof(const char*); ++i)
+		for (std::size_t i = 0; i < sizeof(envVarsNames) / sizeof(const char*); ++i)
 		{
-			char * argval = args[0].aval.av[i + 3];
-			errlogSevPrintf(errlogInfo, "%s: %s\n", envVarsNames[i], argval);
-			std::pair<std::string, std::string > newPair(envVarsNames[i], argval); // args starts with CRYOSMSConfigure, portName and devPrefix
+			std::string argVal(args[0].aval.av[i + 3]);
+			std::string argName = envVarsNames[i];
+			errlogSevPrintf(errlogInfo, "%s: %s\n", envVarsNames[i], argVal.c_str());
+			std::pair<std::string, std::string > newPair(argName, argVal); // args starts with CRYOSMSConfigure, portName and devPrefix
 			argMap.insert(newPair);
 		}
 		try
