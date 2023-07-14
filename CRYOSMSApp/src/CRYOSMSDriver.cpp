@@ -514,6 +514,8 @@ asynStatus CRYOSMSDriver::onStart()
 	queueThreadId = epicsThreadCreate("Event Queue", epicsThreadPriorityHigh, epicsThreadStackMedium, (EPICSTHREADFUNC)::eventQueueThread, this);
 
 	RETURN_IF_ASYNERROR2(putDb, "INIT", &trueVal);
+	const char* statMsg = "Ready";
+	RETURN_IF_ASYNERROR2(putDb, "STAT", statMsg);
 	return status;
 }
 

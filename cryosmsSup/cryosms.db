@@ -119,7 +119,11 @@ record(ao, "$(P)MID:SP")
 {
     field(DESC, "current ramp target in PSU Units")
     field(EGU, "$(WRITE_UNIT)")
+    field(SDIS, "$(P)DISABLE")
 }
+
+alias("$(P)MID:SP", "$(P)TARGET:SP")
+alias("$(P)MID:SP", "$(P)OUTPUT:SP")
 
 ### OUTPUT:
 
@@ -241,13 +245,6 @@ record(bi, "$(P)OUTPUT:RAW:UNIT")
     field(DESC, "The unit for OUTPUT:RAW") # returned as part of a "GO" command
     field(ZNAM, "AMPS")
     field(ONAM, "TESLA")
-}
-
-record(ao, "$(P)OUTPUT:SP")
-{
-    field(DESC, "The destination of next ramp in $(DISPLAY_UNIT)")
-    field(EGU, "$(DISPLAY_UNIT)")
-    field(SDIS, "$(P)DISABLE")
 }
 
 record(ai, "$(P)OUTPUT:VOLT")
@@ -488,11 +485,6 @@ record(ai, "$(P)TARGET:TIME")
     field(DESC, "Time it will take to get to target")
 }
 
-record(ao, "$(P)TARGET:SP")
-{
-    field(DESC, "Value to send PSU in $(WRITE_UNIT)")
-    field(EGU, "$(WRITE_UNIT)")
-}
 ### READONLY:
 
 record(ao, "$(P)CONSTANT:_SP")
@@ -654,6 +646,22 @@ record(bo, "$(P)SIM")
     field(ZNAM, "NO")
     field(ONAM, "YES")
     field(VAL, "$(RECSIM=0)")
+}
+
+record(bi,"$(P)SIM:COMP1STAT")
+{
+    field(SCAN, "Passive")
+    field(DTYP, "Soft Channel")
+    field(ZNAM, "OFF")
+    field(ONAM, "ON")
+}
+
+record(bi,"$(P)SIM:COMP2STAT")
+{
+    field(SCAN, "Passive")
+    field(DTYP, "Soft Channel")
+    field(ZNAM, "OFF")
+    field(ONAM, "ON")
 }
 
 record(mbbi,"$(P)SIM:OUTPUTMODE")
