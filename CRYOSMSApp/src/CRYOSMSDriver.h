@@ -26,7 +26,6 @@ struct processEventVisitor : boost::static_visitor<>
 class CRYOSMSDriver : public asynPortDriver, public SMDriver
 {
 public:
-<<<<<<< HEAD
 	CRYOSMSDriver(const char* portName, std::string devPrefix, const char* TToA, const char* writeUnit, const char* displayUnit, const char* restoreWUTimeout, const char* maxCurr, const char* maxVolt,
 		const char* allowPersist, const char* fastFilterValue, const char* filterValue, const char* npp, const char* fastPersistentSettletime, const char* persistentSettletime, const char* nonPersistentSettletime,
 		const char* fastRate, const char* useSwitch, const char* switchTempPv, const char* switchHigh, const char* switchLow, const char* switchStableNumber, const char* heaterTolerance,
@@ -34,10 +33,6 @@ public:
 		const char* minMagnetTemp, const char* compOffAct, const char* noOfComp, const char* minNoOfComp, const char* comp1StatPv, const char* comp2StatPv, const char* rampFile,
 		const char* cryomagnet, const char* voltTolerance, const char* voltStabilityDuration, const char* midTolerance, const char* targetTolerance, const char* holdTime, const char* holdTimeZero);
 	virtual asynStatus writeInt32(asynUser* pasynUser, epicsInt32 value);
-=======
-	CRYOSMSDriver(const char *portName, std::string devPrefix, std::map<std::string, std::string> argMap);
-	virtual asynStatus writeInt32(asynUser *pasynUser, epicsInt32 value);
->>>>>>> master
 	asynStatus checkTToA();
 	asynStatus checkMaxCurr();
 	asynStatus checkMaxVolt();
@@ -56,8 +51,7 @@ public:
 	double unitConversion(double value, std::string startUnit, std::string endUnit);
 	bool writeDisabled;
 	int testVar; //for use in google tests where functionality can not be tested with PV values
-	bool started;
-<<<<<<< HEAD
+	bool started
 	bool fastRamp = false; //whether or not device is in "fast" mode, used exclusively to update "STAT" PV correctly
 	bool fastRampZero = false; //whether or not device is in "fast zero" mode, used exclusively to update "STAT" PV correctly
 	bool cooling = false;//whether heater is cooling down
@@ -76,20 +70,6 @@ public:
 	asynStatus putDb(std::string pvSuffix, const void* value);
 	bool retryUntilSet(std::string setPoint, std::string readBack, int retries, int setVal);
 	bool retryUntilSet(std::string setPoint, std::string readBack, int retries, double setVal);
-=======
-	bool fastRamp; //whether or not device is in "fast" mode, used exclusively to update "STAT" PV correctly
-	bool fastRampZero; //whether or not device is in "fast zero" mode, used exclusively to update "STAT" PV correctly
-	bool cooling;//whether heater is cooling down
-	bool warming;//whether heater is warming up
-	int trueVal = 1; //Used in dbputs, as it needs to be passed ref to int
-	int falseVal = 0;//Used in dbputs, as it needs to be passed ref to int
-	asynStatus procDb(std::string pvSuffix);
-	asynStatus getDb(std::string pvSuffix, int &pbuffer);
-	asynStatus getDb(std::string pvSuffix, double &pbuffer);
-	asynStatus getDb(std::string pvSuffix, std::string &pbuffer);
-	asynStatus putDb(std::string pvSuffix, const void *value);
-	asynStatus putDbAndWait(const std::string& pvSuffix, const void *value, double timeout);
->>>>>>> master
 	std::deque<eventVariant> eventQueue;
 	epicsThreadId queueThreadId;
 	epicsThreadId checkThreadId;
@@ -98,11 +78,8 @@ public:
 	void checkForTarget();
 	void checkIfPaused();
 	void checkHeaterDone();
-<<<<<<< HEAD
 	void checkReady();
 	boost::msm::back::state_machine<cryosmsStateMachine> qsm;
-=======
->>>>>>> master
 	void resumeRamp() override;
 	void pauseRamp() override;
 	void startRamping(double rate, double target, int rampDir, RampType rampType) override;
