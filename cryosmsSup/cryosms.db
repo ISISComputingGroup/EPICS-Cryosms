@@ -12,7 +12,6 @@ record(bo, "$(P)ABORT")
     field(ZNAM, "OFF")
     field(ONAM, "ON")
 }
-
 record(ao, "$(P)CONSTANT:_SP")
 {
     field(DESC, "set T to A on device")
@@ -639,7 +638,7 @@ record(mbbi, "$(P)SWITCH:STAT:NOW:OLD")
     field(ZRST, "Cold")     field(ZRVL, "0")
     field(ONST, "Changing") field(ONVL, "1")
     field(TWST, "Warm")     field(TWVL, "2")
-    field(FLNK, "$(P)SWITCH:STAT:NOW:CALC PP MS")
+    field(FLNK, "$(P)SWITCH:STAT:NOW:CALC.PROC")
 }
 
 record(calcout, "$(P)SWITCH:STAT:NOW:CALC")
@@ -648,7 +647,7 @@ record(calcout, "$(P)SWITCH:STAT:NOW:CALC")
     field(CALC, "(B=0&&A<$(SWITCH_LOW))?0:(B=1&&A>$(SWITCH_LOW))?2:1")
     field(INPA, "$(P)SWITCH:TEMP")
     field(INPB, "$(P)HEATER:STAT")
-    field(OUT, "$(P)SWITCH:STAT:NOW PP MS")
+    field(OUT, "$(P)SWITCH:STAT:NOW PP")
 }
 
 record(mbbi, "$(P)SWITCH:STAT:NOW")
@@ -658,7 +657,7 @@ record(mbbi, "$(P)SWITCH:STAT:NOW")
     field(ZRST, "Cold")     field(ZRVL, "0")
     field(ONST, "Changing") field(ONVL, "1")
     field(TWST, "Warm")     field(TWVL, "2")
-    field(FLNK, "$(P)SWITCH:STAT:INC.PROC PP MS")
+    field(FLNK, "$(P)SWITCH:STAT:INC.PROC")
 }
 
 record(calc, "$(P)SWITCH:STAT:INC")
@@ -668,7 +667,7 @@ record(calc, "$(P)SWITCH:STAT:INC")
     field(INPA, "$(P)SWITCH:STAT:NOW")
     field(INPB, "$(P)SWITCH:STAT:NOW:OLD")
     field(INPC, "$(P)SWITCH:STAT:INC")
-    field(FLNK, "$(P)SWITCH:STAT:CALC.PROC PP MS")
+    field(FLNK, "$(P)SWITCH:STAT:CALC.PROC")
 }
 
 record(calcout, "$(P)SWITCH:STAT:CALC")
@@ -678,7 +677,7 @@ record(calcout, "$(P)SWITCH:STAT:CALC")
     field(INPA, "$(P)SWITCH:STAT:INC")
     field(INPB, "$(P)SWITCH:STAT:NOW")
     field(INPC, "$(P)HEATER:STAT")
-    field(OUT, "$(P)SWITCH:STAT PP MS")
+    field(OUT, "$(P)SWITCH:STAT PP")
 }
 
 record(mbbi, "$(P)SWITCH:STAT")

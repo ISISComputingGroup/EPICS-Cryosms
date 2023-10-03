@@ -199,4 +199,4 @@ struct cryosmsStateMachine : public msm::front::state_machine_def<cryosmsStateMa
 		errlogSevPrintf(errlogMajor, "no transition from state %s on event %s", stateList[state].c_str(), typeid(e).name());
 	}
 };
-#endif !QUEUEDSTATEMACHINE_H
+#endif /* !QUEUEDSTATEMACHINE_H */
