@@ -26,13 +26,13 @@ struct processEventVisitor : boost::static_visitor<>
 class CRYOSMSDriver : public asynPortDriver, public SMDriver
 {
 public:
-	CRYOSMSDriver(const char* portName, std::string devPrefix, const char* TToA, const char* writeUnit, const char* displayUnit, const char* restoreWUTimeout, const char* maxCurr, const char* maxVolt,
-		const char* allowPersist, const char* fastFilterValue, const char* filterValue, const char* npp, const char* fastPersistentSettletime, const char* persistentSettletime, const char* nonPersistentSettletime,
-		const char* fastRate, const char* useSwitch, const char* switchTempPv, const char* switchHigh, const char* switchLow, const char* switchStableNumber, const char* heaterTolerance,
-		const char* switchTimeout, const char* heaterOut, const char* useMagnetTemp, const char* magnetTempPv, const char* maxMagnetTemp,
-		const char* minMagnetTemp, const char* compOffAct, const char* noOfComp, const char* minNoOfComp, const char* comp1StatPv, const char* comp2StatPv, const char* rampFile,
-		const char* cryomagnet, const char* voltTolerance, const char* voltStabilityDuration, const char* midTolerance, const char* targetTolerance, const char* holdTime, const char* holdTimeZero);
-	virtual asynStatus writeInt32(asynUser* pasynUser, epicsInt32 value);
+	CRYOSMSDriver(const char *portName, std::string devPrefix, const char *TToA, const char *writeUnit, const char *displayUnit, const char *restoreWUTimeout, const char *maxCurr, const char *maxVolt,
+		const char *allowPersist, const char *fastFilterValue, const char *filterValue, const char *npp, const char *fastPersistentSettletime, const char *persistentSettletime, const char *nonPersistentSettletime,
+		const char *fastRate, const char *useSwitch, const char *switchTempPv, const char *switchHigh, const char *switchLow, const char *switchStableNumber, const char *heaterTolerance,
+		const char *switchTimeout, const char *heaterOut, const char *useMagnetTemp, const char *magnetTempPv, const char *maxMagnetTemp,
+		const char *minMagnetTemp, const char *compOffAct, const char *noOfComp, const char *minNoOfComp, const char *comp1StatPv, const char *comp2StatPv, const char *rampFile,
+		const char *cryomagnet, const char *voltTolerance, const char *voltStabilityDuration, const char *midTolerance, const char *targetTolerance, const char *holdTime, const char *holdTimeZero);
+	virtual asynStatus writeInt32(asynUser *pasynUser, epicsInt32 value);
 	asynStatus checkTToA();
 	asynStatus checkMaxCurr();
 	asynStatus checkMaxVolt();
@@ -46,12 +46,12 @@ public:
 	asynStatus setupRamp();
 	asynStatus setupPersistOn();
 	asynStatus setupFastRamp(double target);
-	std::map<std::string, std::string> envVarMap;
+	std::map<std::string,std::string> envVarMap;
 	double writeToDispConversion;
 	double unitConversion(double value, std::string startUnit, std::string endUnit);
 	bool writeDisabled;
 	int testVar; //for use in google tests where functionality can not be tested with PV values
-	bool started
+	bool started;
 	bool fastRamp = false; //whether or not device is in "fast" mode, used exclusively to update "STAT" PV correctly
 	bool fastRampZero = false; //whether or not device is in "fast zero" mode, used exclusively to update "STAT" PV correctly
 	bool cooling = false;//whether heater is cooling down
@@ -64,10 +64,10 @@ public:
 	int rampLeadsPrev = 0;//for checking if ramp leads changes
 	std::string correctWriteUnit;
 	asynStatus procDb(std::string pvSuffix);
-	asynStatus getDb(std::string pvSuffix, int& pbuffer, bool isExternal = false);
-	asynStatus getDb(std::string pvSuffix, double& pbuffer, bool isExternal = false);
-	asynStatus getDb(std::string pvSuffix, std::string& pbuffer, bool isExternal = false);
-	asynStatus putDb(std::string pvSuffix, const void* value);
+	asynStatus getDb(std::string pvSuffix, int &pbuffer, bool isExternal = false);
+	asynStatus getDb(std::string pvSuffix, double &pbuffer, bool isExternal = false);
+	asynStatus getDb(std::string pvSuffix, std::string &pbuffer, bool isExternal = false);
+	asynStatus putDb(std::string pvSuffix, const void *value);
 	bool retryUntilSet(std::string setPoint, std::string readBack, int retries, int setVal);
 	bool retryUntilSet(std::string setPoint, std::string readBack, int retries, double setVal);
 	std::deque<eventVariant> eventQueue;
@@ -91,9 +91,11 @@ public:
 	void startWarming() override;
 	void reachTemp() override;
 	void preRampHeaterCheck() override;
-	boost::msm::back::state_machine<cryosmsStateMachine> qsm;
 private:
 	std::string devicePrefix;
+
+#define FIRST_SMS_PARAM P_deviceName
+
 	int P_deviceName; // string
 	int P_initLogic;
 	int P_Rate; //float
@@ -103,6 +105,9 @@ private:
 	int P_abortRamp;
 	int P_outputModeSet;
 	int P_calcHeater; //int as above
+
+#define LAST_SMS_PARAM 	P_calcHeater
+#define NUM_SMS_PARAMS	(&LAST_SMS_PARAM - &FIRST_SMS_PARAM + 1)
 
 
 	std::vector<double> pRate_;
