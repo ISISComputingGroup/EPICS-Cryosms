@@ -2,27 +2,45 @@
 # Database and stream protocol file for Cryogenic Ltd SMS series superconducting magnet controller commands
 #
 
-record(bo, "$(P)ABORT:SP")
+record(bo, "$(P)ABORT")
 {
     field(DESC, "Abort the current ramp")
+    field(SCAN, "Passive")
     field(DTYP, "asynInt32")
     field(OUT, "@asyn($(ASYN_PORT),0,0)RAMP_ABORT")
     field(SDIS, "$(P)DISABLE")
     field(ZNAM, "OFF")
     field(ONAM, "ON")
 }
+record(ao, "$(P)CONSTANT:_SP")
+{
+    field(DESC, "set T to A on device")
+    field(DTYP, "stream")
+    field(OUT, "@cryosms.proto setConstant $(PORT)")
+ }
+
+record(mbbi, "$(P)COMP:STAT")
+{
+    field(DESC, "Overall compressor status")
+    field(ZRST, "All On")       field(ZRVL, "0")
+    field(ONST, "Partially on") field(ONVL, "1")
+    field(TWST, "All Off")      field(TWVL, "2")
+} 
     
 record(mbbi, "$(P)DIRECTION")
 {
     field(DESC, "The direction of the device")
     field(DTYP, "stream")
+    field(SCAN, "1 second")
     field(INP, "@cryosms.proto getDirection $(PORT)")
-    field(ZRST, "0")
-    field(ONST, "-")
-    field(TWST, "+")
+    field(ZRST, "0") field(ZRVL, "0")
+    field(ONST, "-") field(ONVL, "1")
+    field(TWST, "+") field(TWVL, "2")
     field(SIML, "$(P)SIM")
     field(SIOL, "$(P)SIM:DIRECTION")
     field(SDIS, "$(P)DISABLE")
+    info(INTEREST, "HIGH")
+    info(archive, "VAL")
 }
 
 record(bo, "$(P)DISABLE")
@@ -33,6 +51,19 @@ record(bo, "$(P)DISABLE")
   field(OMSL, "supervisory")
   field(ZNAM, "COMMS ENABLED")
   field(ONAM, "COMMS DISABLED")
+}
+
+record(calc, "$(P)ERROR")
+{
+    field(DESC, "Whether any error is present")
+    field(SCAN, "1 second")
+    field(INPA, "$(P)MAGNET:TEMP:INRANGE")
+    field(INPB, "$(P)QUENCH")
+    field(INPC, "$(P)TRIP")
+    field(INPD, "$(P)COMP:STAT")
+    field(CALC, "A=1&&B=0&&C=0&&D#2?0:1")
+    info(INTEREST, "HIGH")
+    info(archive, "VAL")
 }
 
 record(bi, "$(P)FAST:ZERO")
@@ -46,7 +77,7 @@ record(stringin, "$(P)HEATER:STAT:RAW")
     field(DESC, "raw string from H command")
     field(DTYP, "stream")
     field(INP, "@cryosms.proto getHeaterStatus $(PORT)")
-    field(SCAN, "1 second")
+    field(SCAN, "2 second")
     field(FLNK, "$(P)HEATER:STAT:PROC")
 }
 
@@ -67,6 +98,13 @@ record(bi, "$(P)HEATER:STAT")
     field(SDIS, "$(P)DISABLE")
 }
 
+record(bi, "$(P)HOLD:COMPLETE")
+{
+    field(DESC, "Whether holding is done")
+    field(ZNAM, "Holding")
+    field(ONAM, "Complete")
+}
+
 record(bo, "$(P)INIT")
 {
     field(DESC, "starts init script")
@@ -83,18 +121,68 @@ record(bo, "$(P)INIT")
 
 ### MAGNET:
 
-record(bo, "$(P)MAGNET:MODE")
+record(bi, "$(P)MAGNET:TEMP:INRANGE")
 {
-    field(DESC, "Run the magnet in persistent mode or not")
-    field(SDIS, "$(P)DISABLE")
-    field(ZNAM, "Non Persistent")
-    field(ONAM, "Persistent")
+    field(DESC, "Whether mag temp is in range")
+    field(ZNAM, "No")
+    field(ONAM, "Yes")
+    info(INTEREST, "HIGH")
+    info(archive, "VAL")
 }
 
-record(ao, "$(P)MAX:SP")
+record(bi, "$(P)MAGNET:TEMP:PAUSE")
+{
+    field(DESC, "Whether temp pause is active or not")
+    field(ZNAM, "Unpaused")
+    field(ONAM, "Paused")
+}
+
+record(bi, "$(P)MAGNET:TEMP:TOOHOT")
+{
+    field(DESC, "Whether magnet is too hot")
+    field(ZNAM, "Good heat")
+    field(ONAM, "Too hot")
+}
+
+### MAX
+
+record(ai, "$(P)MAX")
 {
     field(DESC, "The maximum value to allow in PSU Units")
-    field(EGU, "$(DISPLAY_UNIT)")
+    field(DTYP, "stream")
+    field(INP, "@cryosms.proto getMaxTarget $(PORT)")
+    field(SCAN, "1 second")
+    field(SIML, "$(P)SIM")
+    field(SIOL, "$(P)SIM:MAX")
+    field(SDIS, "$(P)DISABLE")
+    field(FLNK, "$(P)FIELD:MAX")
+}
+
+record(scalcout, "$(P)FIELD:MAX")
+{
+    field(DESC, "MAX in Gauss")
+    field(AA, "$(WRITE_UNIT)")
+    field(BB, "TESLA")
+    field(INPA, "$(P)MID")
+    field(CALC, "AA==BB?A*10000:A*10000*$(T_TO_A)")
+}
+alias("$(P)FIELD:MAX", "$(P)FIELD:MAX:SP:RBV")
+
+record(ao, "$(P)FIELD:MAX:SP")
+{
+    field(DESC, "MAX:SP in Gauss")
+    field(SCAN, "Passive")
+    field(FLNK, "$(P)FIELD:MAX:SP:CALC")
+}
+
+record(scalcout, "$(P)FIELD:MAX:SP:CALC")
+{
+    field(DESC, "calc for MAX:SP in Gauss")
+    field(AA, "$(DISPLAY_UNIT)")
+    field(BB, "TESLA")
+    field(INPA, "$(P)FIELD:MAX:SP")
+    field(CALC, "AA==BB?A/10000:A/(10000*$(T_TO_A))")
+    field(OUT, "$(P)MAX:_SP")
 }
 
 record(ai, "$(P)MID")
@@ -106,14 +194,35 @@ record(ai, "$(P)MID")
     field(SIML, "$(P)SIM")
     field(SIOL, "$(P)SIM:MID")
     field(SDIS, "$(P)DISABLE")
+    field(FLNK, "$(P)FIELD:MID")
 }
 
-record(ao, "$(P)MID:SP")
+record(scalcout, "$(P)FIELD:MID")
 {
-    field(DESC, "current ramp target in PSU Units")
-    field(EGU, "$(WRITE_UNIT)")
+    field(DESC, "MID in Gauss")
+    field(AA, "$(WRITE_UNIT)")
+    field(BB, "TESLA")
+    field(INPA, "$(P)MID")
+    field(CALC, "AA==BB?A*10000:A*10000*$(T_TO_A)")
+}
+alias("$(P)FIELD:MID", "$(P)FIELD:MID:SP:RBV")
+
+record(ao, "$(P)FIELD:MID:SP")
+{
+    field(DESC, "MID:SP in Gauss")
+    field(SCAN, "Passive")
+    field(FLNK, "$(P)FIELD:MID:SP:CALC")
 }
 
+record(scalcout, "$(P)FIELD:MID:SP:CALC")
+{
+    field(DESC, "calc for MID:SP in Gauss")
+    field(AA, "$(DISPLAY_UNIT)")
+    field(BB, "TESLA")
+    field(INPA, "$(P)FIELD:MID:SP")
+    field(CALC, "AA==BB?A/10000:A/(10000*$(T_TO_A))")
+    field(OUT, "$(P)MID:_SP")
+}
 ### OUTPUT:
 
 record(scalcout, "$(P)OUTPUT")
@@ -127,16 +236,22 @@ record(scalcout, "$(P)OUTPUT")
     field(AA, "AMPS")
     field(BB, "TESLA")
     field(CALC, "DD==AA?A:DD==BB?B:C")
+    field(PREC, "3")
+    info(INTEREST, "HIGH")
+    info(archive, "VAL")
 }
 
 record(calc, "$(P)OUTPUT:COIL")
 {
     field(DESC, "Current through the coil")# OUTPUT:PERSIST if in persistent mode, otherwise OUTPUT
-    field(CALC, "A=1?B:C")
-    field(INPA, "$(P)MAGNET:MODE")
-    field(INPB, "(P)OUTPUT:PERSIST")
+    field(CALC, "A=0?B:C")
+    field(INPA, "$(P)SWITCH:STAT")
+    field(INPB, "$(P)OUTPUT:PERSIST")
     field(INPC, "$(P)OUTPUT")
     field(EGU, "$(DISPLAY_UNIT)")
+    field(PREC, "3")
+    info(INTEREST, "HIGH")
+    info(archive, "VAL")
 }
 
 record(scalcout, "$(P)OUTPUT:CURR")
@@ -175,6 +290,8 @@ record(scalcout, "$(P)OUTPUT:PERSIST")
     field(AA, "AMPS")
     field(BB, "TESLA")
     field(CALC, "DD==AA?A:DD==BB?B:C")
+    info(INTEREST, "HIGH")
+    info(archive, "VAL")
 }
 
 record(scalcout, "$(P)OUTPUT:PERSIST:CURR")
@@ -182,8 +299,7 @@ record(scalcout, "$(P)OUTPUT:PERSIST:CURR")
     field(DESC, "OUTPUT:PERSIST:RAW in Amps")
     field(INPA, "$(P)OUTPUT:PERSIST:RAW:UNIT")
     field(INPB, "$(P)OUTPUT:PERSIST:RAW")
-    field(AA, "AMPS")
-    field(CALC, "A==AA?B:B/$(T_TO_A)")
+    field(CALC, "A==0?B:B/$(T_TO_A)")
 }
 
 record(scalcout, "$(P)OUTPUT:PERSIST:FIELD:GAUSS")
@@ -191,9 +307,9 @@ record(scalcout, "$(P)OUTPUT:PERSIST:FIELD:GAUSS")
     field(DESC, "OUTPUT:PERSIST:RAW in Gauss")
     field(INPA, "$(P)OUTPUT:PERSIST:RAW:UNIT")
     field(INPB, "$(P)OUTPUT:PERSIST:RAW")
-    field(AA, "TESLA")
-    field(CALC, "A==AA?B*10000:B*10000*$(T_TO_A)")
+    field(CALC, "A==1?B*10000:B*10000*$(T_TO_A)")
 }
+alias("$(P)OUTPUT:PERSIST:FIELD:GAUSS", "$(P)OUTPUT:FIELD:PERSIST:GAUSS")
 
 record(scalcout, "$(P)OUTPUT:PERSIST:FIELD:TESLA")
 {
@@ -201,12 +317,16 @@ record(scalcout, "$(P)OUTPUT:PERSIST:FIELD:TESLA")
     field(INPA, "$(P)OUTPUT:PERSIST:RAW:UNIT")
     field(INPB, "$(P)OUTPUT:PERSIST:RAW")
     field(AA, "TESLA")
-    field(CALC, "A==AA?B:B*$(T_TO_A)")
+    field(CALC, "A==1?B:B*$(T_TO_A)")
 }
 
 record(ai, "$(P)OUTPUT:PERSIST:RAW")# returned in "get heater"
 {
     field(DESC, "Raw persistent field from PSU, A or T")
+    field(SCAN, ".1 second")
+    field(FLNK, "$(P)FAN:OUTPUT:PERSIST")
+    info(INTEREST, "HIGH")
+    info(archive, "VAL")
 }
 
 record(bi, "$(P)OUTPUT:PERSIST:RAW:UNIT")# returned in "get heater"
@@ -214,6 +334,8 @@ record(bi, "$(P)OUTPUT:PERSIST:RAW:UNIT")# returned in "get heater"
     field(DESC, "The unit for OUTPUT:PERSIST:RAW")
     field(ZNAM, "AMPS")
     field(ONAM, "TESLA")
+    info(INTEREST, "HIGH")
+    info(archive, "VAL")
 }
 
 record(ai, "$(P)OUTPUT:RAW")
@@ -222,11 +344,13 @@ record(ai, "$(P)OUTPUT:RAW")
     field(DTYP, "stream")
     field(INP, "@cryosms.proto getOutput($(P)) $(PORT)")
     field(PREC, "3")
-    field(SCAN, "1 second")
+    field(SCAN, ".5 second")
     field(SIML, "$(P)SIM")
     field(SIOL, "$(P)SIM:OUTPUT:RAW")
     field(SDIS, "$(P)DISABLE")
-    field(FLNK, "$(P)FAN:OUTPUT")
+    field(FLNK, "$(P)FAN:OUTPUT.PROC")
+    info(INTEREST, "HIGH")
+    info(archive, "VAL")
 }
 
 record(bi, "$(P)OUTPUT:RAW:UNIT")
@@ -234,6 +358,8 @@ record(bi, "$(P)OUTPUT:RAW:UNIT")
     field(DESC, "The unit for OUTPUT:RAW") # returned as part of a "GO" command
     field(ZNAM, "AMPS")
     field(ONAM, "TESLA")
+    info(INTEREST, "HIGH")
+    info(archive, "VAL")
 }
 
 record(ao, "$(P)OUTPUT:SP")
@@ -248,6 +374,9 @@ record(ai, "$(P)OUTPUT:VOLT")
     field(DESC, "The Output Voltage")
     field(EGU, "V")
     field(SDIS, "$(P)DISABLE")
+    field(PREC, "1")
+    info(INTEREST, "HIGH")
+    info(archive, "VAL")
 }
 
 record(mbbi, "$(P)OUTPUTMODE")
@@ -284,20 +413,23 @@ record(bi, "$(P)PAUSE")
     field(INP, "@cryosms.proto getPause $(PORT)")
     field(ZNAM, "OFF")
     field(ONAM, "ON")    
-    field(SCAN, "Passive")
+    field(SCAN, "1 second")
     field(SIML, "$(P)SIM")
     field(SIOL, "$(P)SIM:PAUSE")
     field(SDIS, "$(P)DISABLE")
+    info(INTEREST, "HIGH")
+    info(archive, "VAL")
 }
 
 record(bo, "$(P)PAUSE:SP")
 {
     field(DESC, "Pause the current ramp")
+    field(SCAN, "Passive")
     field(DTYP, "asynInt32")
     field(OUT, "@asyn($(ASYN_PORT),0,0)RAMP_PAUSE")
     field(SDIS, "$(P)DISABLE")
-    field(ZNAM, "OFF")
-    field(ONAM, "ON")
+    field(ZNAM, "UNPAUSED")
+    field(ONAM, "PAUSED")
 }
 
 record(bo, "$(P)PAUSE:QUEUE")
@@ -307,15 +439,75 @@ record(bo, "$(P)PAUSE:QUEUE")
     field(ONAM, "ON")
 }
 
+### Persistant mode
+
+record(bi, "$(P)PERSIST")
+{
+    field(DESC, "Run the magnet in persistent mode or not")
+    field(SCAN, "Passive")
+    field(ZNAM, "Non Persisting")
+    field(ONAM, "Persisting")
+    info(INTEREST, "HIGH")
+    info(archive, "VAL")
+}
+
+alias("$(P)PERSIST","$(P)MAGNET:MODE")
+alias("$(P)PERSIST","$(P)PERSIST:SP:RBV")
+alias("$(P)PERSIST","$(P)PERSIST:SP")
+
+### QUENCH/TRIP
+
+record(calcout, "$(P)QUENCH:CALC")
+{
+    field(DESC, "Check if a quench was detected")
+    field(SCAN, "1 second")
+    field(CALC, "A=3?1:0")
+    field(OUT, "$(P)QUENCH")
+    field(INPA, "$(P)RAMP:STAT")
+    field(FLNK, "$(P)QUENCH")
+}
+
+record(calcout, "$(P)TRIP:CALC")
+{
+    field(DESC, "Check if a trip was detected")
+    field(SCAN, "1 second")
+    field(CALC, "A=4?1:0")
+    field(OUT, "$(P)TRIP")
+    field(INPA, "$(P)RAMP:STAT")
+    field(FLNK, "$(P)TRIP")
+}
+
+record(bi, "$(P)QUENCH")
+{
+    field(DESC, "Whether a quench was detected")
+    field(ZNAM, "No quench")
+    field(ONAM, "Quench")
+    info(INTEREST, "HIGH")
+    info(archive, "VAL")
+}
+
+record(bi, "$(P)TRIP")
+{
+    field(DESC, "Whether a trip was detected")
+    field(ZNAM, "No trip")
+    field(ONAM, "Trip")
+    info(INTEREST, "HIGH")
+    info(archive, "VAL")
+}
+
 ### RAMP:
 
-record(bo, "$(P)RAMP:LEADS")
+record(bi, "$(P)RAMP:LEADS")
 {
     field(DESC, "Whether or not to ramp the leads")
-    field(ZNAM, "Off")
-    field(ONAM, "Ramp")
-    field(SDIS, "$(P)DISABLE")
+    field(SCAN, "Passive")
+    field(ZNAM, "Leads at B")
+    field(ONAM, "Leads to 0")
+    info(INTEREST, "HIGH")
+    info(archive, "VAL")
 }
+alias("$(P)RAMP:LEADS", "$(P)RAMP:LEADS:SP")
+alias("$(P)RAMP:LEADS", "$(P)RAMP:LEADS:SP:RBV")
 
 record(ai, "$(P)RAMP:RATE")
 {
@@ -323,16 +515,30 @@ record(ai, "$(P)RAMP:RATE")
     field(DTYP, "stream")
     field(INP, "@cryosms.proto getRampRate $(PORT)")
     field(SCAN, "1 second")
+    field(PREC, "3")
+    field(EGU, "A/s")
     field(SIML, "$(P)SIM")
     field(SIOL, "$(P)SIM:RAMP:RATE")
     field(SDIS, "$(P)DISABLE")
 }
 
-record(scalcout, "$(P)RAMP:RAMPING")
+alias("$(P)RAMP:RATE","$(P)RAMP:RATE:SP:RBV")
+
+record(calcout, "$(P)RAMP:RAMPING:CALC")
 {
     field(DESC, "Whether or not PSU is ramping")
+    field(SCAN, "Passive")
     field(INPA, "$(P)RAMP:STAT")
-    field(CALC, "A==0?1:0")
+    field(CALC, "A=0?1:0")
+    field(OUT, "$(P)RAMP:RAMPING PP")
+}
+
+record(bi, "$(P)RAMP:RAMPING")
+{
+    field(DESC, "Whether or not PSU is ramping")
+    field(SCAN, "Passive")
+    field(ZNAM, "Not Ramping")
+    field(ONAM, "Ramping")
 }
 
 record(mbbi, "$(P)RAMP:STAT")
@@ -340,7 +546,7 @@ record(mbbi, "$(P)RAMP:STAT")
     field(DESC, "The status of the ramp from the PSU")
     field(DTYP, "stream")
     field(INP, "@cryosms.proto getRampStatus $(PORT)")
-    field(SCAN, ".1 second")
+    field(SCAN, "1 second")
     field(ZRVL, "0") field(ZRST, "RAMPING")
     field(ONVL, "1") field(ONST, "HOLDING ON TARGET")
     field(TWVL, "2") field(TWST, "HOLDING ON PAUSE")
@@ -350,6 +556,8 @@ record(mbbi, "$(P)RAMP:STAT")
     field(SIML, "$(P)SIM")
     field(SIOL, "$(P)SIM:RAMP:STAT")
     field(SDIS, "$(P)DISABLE")
+    info(INTEREST, "HIGH")
+    info(archive, "VAL")
 }
 
 record(scalcout, "$(P)RAMP:TARGET:PROCCALC")
@@ -367,6 +575,7 @@ record(ai, "$(P)RAMP:TARGET")
     field(DESC, "Ramp target read from device")
     field(DTYP, "stream")
     field(INP, "@cryosms.proto getRampTarget($(P)RAMP:TARGET.EGU) $(PORT)")
+    field(PREC, "4")
     field(SCAN, "Passive")
     field(FLNK, "$(P)RAMP:TARGET:DISPLAY")
     field(SIML, "$(P)SIM")
@@ -383,25 +592,33 @@ record(scalcout, "$(P)RAMP:TARGET:DISPLAY")
     field(CALC, "B==C?A:B==\"TESLA\"?A*$(T_TO_A):A/$(T_TO_A)")
 }
 
-record(calc, "$(P)READY")
+record(bi, "$(P)READY")
 {
     field(DESC, "Whether the PSU is ready at the target")
-    field(INPA, "$(P)RAMP:STAT")
-    field(CALC, "A==1?1:0")
+    field(VAL, "1")
+    field(ZNAM, "Not ready")
+    field(ONAM, "Ready")
+    info(INTEREST, "HIGH")
+    info(archive, "VAL")
 }
 
 record(stringin, "$(P)STAT")
 {
     field(DESC, "The latest status message")
+    info(INTEREST, "HIGH")
+    info(archive, "VAL")
 }
 
 record(bo, "$(P)START:SP")
 {
     field(DESC, "Start a ramp to the current OUTPUT:SP")
+    field(SCAN, "Passive")
     field(VAL, "0")
     field(DTYP, "asynInt32")
     field(OUT, "@asyn($(ASYN_PORT),0,0)RAMP_START")
     field(SDIS, "$(P)DISABLE")
+    field(ZNAM, "NOT BEING PROCESSED")
+    field(ONAM, "BEING PROCESSED")
 }
 
 ### SWITCH STATUS in order of processing
@@ -455,7 +672,7 @@ record(calc, "$(P)SWITCH:STAT:INC")
 
 record(calcout, "$(P)SWITCH:STAT:CALC")
 {#last (stable num) readings cold -> cold, all warm -> warm, else, warming if heater on, cooling if off. 
-    field(CALC, "A=$(SWITCH_STABLE_NUMBER)?(B=0?0:(B=2?3:(C=0?1:2))):(C=0?1:2)")
+    field(CALC, "A>=$(SWITCH_STABLE_NUMBER_WARM)?(B=2?3:(B=0&&A=$(SWITCH_STABLE_NUMBER)?0:(C=0?1:2))):(C=0?1:2)")
     field(SCAN, "Passive")
     field(INPA, "$(P)SWITCH:STAT:INC")
     field(INPB, "$(P)SWITCH:STAT:NOW")
@@ -471,21 +688,48 @@ record(mbbi, "$(P)SWITCH:STAT")
     field(ONST, "Cooling")
     field(TWST, "Warming")
     field(THST, "Warm")
+    info(INTEREST, "HIGH")
+    info(archive, "VAL")
 }
 
 
 ### TARGET:
 
-record(ai, "$(P)TARGET:TIME")
+record(calc, "$(P)TARGET:TIME")
 {
     field(DESC, "Time it will take to get to target")
+    field(SCAN, "1 second")
+    field(CALC, "VAL-1>=0?VAL-1:0")
+}
+record(calc, "$(P)TARGET:TIME:RAMP")
+{
+    field(DESC, "Time it will take to get to target")
+    field(SCAN, "1 second")
+    field(CALC, "VAL-1>=0?VAL-1:0")
+}
+
+record(ai, "$(P)TARGET")
+{
+    field(DESC, "Target being ramped to")
+    field(EGU, "$(WRITE_UNIT)")
+    field(PREC, "3")
 }
 
 record(ao, "$(P)TARGET:SP")
 {
-    field(DESC, "Value to send PSU in $(WRITE_UNIT)")
+    field(DESC, "Ramp target to be sent to PSU")
+    field(SCAN, "Passive")
     field(EGU, "$(WRITE_UNIT)")
+    field(PREC, "3")
 }
+
+record(bi, "$(P)VOLT:STAT")
+{
+    field(DESC, "Voltage stability status")
+    field(ZNAM, "False")
+    field(ONAM, "True")
+}
+
 ### READONLY:
 
 record(ao, "$(P)CONSTANT:_SP")
@@ -543,6 +787,8 @@ record(ao, "$(P)MAX:_SP")
     field(SIOL, "$(P)SIM:MAX:_SP")
     field(SDIS, "$(P)DISABLE")
 }
+alias("$(P)MAX:_SP", "$(P)MAX:SP")
+
 
 record(ao, "$(P)MID:_SP")
 {
@@ -554,6 +800,7 @@ record(ao, "$(P)MID:_SP")
     field(SIOL, "$(P)SIM:MID:_SP")
     field(SDIS, "$(P)DISABLE")
 }
+alias("$(P)MID:_SP", "$(P)MID:SP")
 
 record(ao, "$(P)MAXVOLT:_SP")
 {
@@ -623,8 +870,7 @@ record(fanout, "$(P)FAN:INIT")
 record(fanout, "$(P)FAN:STATUS")
 {
     field(DESC, "Updates all ramp status bool PVs")
-    field(LNK1, "$(P)READY")
-    field(LNK2, "$(P)RAMP:RAMPING")
+    field(LNK1, "$(P)RAMP:RAMPING:CALC")
 }
 
 record(fanout, "$(P)FAN:OUTPUT")
@@ -637,6 +883,15 @@ record(fanout, "$(P)FAN:OUTPUT")
     field(LNK5, "$(P)OUTPUT:FIELD:TESLA")
 }
 
+record(fanout, "$(P)FAN:OUTPUT:PERSIST")
+{
+    field(DESC, "Updates all output units")
+    field(LNK1, "$(P)OUTPUT:PERSIST")
+    field(LNK2, "$(P)OUTPUT:PERSIST:CURR")
+    field(LNK3, "$(P)OUTPUT:PERSIST:FIELD:GAUSS")
+    field(LNK4, "$(P)OUTPUT:PERSIST:FIELD:TESLA")
+}
+
 
 ### SIMULATION RECORDS ###
 
@@ -647,6 +902,20 @@ record(bo, "$(P)SIM")
     field(ZNAM, "NO")
     field(ONAM, "YES")
     field(VAL, "$(RECSIM=0)")
+}
+
+record(bo, "$(P)SIM:COMP1STAT")
+{
+    field(SCAN, "Passive")
+    field(DTYP, "Soft Channel")
+    field(VAL, "1")
+}
+
+record(bo, "$(P)SIM:COMP2STAT")
+{
+    field(SCAN, "Passive")
+    field(DTYP, "Soft Channel")
+    field(VAL, "1")
 }
 
 record(mbbi,"$(P)SIM:OUTPUTMODE")

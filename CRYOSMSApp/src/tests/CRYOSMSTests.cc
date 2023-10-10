@@ -13,15 +13,9 @@ namespace {
 	{
 	public:
 		static void SetUpTestCase() {
+			testDriver = new CRYOSMSDriver("L0", "TESTING:CRYOSMS_01:", "0.037", "AMPS", "GAUSS", "10", "135", "5", "No", "1", "0.1", "0.0005", "5", "60", "30",
+				"0.5", "No", "NONE", "3.7", "3.65", "10", "0.2", "300", "NONE", "No", "NONE", "5.5", "1", "No", "0", "0", "NONE", "NONE", "NONE", "No", "0.2", "300", "0.1", "0.1", "30", "12");
 
-			std::map<std::string, std::string> argMap { { "T_TO_A", "0.037" }, { "WRITE_UNIT", "AMPS" }, { "DISPLAY_UNIT", "GAUSS" }, { "MAX_CURR", "135" },
-			{ "MAX_VOLT", "5" }, { "ALLOW_PERSIST", "No" }, { "FAST_FILTER_VALUE", "1" }, { "FILTER_VALUE", "0.1" }, { "NPP", "0.0005" }, { "FAST_PERSISTENT_SETTLETIME", "5" },
-			{ "PERSISTENT_SETTLETIME", "60" }, { "FAST_RATE", "0.5" }, { "USE_SWITCH", "No" }, { "SWITCH_TEMP_PV", "NONE" }, { "SWITCH_HIGH", "3.7" }, { "SWITCH_LOW", "3.65" },
-			{ "SWITCH_STABLE_NUMBER", "10" }, { "HEATER_TOLERANCE", "0.2" }, { "SWITCH_TIMEOUT", "300" }, { "HEATER_OUT", "NONE" }, { "USE_MAGNET_TEMP", "No" },
-			{ "MAGNET_TEMP_PV", "NONE" }, { "MAX_MAGNET_TEMP", "5.5" }, { "MIN_MAGNET_TEMP", "1" }, { "COMP_OFF_ACT", "No" }, { "NO_OF_COMP", "0" }, { "MIN_NO_OF_COMP_ON", "0" },
-			{ "COMP_1_STAT_PV", "NONE" }, { "COMP_2_STAT_PV", "NONE" }, { "RAMP_FILE", "NONE" } }
-			;
-			testDriver = new CRYOSMSDriver("L0", "TESTING:CRYOSMS_01:", argMap);
 		}
 		virtual void TearDown() {
 			testDriver->writeDisabled = 0;
