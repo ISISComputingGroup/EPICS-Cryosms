@@ -723,7 +723,7 @@ bool  CRYOSMSDriver::retryUntilSet(std::string setPoint, std::string readBack, i
 		if (i >= retries)
 		{
 			errlogSevPrintf(errlogMajor, "%s is %f but %s is still %f after %d seconds, aborting.",
-                setPoint.c_str(), setVal, readBack.c_str(), readVal, retries / 2);
+							setPoint.c_str(), setVal, readBack.c_str(), readVal, retries / 2);
 			eventQueue.push_front(abortRampEvent(this));
 			warming = false;
 			cooling = false;
