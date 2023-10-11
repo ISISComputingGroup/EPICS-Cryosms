@@ -427,7 +427,7 @@ asynStatus CRYOSMSDriver::checkHeaterOut()
 
 	if (envVarMap.at("HEATER_OUT") != "NULL") {
 		epicsFloat64 heatOut;
-		RETURN_IF_ASYNERROR3(getDb, envVarMap.at("HEATER_OUT"), heatOut, true);
+		RETURN_IF_ASYNERROR3(getDb, envVarMap.at("HEATER_OUT").c_str(), heatOut, true);
 		RETURN_IF_ASYNERROR2(putDb, "HEATER:VOLT:_SP", &heatOut);
 	}
 	return status;
@@ -722,7 +722,8 @@ bool  CRYOSMSDriver::retryUntilSet(std::string setPoint, std::string readBack, i
 		i++;
 		if (i >= retries)
 		{
-			errlogSevPrintf(errlogMajor, "%s is %d but %s is still %d after %d seconds, aborting.", setPoint, setVal, readBack, readVal, retries / 2);
+			errlogSevPrintf(errlogMajor, "%s is %f but %s is still %f after %d seconds, aborting.",
+                setPoint.c_str(), setVal, readBack.c_str(), readVal, retries / 2);
 			eventQueue.push_front(abortRampEvent(this));
 			warming = false;
 			cooling = false;
