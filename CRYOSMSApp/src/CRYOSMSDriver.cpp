@@ -839,7 +839,7 @@ static void checksThread(CRYOSMSDriver* drv)
 /*  Function which performs various periodic checks
 */
 {
-	int writeUnitInc;
+	int writeUnitInc = 0;
 	std::deque<double> voltReadings;
 	int falseVal = 0;
 	int trueVal = 1;
