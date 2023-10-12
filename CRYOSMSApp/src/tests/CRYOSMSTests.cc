@@ -72,6 +72,7 @@ namespace {
 	TEST_F(StartupTests, test_GIVEN_IOC_WHEN_max_current_not_null_THEN_write_enabled)
 	{
 		testDriver->envVarMap.at("MAX_CURR") = "10.2";
+		testDriver->envVarMap.at("T_TO_A") = "1";
 		testDriver->checkMaxCurr();
 		ASSERT_EQ(testDriver->testVar, 1);
 	}
