@@ -147,28 +147,6 @@ record(bi, "$(P)MAGNET:TEMP:TOOHOT")
 
 ### MAX
 
-record(ai, "$(P)MAX")
-{
-    field(DESC, "The maximum value to allow in PSU Units")
-    field(DTYP, "stream")
-    field(INP, "@cryosms.proto getMaxTarget $(PORT)")
-    field(SCAN, "1 second")
-    field(SIML, "$(P)SIM")
-    field(SIOL, "$(P)SIM:MAX")
-    field(SDIS, "$(P)DISABLE")
-    field(FLNK, "$(P)FIELD:MAX")
-}
-
-record(scalcout, "$(P)FIELD:MAX")
-{
-    field(DESC, "MAX in Gauss")
-    field(AA, "$(WRITE_UNIT)")
-    field(BB, "TESLA")
-    field(INPA, "$(P)MID")
-    field(CALC, "AA==BB?A*10000:A*10000*$(T_TO_A)")
-}
-alias("$(P)FIELD:MAX", "$(P)FIELD:MAX:SP:RBV")
-
 record(ao, "$(P)FIELD:MAX:SP")
 {
     field(DESC, "MAX:SP in Gauss")
