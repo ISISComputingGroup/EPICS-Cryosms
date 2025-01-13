@@ -1176,8 +1176,8 @@ asynStatus CRYOSMSDriver::setupRamp()
 
 	//Also make sure that C++ doesn't try to add ramps from 2.0000000001 to 2, by rounding after unit conversion
 
-	targetVal = (targetVal >= 0 ? floor(1000.0 * targetVal + 0.5) : ceil(1000.0 * targetVal - 0.5)) / 1000.0;
-	startVal = (startVal >= 0 ? floor(1000.0 * startVal + 0.5) : ceil(1000.0 * startVal - 0.5)) / 1000.0;
+	targetVal = (targetVal >= 0 ? floor(1000000000.0 * targetVal + 0.5) : ceil(1000000000.0 * targetVal - 0.5)) / 1000000000.0;
+	startVal = (startVal >= 0 ? floor(1000000000.0 * startVal + 0.5) : ceil(1000000000.0 * startVal - 0.5)) / 1000000000.0;
 
 	//Next, set the state machine up so that heater status is checked before ramping starts but AFTER any persistent mode events have been processed
 
