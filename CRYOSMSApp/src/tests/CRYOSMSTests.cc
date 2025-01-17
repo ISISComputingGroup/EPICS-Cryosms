@@ -47,7 +47,7 @@ namespace {
 		ASSERT_EQ(testDriver->writeToDispConversion, std::get<2>(GetParam()));
 	}
 
-	INSTANTIATE_TEST_CASE_P(
+	INSTANTIATE_TEST_SUITE_P(
 		TToATests, TToAParametrisedTests,
 		::testing::Values(
 			std::make_tuple("AMPS", "GAUSS", 2000.0), // 10,000 * 0.2
@@ -70,6 +70,7 @@ namespace {
 	TEST_F(StartupTests, test_GIVEN_IOC_WHEN_max_current_not_null_THEN_write_enabled)
 	{
 		testDriver->envVarMap.at("MAX_CURR") = "10.2";
+		testDriver->envVarMap.at("T_TO_A") = "1";
 		testDriver->checkMaxCurr();
 		ASSERT_EQ(testDriver->testVar, 1);
 	}
@@ -82,7 +83,7 @@ namespace {
 		static void TearDownTestCase() {}
 	};
 
-	INSTANTIATE_TEST_CASE_P(
+	INSTANTIATE_TEST_SUITE_P(
 		AllowPersistTests, AllowPersistParametrisedTests,
 		::testing::Values(
 			"FAST_FILTER_VALUE",
@@ -134,7 +135,7 @@ namespace {
 		static void TearDownTestCase() {}
 	};
 
-	INSTANTIATE_TEST_CASE_P(
+	INSTANTIATE_TEST_SUITE_P(
 		UseSwitchTests, UseSwitchParametrisedTests,
 		::testing::Values(
 			"SWITCH_TEMP_PV",
@@ -143,7 +144,6 @@ namespace {
 			"SWITCH_STABLE_NUMBER",
 			"HEATER_TOLERANCE",
 			"SWITCH_TIMEOUT",
-			"SWITCH_TEMP_TOLERANCE",
 			"HEATER_OUT"));
 
 	TEST_P(UseSwitchParametrisedTests, test_GIVEN_use_switch_yes_WHEN_a_required_value_null_THEN_write_disabled)
@@ -155,7 +155,6 @@ namespace {
 		testDriver->envVarMap.at("SWITCH_STABLE_NUMBER") = "";
 		testDriver->envVarMap.at("HEATER_TOLERANCE") = "";
 		testDriver->envVarMap.at("SWITCH_TIMEOUT") = "";
-		testDriver->envVarMap.at("SWITCH_TEMP_TOLERANCE") = "";
 		testDriver->envVarMap.at("HEATER_OUT") = "";
 		testDriver->envVarMap.at(GetParam()) = "NULL";
 		testDriver->checkUseSwitch();
@@ -171,7 +170,6 @@ namespace {
 		testDriver->envVarMap.at("SWITCH_STABLE_NUMBER") = "";
 		testDriver->envVarMap.at("HEATER_TOLERANCE") = "";
 		testDriver->envVarMap.at("SWITCH_TIMEOUT") = "";
-		testDriver->envVarMap.at("SWITCH_TEMP_TOLERANCE") = "";
 		testDriver->envVarMap.at("HEATER_OUT") = "";
 		testDriver->checkUseSwitch();
 		ASSERT_EQ(testDriver->testVar, 1);
@@ -192,7 +190,7 @@ namespace {
 		static void TearDownTestCase() {}
 	};
 
-	INSTANTIATE_TEST_CASE_P(
+	INSTANTIATE_TEST_SUITE_P(
 		UseMagnetTempTests, UseMagnetTempParametrisedTests,
 		::testing::Values(
 			"MAGNET_TEMP_PV",
@@ -235,7 +233,7 @@ namespace {
 		static void TearDownTestCase() {}
 	};
 
-	INSTANTIATE_TEST_CASE_P(
+	INSTANTIATE_TEST_SUITE_P(
 		CompOffActTests, CompOffActParametrisedTests,
 		::testing::Values(
 			"NO_OF_COMP",
@@ -289,7 +287,7 @@ namespace {
 	}
 	TEST_F(StartupTests, test_GIVEN_IOC_WHEN_ramp_file_valid_THEN_writes_enabled)
 	{
-		testDriver->envVarMap.at("RAMP_FILE") = "C:\\Instrument\\Apps\\EPICS\\support\\cryosms\\master\\ramps\\test.txt";
+		testDriver->envVarMap.at("RAMP_FILE") = ".\\ramps\\default.txt";
 		testDriver->checkRampFile();
 		ASSERT_EQ(testDriver->testVar, 1);
 	}

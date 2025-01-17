@@ -51,14 +51,18 @@ return status; \
 #define RETURN_IF_ASYNERROR1(func, arg) status = (func)(arg); \
 if (status != asynSuccess)\
 {\
-errlogSevPrintf(errlogMajor, "Error returned when calling %s with arguments %s", #func, arg);\
+std::ostringstream errString; \
+errString << "Error returned when calling " << #func << " with argument " << arg; \
+errlogSevPrintf(errlogMajor, errString.str().c_str()); \
 return status; \
 }
 
 #define RETURN_IF_ASYNERROR2(func, arg1, arg2) status = (func)(arg1, arg2); \
 if (status != asynSuccess)\
 {\
-errlogSevPrintf(errlogMajor, "Error returned when calling %s with arguments %s", #func, arg1);\
+std::ostringstream errString;\
+errString << "Error returned when calling " << #func << " with arguments " << arg1 << " and " << arg2;\
+errlogSevPrintf(errlogMajor, errString.str().c_str());\
 return status; \
 }
 
@@ -187,8 +191,8 @@ asynStatus CRYOSMSDriver::writeInt32(asynUser *pasynUser, epicsInt32 value)
 				RETURN_IF_ASYNERROR2(putDb, "OUTPUT:PERSIST:RAW:UNIT", &falseVal);
 			}
 			// Find first  and last digits of value
-			int firstNum = heater_resp.find_first_of("-1234567890");
-			int lastNum = heater_resp.find_last_of("1234567890");
+			std::size_t firstNum = heater_resp.find_first_of("-1234567890");
+			std::size_t lastNum = heater_resp.find_last_of("1234567890");
 
 			// And snip the middle to another string
 			std::string persistStr(heater_resp, firstNum, lastNum);
@@ -258,7 +262,6 @@ asynStatus CRYOSMSDriver::checkTToA()
 	asynStatus status = asynSuccess;
 	int trueVal = 1;
 	int falseVal = 0;
-	epicsThreadSleep(30);
 
 	if (envVarMap.at("T_TO_A") == "NULL") {
 		errlogSevPrintf(errlogMajor, "T_TO_A not provided, check macros are correct");
@@ -278,8 +281,9 @@ asynStatus CRYOSMSDriver::checkTToA()
 			RETURN_IF_ASYNERROR2(putDb, "OUTPUTMODE:_SP", &falseVal);
 		}
 	}
-	catch (std::exception &e) {
-		errlogSevPrintf(errlogMajor, "Invalid value of T_TO_A provided");
+	catch (const std::exception& ex)
+	{
+		errlogSevPrintf(errlogMajor, "Invalid value of T_TO_A provided: %s", ex.what());
 		const char *statMsg = "Invalid calibration from Tesla to Amps supplied";
 		this->writeDisabled = TRUE;
 		RETURN_IF_ASYNERROR2(putDb, "STAT", statMsg);
@@ -323,8 +327,9 @@ asynStatus CRYOSMSDriver::checkMaxVolt()
 			testVar = 2;
 			RETURN_IF_ASYNERROR2(putDb, "MAXVOLT:_SP", &maxVolt);
 		}
-		catch (std::exception &e) {
-			errlogSevPrintf(errlogMajor, "Invalid value of MAX_VOLT provided");
+		catch (const std::exception& ex)
+		{
+			errlogSevPrintf(errlogMajor, "Invalid value of MAX_VOLT provided: %s", ex.what());
 		}
 	}
 	return status;
@@ -421,7 +426,7 @@ asynStatus CRYOSMSDriver::checkHeaterOut()
 
 	if (envVarMap.at("HEATER_OUT") != "NULL") {
 		epicsFloat64 heatOut;
-		RETURN_IF_ASYNERROR3(getDb, envVarMap.at("HEATER_OUT"), heatOut, true);
+		RETURN_IF_ASYNERROR3(getDb, envVarMap.at("HEATER_OUT").c_str(), heatOut, true);
 		RETURN_IF_ASYNERROR2(putDb, "HEATER:VOLT:_SP", &heatOut);
 	}
 	return status;
@@ -691,7 +696,7 @@ bool  CRYOSMSDriver::retryUntilSet(std::string setPoint, std::string readBack, i
 		i++; 
 		if (i >= retries)
 		{
-			errlogSevPrintf(errlogMajor, "%s is %d but %s is still %d after %d seconds, aborting.", setPoint, setVal, readBack, readVal, retries / 2);
+			errlogSevPrintf(errlogMajor, "%s is %d but %s is still %d after %d seconds, aborting.", setPoint.c_str(), setVal, readBack.c_str(), readVal, retries / 2);
 			eventQueue.push_front(abortRampEvent(this));
 			warming = false; 
 			cooling = false; 
@@ -716,14 +721,15 @@ bool  CRYOSMSDriver::retryUntilSet(std::string setPoint, std::string readBack, i
 		i++;
 		if (i >= retries)
 		{
-			errlogSevPrintf(errlogMajor, "%s is %d but %s is still %d after %d seconds, aborting.", setPoint, setVal, readBack, readVal, retries / 2);
+			errlogSevPrintf(errlogMajor, "%s is %f but %s is still %f after %d seconds, aborting.",
+                setPoint.c_str(), setVal, readBack.c_str(), readVal, retries / 2);
 			eventQueue.push_front(abortRampEvent(this));
 			warming = false;
 			cooling = false;
 			holding = false;
 			return true;
 		}
-	} while (abs(floor(readVal * 1000 +0.5)) != abs(floor(setVal * 1000 + 0.5))); // round both to 3dp
+	} while (abs(floor(readVal * 1000 + 0.5)) != abs(floor(setVal * 1000 + 0.5))); // round both to 3dp
 	return false;
 }
 asynStatus CRYOSMSDriver::readFile(std::string str_dir)
@@ -795,7 +801,7 @@ double CRYOSMSDriver::unitConversion(double value, std::string startUnit, std::s
 	else if (startUnit.compare("GAUSS") == 0 && endUnit.compare("AMPS") == 0) {
 		return value / (10000.0 * teslaPerAmp);
 	}
-    errlogSevPrintf(errlogMajor, "Error: Units not converted for %f, %s to %s", value, startUnit, endUnit);
+    errlogSevPrintf(errlogMajor, "Error: Units not converted for %f, %s to %s", value, startUnit.c_str(), endUnit.c_str());
     return 0;
 }
 
@@ -832,7 +838,7 @@ static void checksThread(CRYOSMSDriver* drv)
 /*  Function which performs various periodic checks
 */
 {
-	int writeUnitInc;
+	int writeUnitInc = 0;
 	std::deque<double> voltReadings;
 	int falseVal = 0;
 	int trueVal = 1;
@@ -911,7 +917,7 @@ static void checksThread(CRYOSMSDriver* drv)
 		// Checks whether the write unit has been changed, if so restores it after a set period
 		if (drv->correctWriteUnit.compare(drv->envVarMap.at("WRITE_UNIT"))) //if write unit stored on init differs from currecnt write unit
 		{
-			if (writeUnitInc >= 2*  std::stod(drv->envVarMap.at("WRITE_UNIT_TIMEOUT"))) // *2 because this thread polls every half second
+			if (writeUnitInc >= 2 * std::stod(drv->envVarMap.at("WRITE_UNIT_TIMEOUT"))) // *2 because this thread polls every half second
 			{
 				writeUnitInc = 0;
 				drv->envVarMap.at("WRITE_UNIT") = drv->correctWriteUnit;
@@ -1049,7 +1055,7 @@ void CRYOSMSDriver::checkForTarget()
 		getDb("RAMP:RATE", rampRate);
 
 		double npp = std::stod(envVarMap.at("NPP"));
-		double tolerance = std::max(1e-3, (2e-2)*rampRate);
+		double tolerance = std::max(1e-3, (2e-2) * rampRate);
 		double currVel = outputCurr - oldCurr;
 
 		double cin = (fastRampZero) ? std::stod(envVarMap.at("FAST_FILTER_VALUE")) : std::stod(envVarMap.at("FILTER_VALUE"));
@@ -1540,6 +1546,13 @@ void CRYOSMSDriver::startRamping(double rate, double target, int sign, RampType 
 		statMsg = "Ramping fast to zero";
 		putDb("FAST:ZERO", &trueVal);
 		break;
+	default:
+		errlogSevPrintf(errlogMajor, "Invalid ramp type requested, aborting queue");
+		statMsg = "Ramp Failing to initialise";
+		putDb("STAT", statMsg);
+		eventQueue.push_front(abortRampEvent(this));
+		atTarget = true;
+		return;
 	}
 
 	int newSign = (sign == 1) ? 2 : 1; //sign is handled by mbbo with 0 = 0, 1 = negative, 2 = positive
@@ -1790,7 +1803,7 @@ extern "C"
 	static const iocshArg initArg16 = { "useSwitch", iocshArgString };		///< Whether or not to use switch temperature
 	static const iocshArg initArg17 = { "switchTempPv", iocshArgString };		///< PV for switch temp
 	static const iocshArg initArg18 = { "switchHigh", iocshArgString };		///< high limit of switch temp
-	static const iocshArg initArg19 = { "switchLow", iocshArgString };		///< high limit of switch temp
+	static const iocshArg initArg19 = { "switchLow", iocshArgString };		///< low limit of switch temp
 	static const iocshArg initArg20 = { "switchStableNumber", iocshArgString };		///< number of measurements before switch temp is said to be stable
 	static const iocshArg initArg21 = { "heaterTolerance", iocshArgString };		///< max deviation of heater temp
 	static const iocshArg initArg22 = { "switchTimeout", iocshArgString };		///< timeout for switch readings
