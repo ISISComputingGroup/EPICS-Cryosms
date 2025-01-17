@@ -12,6 +12,7 @@ record(bo, "$(P)ABORT")
     field(ZNAM, "OFF")
     field(ONAM, "ON")
 }
+
 record(ao, "$(P)CONSTANT:_SP")
 {
     field(DESC, "set T to A on device")
@@ -62,7 +63,6 @@ record(calc, "$(P)ERROR")
     field(INPC, "$(P)TRIP")
     field(INPD, "$(P)COMP:STAT")
     field(CALC, "A=1&&B=0&&C=0&&D#2?0:1")
-    field(ASG, "READONLY")
     info(INTEREST, "HIGH")
     info(archive, "VAL")
 }
@@ -229,7 +229,6 @@ record(calc, "$(P)OUTPUT:COIL")
     field(INPC, "$(P)OUTPUT")
     field(EGU, "$(DISPLAY_UNIT)")
     field(PREC, "3")
-    field(ASG, "READONLY")
     info(INTEREST, "HIGH")
     info(archive, "VAL")
 }
@@ -305,7 +304,6 @@ record(ai, "$(P)OUTPUT:PERSIST:RAW")# returned in "get heater"
     field(DESC, "Raw persistent field from PSU, A or T")
     field(SCAN, ".1 second")
     field(FLNK, "$(P)FAN:OUTPUT:PERSIST")
-    field(EGU, "$(WRITE_UNIT)")
     info(INTEREST, "HIGH")
     info(archive, "VAL")
 }
@@ -330,7 +328,6 @@ record(ai, "$(P)OUTPUT:RAW")
     field(SIOL, "$(P)SIM:OUTPUT:RAW")
     field(SDIS, "$(P)DISABLE")
     field(FLNK, "$(P)FAN:OUTPUT.PROC")
-    field(EGU, "$(WRITE_UNIT)")
     info(INTEREST, "HIGH")
     info(archive, "VAL")
 }
@@ -425,17 +422,27 @@ record(bo, "$(P)PAUSE:QUEUE")
 
 record(bi, "$(P)PERSIST")
 {
-    field(DESC, "Run the magnet in persistent mode or not")
+    field(DESC, "Run the magnet in persistent mode or not in this ramp")
     field(SCAN, "Passive")
     field(ZNAM, "Non Persisting")
     field(ONAM, "Persisting")
+    field(PINI, "YES")
     info(INTEREST, "HIGH")
     info(archive, "VAL")
 }
 
-alias("$(P)PERSIST","$(P)MAGNET:MODE")
+record(bi, "$(P)PERSIST:SP")
+{
+    field(DESC, "Run the magnet in persistent mode or not in next ramp")
+    field(SCAN, "Passive")
+    field(ZNAM, "Non Persisting")
+    field(ONAM, "Persisting")
+    field(PINI, "YES")
+    info(INTEREST, "HIGH")
+    info(archive, "VAL")
+}
+
 alias("$(P)PERSIST","$(P)PERSIST:SP:RBV")
-alias("$(P)PERSIST","$(P)PERSIST:SP")
 
 ### QUENCH/TRIP
 
@@ -485,10 +492,22 @@ record(bi, "$(P)RAMP:LEADS")
     field(SCAN, "Passive")
     field(ZNAM, "Leads at B")
     field(ONAM, "Leads to 0")
+    field(PINI, "YES")
     info(INTEREST, "HIGH")
     info(archive, "VAL")
 }
-alias("$(P)RAMP:LEADS", "$(P)RAMP:LEADS:SP")
+
+record(bi, "$(P)RAMP:LEADS:SP")
+{
+    field(DESC, "Whether or not to ramp the leads")
+    field(SCAN, "Passive")
+    field(ZNAM, "Leads at B")
+    field(ONAM, "Leads to 0")
+    field(PINI, "YES")
+    info(INTEREST, "HIGH")
+    info(archive, "VAL")
+}
+
 alias("$(P)RAMP:LEADS", "$(P)RAMP:LEADS:SP:RBV")
 
 record(ai, "$(P)RAMP:RATE")
@@ -620,7 +639,7 @@ record(mbbi, "$(P)SWITCH:STAT:NOW:OLD")
     field(ZRST, "Cold")     field(ZRVL, "0")
     field(ONST, "Changing") field(ONVL, "1")
     field(TWST, "Warm")     field(TWVL, "2")
-    field(FLNK, "$(P)SWITCH:STAT:NOW:CALC.PROC")
+    field(FLNK, "$(P)SWITCH:STAT:NOW:CALC PP MS")
 }
 
 record(calcout, "$(P)SWITCH:STAT:NOW:CALC")
@@ -629,7 +648,7 @@ record(calcout, "$(P)SWITCH:STAT:NOW:CALC")
     field(CALC, "(B=0&&A<$(SWITCH_LOW))?0:(B=1&&A>$(SWITCH_LOW))?2:1")
     field(INPA, "$(P)SWITCH:TEMP")
     field(INPB, "$(P)HEATER:STAT")
-    field(OUT, "$(P)SWITCH:STAT:NOW PP")
+    field(OUT, "$(P)SWITCH:STAT:NOW PP MS")
 }
 
 record(mbbi, "$(P)SWITCH:STAT:NOW")
@@ -639,7 +658,7 @@ record(mbbi, "$(P)SWITCH:STAT:NOW")
     field(ZRST, "Cold")     field(ZRVL, "0")
     field(ONST, "Changing") field(ONVL, "1")
     field(TWST, "Warm")     field(TWVL, "2")
-    field(FLNK, "$(P)SWITCH:STAT:INC.PROC")
+    field(FLNK, "$(P)SWITCH:STAT:INC.PROC PP MS")
 }
 
 record(calc, "$(P)SWITCH:STAT:INC")
@@ -649,7 +668,7 @@ record(calc, "$(P)SWITCH:STAT:INC")
     field(INPA, "$(P)SWITCH:STAT:NOW")
     field(INPB, "$(P)SWITCH:STAT:NOW:OLD")
     field(INPC, "$(P)SWITCH:STAT:INC")
-    field(FLNK, "$(P)SWITCH:STAT:CALC.PROC")
+    field(FLNK, "$(P)SWITCH:STAT:CALC.PROC PP MS")
 }
 
 record(calcout, "$(P)SWITCH:STAT:CALC")
@@ -659,7 +678,7 @@ record(calcout, "$(P)SWITCH:STAT:CALC")
     field(INPA, "$(P)SWITCH:STAT:INC")
     field(INPB, "$(P)SWITCH:STAT:NOW")
     field(INPC, "$(P)HEATER:STAT")
-    field(OUT, "$(P)SWITCH:STAT PP")
+    field(OUT, "$(P)SWITCH:STAT PP MS")
 }
 
 record(mbbi, "$(P)SWITCH:STAT")
@@ -681,19 +700,19 @@ record(calc, "$(P)TARGET:TIME")
 {
     field(DESC, "Time it will take to get to target")
     field(SCAN, "1 second")
-    field(CALC, "VAL-1>=0?VAL-1:0")
+    field(CALC, "VAL>0?VAL:0")
 }
 record(calc, "$(P)TARGET:TIME:RAMP")
 {
     field(DESC, "Time it will take to get to target")
     field(SCAN, "1 second")
-    field(CALC, "VAL-1>=0?VAL-1:0")
+    field(CALC, "VAL>0?VAL:0")
 }
 
 record(ai, "$(P)TARGET")
 {
     field(DESC, "Target being ramped to")
-    field(EGU, "$(WRITE_UNIT)")
+    field(EGU, "$(DISPLAY_UNIT)")
     field(PREC, "3")
 }
 
@@ -701,7 +720,7 @@ record(ao, "$(P)TARGET:SP")
 {
     field(DESC, "Ramp target to be sent to PSU")
     field(SCAN, "Passive")
-    field(EGU, "$(WRITE_UNIT)")
+    field(EGU, "$(DISPLAY_UNIT)")
     field(PREC, "3")
 }
 

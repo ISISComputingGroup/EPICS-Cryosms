@@ -123,11 +123,11 @@ struct cryosmsStateMachine : public msm::front::state_machine_def<cryosmsStateMa
 {
 	explicit cryosmsStateMachine(SMDriver* drv) : drv_(*drv) {}
 	SMDriver& drv_;
-
+	
 	///Actions (executed when a state transition occurs, gets passed the event which triggers the transition): 
 	//Putting as much of the code as possible in the driver to keep this file as legible as possible
 	void startNewRamp(startRampEvent const& evt) {
-		drv_.startRamping(evt.rate, evt.target, evt.rampDir, evt.rampType);
+		drv_.startRamping(evt.rate, evt.target, evt.rampDir, evt.rampType); 
 	}
 	void pauseInRamp(pauseRampEvent const&) {
 		drv_.pauseRamp();
@@ -167,29 +167,29 @@ struct cryosmsStateMachine : public msm::front::state_machine_def<cryosmsStateMa
 	struct transition_table : mpl::vector<
 		//	   Start		Event				Target		Action					
 		//	 +-------------+-------------------+-----------+-----------------------------+
-		a_row< ready, startRampEvent, ramping, &csm::startNewRamp			>,
-		a_row< ready, resumeRampEvent, ready, &csm::resumeRampFromPause	>,
-		a_row< ready, startCoolEvent, cooling, &csm::startCool				>,
-		a_row< ready, startWarmEvent, warming, &csm::startWarm				>,
-		a_row< ready, checkHeaterEvent, ready, &csm::checkHeater			>,
+		a_row< ready,		startRampEvent,		ramping,	&csm::startNewRamp			>,	
+		a_row< ready,		resumeRampEvent,	ready,		&csm::resumeRampFromPause	>,
+		a_row< ready,		startCoolEvent,		cooling,	&csm::startCool				>,
+		a_row< ready,		startWarmEvent,		warming,	&csm::startWarm				>,
+		a_row< ready,		checkHeaterEvent,	ready,		&csm::checkHeater			>,
 		//	 +-------------+-------------------+-----------+-----------------------------+
-		a_row< ramping, pauseRampEvent, paused, &csm::pauseInRamp			>,
-		a_row< ramping, targetReachedEvent, ready, &csm::reachTarget			>,
-		a_row< ramping, abortRampEvent, aborting, &csm::abortRamp				>,
-		a_row< ramping, startRampEvent, ramping, &csm::startNewRamp			>,
+		a_row< ramping,		pauseRampEvent,		paused,		&csm::pauseInRamp			>,
+		a_row< ramping,		targetReachedEvent,	ready,		&csm::reachTarget			>,
+		a_row< ramping,		abortRampEvent,		aborting,	&csm::abortRamp				>,
+		a_row< ramping,		startRampEvent,		ramping,	&csm::startNewRamp			>,
 		//	 +-------------+-------------------+-----------+-----------------------------+
-		a_row< paused, resumeRampEvent, ramping, &csm::resumeRampFromPause	>,
-		a_row< paused, abortRampEvent, aborting, &csm::abortRamp				>,
-		_row<  paused, pauseRampEvent, paused									>,
+		a_row< paused,		resumeRampEvent,	ramping,	&csm::resumeRampFromPause	>,
+		a_row< paused,		abortRampEvent,		aborting,	&csm::abortRamp				>,
+		_row<  paused,		pauseRampEvent,		paused									>,
 		//	 +-------------+-------------------+-----------+-----------------------------+
-		a_row< aborting, targetReachedEvent, ready, &csm::reachTarget			>,
-		a_row< aborting, pauseRampEvent, aborting, &csm::continueAbort			>,
-		_row<  aborting, resumeRampEvent, aborting								>,
+		a_row< aborting,	targetReachedEvent, ready,		&csm::reachTarget			>,
+		a_row< aborting,	pauseRampEvent,		aborting,	&csm::continueAbort			>,
+		_row<  aborting,	resumeRampEvent,	aborting								>,
 		//	 +-------------+-------------------+-----------+-----------------------------+
-		a_row< cooling, abortRampEvent, aborting, &csm::abortBasic			>,
-		a_row< cooling, tempReachedEvent, ready, &csm::tempReached			>,
-		a_row< warming, abortRampEvent, aborting, &csm::abortBasic			>,
-		a_row< warming, tempReachedEvent, ready, &csm::tempReached			>
+		a_row< cooling,		abortRampEvent,		aborting,	&csm::abortBasic			>,
+		a_row< cooling,		tempReachedEvent,	ready,		&csm::tempReached			>,
+		a_row< warming,		abortRampEvent,		aborting,	&csm::abortBasic			>,
+		a_row< warming,		tempReachedEvent,	ready,		&csm::tempReached			>
 	> {};
 	/// For debugging purposes, prints whenever an invalid state transition is requested
 	template <class QSM, class Event>

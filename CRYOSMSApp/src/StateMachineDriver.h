@@ -20,7 +20,7 @@ public:
 	virtual void preRampHeaterCheck() = 0;
 	bool queuePaused;
 	bool atTarget;
-	SMDriver() : queuePaused(false), atTarget(true) { }
+    SMDriver() : queuePaused(false), atTarget(true) { }
 };
 
 #endif // STATEMACHINEDRIVER_H

@@ -15,7 +15,6 @@ namespace {
 		static void SetUpTestCase() {
 			testDriver = new CRYOSMSDriver("L0", "TESTING:CRYOSMS_01:", "0.037", "AMPS", "GAUSS", "10", "135", "5", "No", "1", "0.1", "0.0005", "5", "60", "30",
 				"0.5", "No", "NONE", "3.7", "3.65", "10", "0.2", "300", "NONE", "No", "NONE", "5.5", "1", "No", "0", "0", "NONE", "NONE", "NONE", "No", "0.2", "300", "0.1", "0.1", "30", "12");
-
 		}
 		virtual void TearDown() {
 			testDriver->writeDisabled = 0;

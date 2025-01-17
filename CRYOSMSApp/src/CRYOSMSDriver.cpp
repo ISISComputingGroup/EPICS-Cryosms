@@ -107,7 +107,6 @@ CRYOSMSDriver::CRYOSMSDriver(const char *portName, std::string devPrefix, const 
 	createParam(P_abortRampString, asynParamInt32, &P_abortRamp);
 	createParam(P_outputModeSetString, asynParamInt32, &P_outputModeSet);
 	createParam(P_calcHeaterString, asynParamInt32, &P_calcHeater);
-
 	std::vector<epicsFloat64*> pRate_; //variables which store the data read from the ramp rate file
 	std::vector<epicsFloat64*> pMaxT_;
 
@@ -196,7 +195,7 @@ asynStatus CRYOSMSDriver::writeInt32(asynUser *pasynUser, epicsInt32 value)
 			std::size_t lastNum = heater_resp.find_last_of("1234567890");
 
 			// And snip the middle to another string
-			std::string persistStr = heater_resp.substr(firstNum, lastNum);
+			std::string persistStr(heater_resp, firstNum, lastNum);
 			double persistVal = std::stod(persistStr);
 			// Then put it in the persist record
 			return putDb("OUTPUT:PERSIST:RAW", &persistVal);
@@ -848,6 +847,30 @@ static void checksThread(CRYOSMSDriver* drv)
 	{
 		epicsThreadSleep(0.5);
 
+		//decrement timer
+
+		double thisRampDuration;
+		drv->getDb("TARGET:TIME:RAMP", thisRampDuration);
+		if (thisRampDuration > 0)
+		{
+			double thisRampDurationOld = thisRampDuration;
+			double totalRampDuration;
+			drv->getDb("TARGET:TIME", totalRampDuration);
+
+			double output;
+			double target;
+			double rate;
+			drv->getDb("OUTPUT:RAW", output);
+			drv->getDb("MID:_SP", target);
+			drv->getDb("RAMP:RATE", rate);
+
+			thisRampDuration = floor(abs(target - output) / drv->unitConversion(rate, "AMPS", drv->envVarMap.at("WRITE_UNIT")));
+			totalRampDuration = floor(totalRampDuration - (thisRampDurationOld - thisRampDuration));
+
+			drv->putDb("TARGET:TIME:RAMP", &thisRampDuration);
+			drv->putDb("TARGET:TIME", &totalRampDuration);
+		}
+
 		//Pause if Trip
 		int quenched;
 		int tripped;
@@ -1154,7 +1177,6 @@ asynStatus CRYOSMSDriver::setupRamp()
 	RETURN_IF_ASYNERROR2(getDb, "OUTPUT:RAW", startVal);
 	RETURN_IF_ASYNERROR2(getDb, "OUTPUT:PERSIST:RAW", persistVal);
 	RETURN_IF_ASYNERROR2(getDb, "TARGET:SP", targetVal);
-	RETURN_IF_ASYNERROR2(getDb, "PERSIST", magMode);
 	RETURN_IF_ASYNERROR2(getDb, "HEATER:STAT", heaterVal);
 	RETURN_IF_ASYNERROR2(putDb, "TARGET", &targetVal);
 	double addRampDuration = 0;
@@ -1176,13 +1198,15 @@ asynStatus CRYOSMSDriver::setupRamp()
 
 	//Also make sure that C++ doesn't try to add ramps from 2.0000000001 to 2, by rounding after unit conversion
 
-	targetVal = (targetVal >= 0 ? floor(1000000000.0 * targetVal + 0.5) : ceil(1000000000.0 * targetVal - 0.5)) / 1000000000.0;
-	startVal = (startVal >= 0 ? floor(1000000000.0 * startVal + 0.5) : ceil(1000000000.0 * startVal - 0.5)) / 1000000000.0;
+	targetVal = (targetVal >= 0 ? floor(100000000.0*targetVal + 0.5) : ceil(100000000.0*targetVal - 0.5)) / 100000000.0;
+	startVal = (startVal >= 0 ? floor(100000000.0*startVal + 0.5) : ceil(100000000.0*startVal - 0.5)) / 100000000.0;
 
 	//Next, set the state machine up so that heater status is checked before ramping starts but AFTER any persistent mode events have been processed
 
 	if (!envVarMap.at("CRYOMAGNET").compare("Yes"))
 	{
+		RETURN_IF_ASYNERROR2(getDb, "PERSIST:SP", magMode);
+		RETURN_IF_ASYNERROR2(putDb, "PERSIST", &magMode);
 		eventQueue.push_back(checkHeaterEvent(this));
 	}
 	//Next, find out if the device starts in +ve or -ve mode
@@ -1206,7 +1230,7 @@ asynStatus CRYOSMSDriver::setupRamp()
 				//once startVal has been passed, add a "start ramp" and "end ramp" event to the queue, with the current sign and the rate and boundary of each row  of the table,
 				if (pMaxT_[i] > abs(startVal) && pMaxT_[i] < abs(targetVal)) 
 				{
-					addRampDuration += (pMaxT_[i] - rampStartVal) * pRate_[i] * rampRateConversion;
+					addRampDuration += (pMaxT_[i] - rampStartVal) / (pRate_[i] * rampRateConversion);
 					rampStartVal = pMaxT_[i];
 					eventQueue.push_back(startRampEvent(this, pRate_[i], pMaxT_[i], sign, rType));
 					eventQueue.push_back(targetReachedEvent( this ));
@@ -1214,7 +1238,7 @@ asynStatus CRYOSMSDriver::setupRamp()
 				//until the target would be before the next boundary, so we replace the boundary in the argument for the start event with the target,
 				else if (pMaxT_[i] > abs(startVal) && pMaxT_[i] >= abs(targetVal))
 				{
-					addRampDuration += (abs(targetVal) - rampStartVal) * pRate_[i] * rampRateConversion;
+					addRampDuration += (abs(targetVal) - rampStartVal) / (pRate_[i] * rampRateConversion);
 					eventQueue.push_back(startRampEvent( this, pRate_[i], targetVal, sign, rType));
 					eventQueue.push_back(targetReachedEvent( this ));
 					//and we stop stepping through the table.
@@ -1233,7 +1257,7 @@ asynStatus CRYOSMSDriver::setupRamp()
 				//once we pass the startVal, add "start ramp" and "end ramp" events to queue with the current sign, rate for current row of table and boundary found in previous step
 				if (boundary < abs(startVal) && boundary > abs(targetVal))
 				{
-					addRampDuration += (rampStartVal - boundary) * pRate_[i] * rampRateConversion;
+					addRampDuration += (rampStartVal - boundary) / (pRate_[i] * rampRateConversion);
 					rampStartVal = boundary;
 					eventQueue.push_back(startRampEvent( this, pRate_[i], boundary, sign, rType));
 					eventQueue.push_back(targetReachedEvent( this ));
@@ -1241,7 +1265,7 @@ asynStatus CRYOSMSDriver::setupRamp()
 				//if target is before the next boundary, go to target instead,
 				else if (boundary < abs(startVal) && boundary <= abs(targetVal))
 				{
-					addRampDuration += (rampStartVal - abs(targetVal)) * pRate_[i] * rampRateConversion;
+					addRampDuration += (rampStartVal - abs(targetVal)) / (pRate_[i] * rampRateConversion);
 					eventQueue.push_back(startRampEvent( this, pRate_[i], abs(targetVal), sign, rType));
 					eventQueue.push_back(targetReachedEvent( this ));
 					//then stop.
@@ -1258,7 +1282,7 @@ asynStatus CRYOSMSDriver::setupRamp()
 			//when we get to the bottom of the table, schedule a ramp to zero with the ramp rate from the lowest row,
 			if (i == 0)
 			{
-				addRampDuration += (rampStartVal)* pRate_[i] * rampRateConversion;
+				addRampDuration += (rampStartVal) / (pRate_[i] * rampRateConversion);
 				rampStartVal = 0;
 				eventQueue.push_back(startRampEvent(this, pRate_[i], 0, sign, rType));
 				eventQueue.push_back(targetReachedEvent(this ));
@@ -1266,7 +1290,7 @@ asynStatus CRYOSMSDriver::setupRamp()
 			//until then, schedule ramps from highest row to lowest, for all rows below the start val
 			else if (pMaxT_[i - 1] < abs(startVal))
 			{
-				addRampDuration += (rampStartVal - pMaxT_[i - 1])* pRate_[i] * rampRateConversion;
+				addRampDuration += (rampStartVal - pMaxT_[i - 1]) / (pRate_[i] * rampRateConversion);
 				rampStartVal = pMaxT_[i - 1];
 				eventQueue.push_back(startRampEvent( this, pRate_[i], pMaxT_[i - 1], sign, rType));
 				eventQueue.push_back(targetReachedEvent( this ));
@@ -1280,14 +1304,14 @@ asynStatus CRYOSMSDriver::setupRamp()
 			//If the target is beffore the next boundary, schedule a ramp to the target with the ramp rate of that boundary,
 			if (pMaxT_[i] >= abs(targetVal))
 			{
-				addRampDuration += (pMaxT_[i] - rampStartVal) * pRate_[i] * rampRateConversion;
+				addRampDuration += (pMaxT_[i] - rampStartVal) / (pRate_[i] * rampRateConversion);
 				eventQueue.push_back(startRampEvent(this, pRate_[i], abs(targetVal), sign, rType ));
 				eventQueue.push_back(targetReachedEvent( this ));
 				//and stop steppping through the table
 				break;
 			}
 			//until then, schedule ramps to each boundary from low to high.
-			addRampDuration += (pMaxT_[i] - rampStartVal) * pRate_[i] * rampRateConversion;
+			addRampDuration += (pMaxT_[i] - rampStartVal) / (pRate_[i] * rampRateConversion);
 			rampStartVal = pMaxT_[i];
 			eventQueue.push_back(startRampEvent( this, pRate_[i], pMaxT_[i], sign, rType ));
 			eventQueue.push_back(targetReachedEvent( this ));
@@ -1434,7 +1458,8 @@ void CRYOSMSDriver::startCooling()
 
 	//If  RAMP:LEADS set to "Ramp", ramp fast to zero when done
 	int rampLeads;
-	getDb("RAMP:LEADS", rampLeads);
+	getDb("RAMP:LEADS:SP", rampLeads);
+	putDb("RAMP:LEADS", &rampLeads);
 	if (rampLeads == 1) {
 		setupFastRamp(0.0);
 	}
@@ -1520,6 +1545,7 @@ void CRYOSMSDriver::startRamping(double rate, double target, int sign, RampType 
 		fastRampZero = true;
 		statMsg = "Ramping fast to zero";
 		putDb("FAST:ZERO", &trueVal);
+		break;
 	default:
 		errlogSevPrintf(errlogMajor, "Invalid ramp type requested, aborting queue");
 		statMsg = "Ramp Failing to initialise";
@@ -1550,8 +1576,8 @@ void CRYOSMSDriver::startRamping(double rate, double target, int sign, RampType 
 	target = unitConversion(target, "TESLA", envVarMap.at("WRITE_UNIT"));
 
 	//Calculate duration of this ramp
-	int thisRampDuration;
-	thisRampDuration = ceil(abs(target - abs(output)) * unitConversion(rate, "AMPS", envVarMap.at("WRITE_UNIT")));
+	double thisRampDuration;
+	thisRampDuration = ceil(abs(target - abs(output)) / unitConversion(rate, "AMPS", envVarMap.at("WRITE_UNIT")));
 	putDb("TARGET:TIME:RAMP", &thisRampDuration);
 	//put values in correct PVs, to be sent to device
 	RETURN_IF_ABORT("RAMP:RATE:_SP", "RAMP:RATE", 20, rate);
@@ -1594,7 +1620,20 @@ void CRYOSMSDriver::abortRamp()
 	RETURN_IF_ABORT("PAUSE:_SP", "PAUSE", 20, trueVal);
 
 	double currVal;
+	int isPersist;
+	int switchStat;
 	getDb("OUTPUT:RAW", currVal);
+	getDb("SWITCH:STAT", switchStat);
+	if (switchStat == 3 || switchStat == 2)
+	{//Put us in non persist mode if warm or warming
+		isPersist = 0;
+		putDb("PERSIST", &isPersist);
+	}
+	else if (switchStat == 0 || switchStat == 1)
+	{//Put us in persist if cold or cooling
+		isPersist = 1;
+		putDb("PERSIST", &isPersist);
+	}
 	RETURN_IF_ABORT("MID:_SP", "MID", 20, currVal);
 	RETURN_IF_ABORT("PAUSE:_SP", "PAUSE", 20, falseVal);
 	putDb("PAUSE:SP", &falseVal);
@@ -1666,7 +1705,7 @@ void CRYOSMSDriver::reachTarget()
 	finalTarget = unitConversion(finalTarget, envVarMap.at("DISPLAY_UNIT"), envVarMap.at("WRITE_UNIT"));
 	   
 
-	if (floor(target*1000) == floor(finalTarget*1000))
+	if (floor(target*10000) == floor(finalTarget*10000))
 	{
 		double settleTime;
 
