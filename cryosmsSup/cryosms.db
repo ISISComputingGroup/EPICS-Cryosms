@@ -1000,3 +1000,34 @@ record(ai,"$(P)SIM:TEMP:MAGNET")
     field(DTYP, "Soft Channel")
     field(VAL, "3.67")
 }
+
+record(bo, "$(P)IS_ZF") {
+    # Was most recent write done by ZF system?
+    field(ZNAM, "No")
+	field(ONAM, "Yes")
+	field(VAL, "0")
+	field(PINI, "YES")
+}
+
+record(ao, "$(P)ZEROFIELD:SP") {
+    field(FLNK, "$(P)ZEROFIELD:SP:_SEQ")
+}
+
+record(seq, "$(P)ZEROFIELD:SP:_SEQ") {
+    field(DO1, "1")
+    field(LNK1, "$(P)IS_ZF PP")
+	
+	field(DOL2, "$(P)ZEROFIELD:SP")
+	field(LNK2, "$(P)TARGET:SP PP")
+	field(DLY2, "0.1")
+	
+	field(DO3, "1")
+	field(LNK3, "$(P)START:SP PP")
+	field(DLY3, "0.2")
+}
+
+record(calc, "$(P)ZEROFIELD:SP:RBV") {
+    field(INPA, "$(P)DIRECTION CP MSS")
+	field(INPB, "$(P)FIELD:MID CP MSS")
+	field(CALC, "A==1?-ABS(B):ABS(B)")
+}

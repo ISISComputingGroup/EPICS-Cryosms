@@ -1169,11 +1169,18 @@ asynStatus CRYOSMSDriver::setupRamp()
 */
 {
 	asynStatus status;
+	int falseVal = 0;
 	double startVal = 0;
 	double persistVal = 0;
 	int heaterVal = 0;
 	double targetVal = 0;
 	int magMode = 0;
+	int isZF = 0;
+	RETURN_IF_ASYNERROR2(getDb, "IS_ZF", isZF);
+	if (isZF)
+	{
+		RETURN_IF_ASYNERROR2(putDb, "READY", &falseVal);
+	}
 	RETURN_IF_ASYNERROR2(getDb, "OUTPUT:RAW", startVal);
 	RETURN_IF_ASYNERROR2(getDb, "OUTPUT:PERSIST:RAW", persistVal);
 	RETURN_IF_ASYNERROR2(getDb, "TARGET:SP", targetVal);
@@ -1192,13 +1199,16 @@ asynStatus CRYOSMSDriver::setupRamp()
 	//The ramp file stores boundaries in Tesla, and the ramp rates to use up to those boundaries in Amps/second.
 	//To start, we therefore first convert the current device output (startVal) and target output (targetVal) into tesla.
 
+	std::cout << "initial target " << targetVal << std::endl;
 	targetVal = unitConversion(targetVal, envVarMap.at("DISPLAY_UNIT"), "TESLA");
-
+	std::cout << "after unit conversion " << targetVal << std::endl;
 	startVal = unitConversion(startVal, envVarMap.at("WRITE_UNIT"), "TESLA");
 
 	//Also make sure that C++ doesn't try to add ramps from 2.0000000001 to 2, by rounding after unit conversion
 
 	targetVal = (targetVal >= 0 ? floor(100000000.0*targetVal + 0.5) : ceil(100000000.0*targetVal - 0.5)) / 100000000.0;
+	std::cout << "after rounding " << targetVal << std::endl;
+	
 	startVal = (startVal >= 0 ? floor(100000000.0*startVal + 0.5) : ceil(100000000.0*startVal - 0.5)) / 100000000.0;
 
 	//Next, set the state machine up so that heater status is checked before ramping starts but AFTER any persistent mode events have been processed
@@ -1587,12 +1597,23 @@ void CRYOSMSDriver::startRamping(double rate, double target, int sign, RampType 
 	do
 	{
 		putDb("START:_SP", &trueVal);
+		
+		int is_zf;
+		getDb("IS_ZF", is_zf);
+		
+		epicsThreadSleep(1);  // Give readbacks chance to update
 		getDb("RAMP:RAMPING", ramping);
 		getDb("OUTPUT:RAW", output);
-		epicsThreadSleep(1);
+
 		i++;
 		if (i >= 20)
 		{
+		
+			if (is_zf) {
+				// In ZF mode do not abort - assume one of the 20 attemptes worked.
+				// Abort resends readback as setpoint which is undesirable for zf
+				break;
+			}
 			errlogSevPrintf(errlogMajor, "Failed to set START:_SP after %d seconds and ramp not complete, aborting.", 20);
 			eventQueue.push_front(abortRampEvent(this));
 			warming = false;
@@ -1616,6 +1637,8 @@ void CRYOSMSDriver::abortRamp()
 	eventQueue.push_back(targetReachedEvent( this ));
 	int trueVal = 1;
 	int falseVal = 0;
+
+	putDb("IS_ZF", &falseVal);
 
 	RETURN_IF_ABORT("PAUSE:_SP", "PAUSE", 20, trueVal);
 
@@ -1656,6 +1679,7 @@ void CRYOSMSDriver::checkReady()
 */
 {
 	const char *statMsg;
+	int falseVal = 0;
 	int trueVal = 1;
 
 	if (!envVarMap.at("CRYOMAGNET").compare("Yes") && !holding && atTarget)
@@ -1688,6 +1712,7 @@ void CRYOSMSDriver::checkReady()
 		putDb("STAT", statMsg);
 		ready = true;
 		putDb("READY", &trueVal);
+		putDb("IS_ZF", &falseVal);
 	}
 }
 
@@ -1696,10 +1721,13 @@ void CRYOSMSDriver::reachTarget()
 	double target;
 	double finalTarget;
 	int magMode;
+	
+	int is_zf;
 
 	getDb("MID:_SP", target);
 	getDb("TARGET", finalTarget);
 	getDb("PERSIST", magMode);
+	getDb("IS_ZF", is_zf);
 
 	//Remember that TARGET:SP is user facing, so in display unit
 	finalTarget = unitConversion(finalTarget, envVarMap.at("DISPLAY_UNIT"), envVarMap.at("WRITE_UNIT"));
@@ -1709,7 +1737,10 @@ void CRYOSMSDriver::reachTarget()
 	{
 		double settleTime;
 
-		if (magMode == 1 && fastRamp == true)
+		if (is_zf) {
+			settleTime = 0.0;
+		}
+		else if (magMode == 1 && fastRamp == true)
 		{
 			settleTime = std::stod(envVarMap.at("FAST_PERSISTENT_SETTLETIME"));
 		}
@@ -1722,6 +1753,11 @@ void CRYOSMSDriver::reachTarget()
 		time_t endTimeSettle = timeNow + settleTime;
 
 		double holdTime = (finalTarget == 0) ? std::stod(envVarMap.at("HOLD_TIME_ZERO")) : std::stod(envVarMap.at("HOLD_TIME"));
+		
+		if (is_zf) {
+			holdTime = 0.0;
+		}
+		
 		time(&timeNow);
 		time_t endTimeHold = timeNow + holdTime;
 
