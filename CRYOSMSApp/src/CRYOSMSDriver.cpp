@@ -1199,15 +1199,12 @@ asynStatus CRYOSMSDriver::setupRamp()
 	//The ramp file stores boundaries in Tesla, and the ramp rates to use up to those boundaries in Amps/second.
 	//To start, we therefore first convert the current device output (startVal) and target output (targetVal) into tesla.
 
-	std::cout << "initial target " << targetVal << std::endl;
 	targetVal = unitConversion(targetVal, envVarMap.at("DISPLAY_UNIT"), "TESLA");
-	std::cout << "after unit conversion " << targetVal << std::endl;
 	startVal = unitConversion(startVal, envVarMap.at("WRITE_UNIT"), "TESLA");
 
 	//Also make sure that C++ doesn't try to add ramps from 2.0000000001 to 2, by rounding after unit conversion
 
 	targetVal = (targetVal >= 0 ? floor(100000000.0*targetVal + 0.5) : ceil(100000000.0*targetVal - 0.5)) / 100000000.0;
-	std::cout << "after rounding " << targetVal << std::endl;
 	
 	startVal = (startVal >= 0 ? floor(100000000.0*startVal + 0.5) : ceil(100000000.0*startVal - 0.5)) / 100000000.0;
 
@@ -1598,7 +1595,7 @@ void CRYOSMSDriver::startRamping(double rate, double target, int sign, RampType 
 	{
 		putDb("START:_SP", &trueVal);
 		
-		int is_zf;
+		int is_zf = 0;
 		getDb("IS_ZF", is_zf);
 		
 		epicsThreadSleep(1);  // Give readbacks chance to update
@@ -1608,12 +1605,6 @@ void CRYOSMSDriver::startRamping(double rate, double target, int sign, RampType 
 		i++;
 		if (i >= 20)
 		{
-		
-			if (is_zf) {
-				// In ZF mode do not abort - assume one of the 20 attemptes worked.
-				// Abort resends readback as setpoint which is undesirable for zf
-				break;
-			}
 			errlogSevPrintf(errlogMajor, "Failed to set START:_SP after %d seconds and ramp not complete, aborting.", 20);
 			eventQueue.push_front(abortRampEvent(this));
 			warming = false;
@@ -1632,13 +1623,21 @@ void CRYOSMSDriver::abortRamp()
  * unpauses the device and sets the user-facing pause value to unpaused.
  */
 {
+	errlogSevPrintf(errlogMajor, "Aborting ramp.\n");
 	std::deque<eventVariant> emptyQueue;
 	std::swap(eventQueue, emptyQueue);
 	eventQueue.push_back(targetReachedEvent( this ));
 	int trueVal = 1;
 	int falseVal = 0;
-
-	putDb("IS_ZF", &falseVal);
+	
+	int is_zf = 0;
+	getDb("IS_ZF", is_zf);
+	if (is_zf) {
+		// In ZF mode, do not send device it's readback as a setpoint.
+		// This is undesirable for zf as readback != setpoint due to some offsets in PSU.
+		errlogSevPrintf(errlogMajor, "ZF mode; abort exiting early.\n");
+		return;
+	}
 
 	RETURN_IF_ABORT("PAUSE:_SP", "PAUSE", 20, trueVal);
 
@@ -1711,8 +1710,8 @@ void CRYOSMSDriver::checkReady()
 		statMsg = "Ready";
 		putDb("STAT", statMsg);
 		ready = true;
-		putDb("READY", &trueVal);
 		putDb("IS_ZF", &falseVal);
+		putDb("READY", &trueVal);
 	}
 }
 
@@ -1722,7 +1721,7 @@ void CRYOSMSDriver::reachTarget()
 	double finalTarget;
 	int magMode;
 	
-	int is_zf;
+	int is_zf = 0;
 
 	getDb("MID:_SP", target);
 	getDb("TARGET", finalTarget);
