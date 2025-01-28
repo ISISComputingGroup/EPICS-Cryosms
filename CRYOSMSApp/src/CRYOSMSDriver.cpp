@@ -1636,6 +1636,8 @@ void CRYOSMSDriver::abortRamp()
 		// In ZF mode, do not send device it's readback as a setpoint.
 		// This is undesirable for zf as readback != setpoint due to some offsets in PSU.
 		errlogSevPrintf(errlogMajor, "ZF mode; abort exiting early.\n");
+		queuePaused = false;
+	    RETURN_IF_ABORT("PAUSE:_SP", "PAUSE", 20, falseVal);
 		return;
 	}
 
