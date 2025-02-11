@@ -1591,6 +1591,8 @@ void CRYOSMSDriver::startRamping(double rate, double target, int sign, RampType 
 	RETURN_IF_ABORT("MID:_SP", "MID", 20, target);
 	int i = 0;
 	int ramping = 0;
+	double holdTarget = 0;
+	double targetRbv = 0;
 	do
 	{
 		putDb("START:_SP", &trueVal);
@@ -1601,6 +1603,8 @@ void CRYOSMSDriver::startRamping(double rate, double target, int sign, RampType 
 		epicsThreadSleep(1);  // Give readbacks chance to update
 		getDb("RAMP:RAMPING", ramping);
 		getDb("OUTPUT:RAW", output);
+		getDb("RAMP:HOLD:TARGET", holdTarget);
+		getDb("MID", targetRbv);
 
 		i++;
 		if (i >= 20)
@@ -1612,7 +1616,7 @@ void CRYOSMSDriver::startRamping(double rate, double target, int sign, RampType 
 			holding = false;
 			return;
 		}
-	} while (ramping == 0 && abs(target - abs(output)) > unitConversion(std::stod(envVarMap.at("MID_TOLERANCE")), "AMPS", envVarMap.at("WRITE_UNIT")));
+	} while (ramping == 0 && abs(target - abs(output)) > unitConversion(std::stod(envVarMap.at("MID_TOLERANCE")), "AMPS", envVarMap.at("WRITE_UNIT")) && targetRbv != holdTarget);
 	putDb("STAT", statMsg);
 	atTarget = false;
 }

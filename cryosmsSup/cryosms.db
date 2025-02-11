@@ -568,6 +568,7 @@ record(mbbi, "$(P)RAMP:STAT")
 record(scalcout, "$(P)RAMP:TARGET:PROCCALC")
 {
     field(DESC, "If Ramp Target should I/O interrupt")
+	field(SCAN, "Passive")
     field(INPA, "$(P)RAMP:STAT")
     field(INPB, "$(P)RAMP:STAT.ZRST")
     field(CALC, "A=B?\"I/O Intr\":\"Passive\"")
@@ -597,6 +598,28 @@ record(scalcout, "$(P)RAMP:TARGET:DISPLAY")
     field(CALC, "B==C?A:B==\"TESLA\"?A*$(T_TO_A):A/$(T_TO_A)")
 }
 
+record(ai, "$(P)RAMP:HOLD:TARGET")
+{
+    field(DESC, "Ramp target read from device")
+    field(DTYP, "stream")
+    field(INP, "@cryosms.proto getRampTarget($(P)RAMP:TARGET.EGU) $(PORT)")
+    field(PREC, "4")
+    field(SCAN, "I/O Intr")
+    field(FLNK, "$(P)RAMP:TARGET:DISPLAY")
+    field(SIML, "$(P)SIM")
+    field(SIOL, "$(P)SIM:RAMP:TARGET")
+    field(SDIS, "$(P)DISABLE")
+}
+
+record(scalcout, "$(P)RAMP:HOLD:TARGET:DISPLAY")
+{
+    field(DESC, "disp. unit version of RAMP:TARGET")
+    field(INPA, "$(P)RAMP:TARGET")
+    field(INPB, "$(DISPLAY_UNIT)")
+    field(INPC, "$(P)RAMP:TARGET.EGU")
+    field(CALC, "B==C?A:B==\"TESLA\"?A*$(T_TO_A):A/$(T_TO_A)")
+}
+	
 record(bi, "$(P)READY")
 {
     field(DESC, "Whether the PSU is ready at the target")

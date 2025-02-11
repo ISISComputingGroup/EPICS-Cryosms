@@ -52,11 +52,13 @@ getRampTarget {
     wait 100;
 }
 
+getHoldTarget {
+    in "%*8c RAMP STATUS: HOLDING ON TARGET AT %f %(\$1){AMPS|TESLA}";
+    wait 100;
+}
+
 setRampTarget {
-    InTerminator = 0x13;
-	out "RAMP %{ZERO|MID|MAX}"; 
-	wait 50;
-	in ""; 
+	out "RAMP %{ZERO|MID|MAX}";
 	wait 100;
 }
 
