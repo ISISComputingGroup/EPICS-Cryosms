@@ -1593,6 +1593,9 @@ void CRYOSMSDriver::startRamping(double rate, double target, int sign, RampType 
 	int ramping = 0;
 	double holdTarget = 0;
 	double targetRbv = 0;
+	
+	double tolerance = unitConversion(std::stod(envVarMap.at("MID_TOLERANCE")), "AMPS", envVarMap.at("WRITE_UNIT"));
+	
 	do
 	{
 		putDb("START:_SP", &trueVal);
@@ -1616,7 +1619,11 @@ void CRYOSMSDriver::startRamping(double rate, double target, int sign, RampType 
 			holding = false;
 			return;
 		}
-	} while (ramping == 0 && abs(target - abs(output)) > unitConversion(std::stod(envVarMap.at("MID_TOLERANCE")), "AMPS", envVarMap.at("WRITE_UNIT")) && targetRbv != holdTarget);
+	} while (
+	    ramping == 0 
+		&& abs(target - abs(output)) > tolerance
+		&& abs(target - holdTarget) > tolerance
+	);
 	putDb("STAT", statMsg);
 	atTarget = false;
 }

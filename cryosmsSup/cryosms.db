@@ -600,12 +600,12 @@ record(scalcout, "$(P)RAMP:TARGET:DISPLAY")
 
 record(ai, "$(P)RAMP:HOLD:TARGET")
 {
-    field(DESC, "Ramp target read from device")
+    field(DESC, "Ramp hold target read from device")
     field(DTYP, "stream")
-    field(INP, "@cryosms.proto getRampTarget($(P)RAMP:TARGET.EGU) $(PORT)")
+    field(INP, "@cryosms.proto getHoldTarget($(P)RAMP:HOLD:TARGET.EGU) $(PORT)")
     field(PREC, "4")
     field(SCAN, "I/O Intr")
-    field(FLNK, "$(P)RAMP:TARGET:DISPLAY")
+    field(FLNK, "$(P)RAMP:HOLD:TARGET:DISPLAY")
     field(SIML, "$(P)SIM")
     field(SIOL, "$(P)SIM:RAMP:TARGET")
     field(SDIS, "$(P)DISABLE")
@@ -613,10 +613,10 @@ record(ai, "$(P)RAMP:HOLD:TARGET")
 
 record(scalcout, "$(P)RAMP:HOLD:TARGET:DISPLAY")
 {
-    field(DESC, "disp. unit version of RAMP:TARGET")
-    field(INPA, "$(P)RAMP:TARGET")
+    field(DESC, "disp. unit version of RAMP:HOLD:TARGET")
+    field(INPA, "$(P)RAMP:HOLD:TARGET")
     field(INPB, "$(DISPLAY_UNIT)")
-    field(INPC, "$(P)RAMP:TARGET.EGU")
+    field(INPC, "$(P)RAMP:HOLD:TARGET.EGU")
     field(CALC, "B==C?A:B==\"TESLA\"?A*$(T_TO_A):A/$(T_TO_A)")
 }
 	
