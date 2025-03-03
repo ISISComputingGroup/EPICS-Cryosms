@@ -1169,11 +1169,18 @@ asynStatus CRYOSMSDriver::setupRamp()
 */
 {
 	asynStatus status;
+	int falseVal = 0;
 	double startVal = 0;
 	double persistVal = 0;
 	int heaterVal = 0;
 	double targetVal = 0;
 	int magMode = 0;
+	int isZF = 0;
+	RETURN_IF_ASYNERROR2(getDb, "IS_ZF", isZF);
+	if (isZF)
+	{
+		RETURN_IF_ASYNERROR2(putDb, "READY", &falseVal);
+	}
 	RETURN_IF_ASYNERROR2(getDb, "OUTPUT:RAW", startVal);
 	RETURN_IF_ASYNERROR2(getDb, "OUTPUT:PERSIST:RAW", persistVal);
 	RETURN_IF_ASYNERROR2(getDb, "TARGET:SP", targetVal);
@@ -1193,12 +1200,12 @@ asynStatus CRYOSMSDriver::setupRamp()
 	//To start, we therefore first convert the current device output (startVal) and target output (targetVal) into tesla.
 
 	targetVal = unitConversion(targetVal, envVarMap.at("DISPLAY_UNIT"), "TESLA");
-
 	startVal = unitConversion(startVal, envVarMap.at("WRITE_UNIT"), "TESLA");
 
 	//Also make sure that C++ doesn't try to add ramps from 2.0000000001 to 2, by rounding after unit conversion
 
 	targetVal = (targetVal >= 0 ? floor(100000000.0*targetVal + 0.5) : ceil(100000000.0*targetVal - 0.5)) / 100000000.0;
+	
 	startVal = (startVal >= 0 ? floor(100000000.0*startVal + 0.5) : ceil(100000000.0*startVal - 0.5)) / 100000000.0;
 
 	//Next, set the state machine up so that heater status is checked before ramping starts but AFTER any persistent mode events have been processed
@@ -1584,12 +1591,24 @@ void CRYOSMSDriver::startRamping(double rate, double target, int sign, RampType 
 	RETURN_IF_ABORT("MID:_SP", "MID", 20, target);
 	int i = 0;
 	int ramping = 0;
+	double holdTarget = 0;
+	double targetRbv = 0;
+	
+	double tolerance = unitConversion(std::stod(envVarMap.at("MID_TOLERANCE")), "AMPS", envVarMap.at("WRITE_UNIT"));
+	
 	do
 	{
 		putDb("START:_SP", &trueVal);
+		
+		int is_zf = 0;
+		getDb("IS_ZF", is_zf);
+		
+		epicsThreadSleep(1);  // Give readbacks chance to update
 		getDb("RAMP:RAMPING", ramping);
 		getDb("OUTPUT:RAW", output);
-		epicsThreadSleep(1);
+		getDb("RAMP:HOLD:TARGET", holdTarget);
+		getDb("MID", targetRbv);
+
 		i++;
 		if (i >= 20)
 		{
@@ -1600,7 +1619,11 @@ void CRYOSMSDriver::startRamping(double rate, double target, int sign, RampType 
 			holding = false;
 			return;
 		}
-	} while (ramping == 0 && abs(target - abs(output)) > unitConversion(std::stod(envVarMap.at("MID_TOLERANCE")), "AMPS", envVarMap.at("WRITE_UNIT")));
+	} while (
+	    ramping == 0 
+		&& abs(target - abs(output)) > tolerance
+		&& abs(target - holdTarget) > tolerance
+	);
 	putDb("STAT", statMsg);
 	atTarget = false;
 }
@@ -1611,11 +1634,23 @@ void CRYOSMSDriver::abortRamp()
  * unpauses the device and sets the user-facing pause value to unpaused.
  */
 {
+	errlogSevPrintf(errlogMajor, "Aborting ramp.\n");
 	std::deque<eventVariant> emptyQueue;
 	std::swap(eventQueue, emptyQueue);
 	eventQueue.push_back(targetReachedEvent( this ));
 	int trueVal = 1;
 	int falseVal = 0;
+	
+	int is_zf = 0;
+	getDb("IS_ZF", is_zf);
+	if (is_zf) {
+		// In ZF mode, do not send device it's readback as a setpoint.
+		// This is undesirable for zf as readback != setpoint due to some offsets in PSU.
+		errlogSevPrintf(errlogMajor, "ZF mode; abort exiting early.\n");
+		queuePaused = false;
+	    RETURN_IF_ABORT("PAUSE:_SP", "PAUSE", 20, falseVal);
+		return;
+	}
 
 	RETURN_IF_ABORT("PAUSE:_SP", "PAUSE", 20, trueVal);
 
@@ -1656,6 +1691,7 @@ void CRYOSMSDriver::checkReady()
 */
 {
 	const char *statMsg;
+	int falseVal = 0;
 	int trueVal = 1;
 
 	if (!envVarMap.at("CRYOMAGNET").compare("Yes") && !holding && atTarget)
@@ -1687,6 +1723,7 @@ void CRYOSMSDriver::checkReady()
 		statMsg = "Ready";
 		putDb("STAT", statMsg);
 		ready = true;
+		putDb("IS_ZF", &falseVal);
 		putDb("READY", &trueVal);
 	}
 }
@@ -1696,10 +1733,13 @@ void CRYOSMSDriver::reachTarget()
 	double target;
 	double finalTarget;
 	int magMode;
+	
+	int is_zf = 0;
 
 	getDb("MID:_SP", target);
 	getDb("TARGET", finalTarget);
 	getDb("PERSIST", magMode);
+	getDb("IS_ZF", is_zf);
 
 	//Remember that TARGET:SP is user facing, so in display unit
 	finalTarget = unitConversion(finalTarget, envVarMap.at("DISPLAY_UNIT"), envVarMap.at("WRITE_UNIT"));
@@ -1709,7 +1749,10 @@ void CRYOSMSDriver::reachTarget()
 	{
 		double settleTime;
 
-		if (magMode == 1 && fastRamp == true)
+		if (is_zf) {
+			settleTime = 0.0;
+		}
+		else if (magMode == 1 && fastRamp == true)
 		{
 			settleTime = std::stod(envVarMap.at("FAST_PERSISTENT_SETTLETIME"));
 		}
@@ -1722,6 +1765,11 @@ void CRYOSMSDriver::reachTarget()
 		time_t endTimeSettle = timeNow + settleTime;
 
 		double holdTime = (finalTarget == 0) ? std::stod(envVarMap.at("HOLD_TIME_ZERO")) : std::stod(envVarMap.at("HOLD_TIME"));
+		
+		if (is_zf) {
+			holdTime = 0.0;
+		}
+		
 		time(&timeNow);
 		time_t endTimeHold = timeNow + holdTime;
 
