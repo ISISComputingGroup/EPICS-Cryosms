@@ -727,7 +727,8 @@ record(calc, "$(P)TARGET:TIME")
 {
     field(DESC, "Time it will take to get to target")
     field(SCAN, "1 second")
-    field(CALC, "VAL>0?VAL:0")
+    field(VAL, "0")
+    field(CALC, "VAL>0?VAL-1:0")
 }
 record(calc, "$(P)TARGET:TIME:RAMP")
 {
